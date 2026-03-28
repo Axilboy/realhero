@@ -20,8 +20,8 @@ npm run dev
 | Метод | Путь | Описание |
 |--------|------|-----------|
 | GET | `/health` | Проверка живости |
-| POST | `/api/v1/auth/register` | Тело: `{ "email", "password" }`, пароль ≥ 8 символов |
-| POST | `/api/v1/auth/login` | То же |
+| POST | `/api/v1/auth/register` | Тело: `{ "email", "password" }`, пароль ≥ 8 символов. Ответ: `user` и **`token`** (JWT; дублирует cookie, если прокси режет `Set-Cookie`) |
+| POST | `/api/v1/auth/login` | То же, в ответе **`token`** |
 | POST | `/api/v1/auth/logout` | Сброс cookie-сессии |
 | GET | `/api/v1/me` | Текущий пользователь (cookie `rh_session`) |
 

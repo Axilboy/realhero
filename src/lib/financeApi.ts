@@ -1,3 +1,5 @@
+import { getRhAccessToken } from "./authToken";
+
 export type CategoryType = "EXPENSE" | "INCOME" | "BOTH";
 export type TransactionKind = "EXPENSE" | "INCOME";
 export type AccountType = "CARD" | "CASH" | "BANK" | "OTHER";
@@ -67,11 +69,13 @@ async function financeFetch(
 ): Promise<Response> {
   const url = resolveApiUrl(path);
   const hasBody = init?.body != null;
+  const bearer = getRhAccessToken();
   const merged: RequestInit = {
     ...init,
     credentials: "include",
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
       ...(init?.headers ?? {}),
     },
   };

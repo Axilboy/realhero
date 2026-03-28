@@ -59,6 +59,7 @@ async function main() {
   await app.register(cors, {
     origin: parseCorsOrigins(),
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
   await app.register(jwt, {
     secret: process.env.JWT_SECRET ?? "dev-only-change-me-in-env",
@@ -109,6 +110,7 @@ async function main() {
 
     return reply.status(201).send({
       user: { id: user.id, email: user.email },
+      token,
     });
   });
 
@@ -136,7 +138,7 @@ async function main() {
     );
     reply.setCookie("rh_session", token, sessionCookieOptions());
 
-    return { user: { id: user.id, email: user.email } };
+    return { user: { id: user.id, email: user.email }, token };
   });
 
   app.post("/api/v1/auth/logout", async (_request, reply) => {

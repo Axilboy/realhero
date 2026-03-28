@@ -6,10 +6,12 @@ import { HealthPage } from "./pages/HealthPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { QuestsPage } from "./pages/QuestsPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
+import { LoginPage } from "./pages/LoginPage";
 
 export default function App() {
   return (
     <Routes>
+      <Route path="login" element={<LoginPage />} />
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="changelog" element={<ChangelogPage />} />

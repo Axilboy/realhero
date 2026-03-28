@@ -12,8 +12,11 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^10.0.0",
     "@prisma/client": "^6.5.0",
+    "arctic": "^3.7.0",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1"
   },

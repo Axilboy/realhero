@@ -22,7 +22,16 @@ npm run dev
 
 ## Переменные окружения
 
-См. `.env.example`: `PORT`, `DATABASE_URL`, `CORS_ORIGINS` (добавьте origin веба и при необходимости домены туннеля / продакшена).
+См. `.env.example`: `PORT`, `DATABASE_URL`, `CORS_ORIGINS`, `FRONTEND_URL`, `JWT_SECRET`, ключи **Google / Яндекс / VK** и **redirect URI** для каждого провайдера.
+
+### Вход через OAuth (Google, Яндекс, VK)
+
+1. Зарегистрируйте приложение у провайдера и укажите **redirect URI** ровно как в `.env` (в dev с Vite: `http://localhost:5173/api/v1/auth/<google|yandex|vk>/callback` — запросы идут на фронт-порт, **прокси** `vite.config.ts` пересылает `/api` на API).
+2. В проде: один домен для SPA и `location /api/` в nginx на тот же Node; redirect URI: `https://ваш-домен/api/v1/auth/.../callback`.
+3. Эндпоинты: `GET /api/v1/auth/{google|yandex|vk}` → редирект на провайдера; callback выставляет httpOnly cookie `rh_session` (JWT) и редирект на `FRONTEND_URL/`.
+4. Сессия: `GET /api/v1/me`, выход: `POST /api/v1/auth/logout` (с `credentials: include` с фронта).
+
+**Apple:** технически возможно (отдельный ключ `.p8` в Apple Developer); в коде пока не подключено.
 
 ## PostgreSQL (прод)
 

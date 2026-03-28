@@ -1,6 +1,6 @@
 # Real Hero — веб-клиент
 
-Версия веб-клиента: **`package.json` → `version`** (сейчас **0.3.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
+Версия веб-клиента: **`package.json` → `version`** (сейчас **0.4.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
 
 **Бэкенд (общий для веба, Telegram и будущих приложений):** каталог **`api/`** — см. `api/README.md` и **`docs/ARCHITECTURE.md`**.
 
@@ -10,6 +10,8 @@
 npm install
 npm run dev
 ```
+
+В другом терминале поднимите API (`cd api && npm run dev`). Запросы с фронта на **`/api/...`** в dev проксируются на `http://127.0.0.1:3000` — так же должен быть настроен **redirect URI** OAuth (см. `api/.env.example`). Для отдельного origin API задайте **`VITE_API_URL`** (полный URL без слэша в конце).
 
 Сборка: `npm run build`, предпросмотр: `npm run preview`.
 
@@ -41,6 +43,7 @@ bash /PROGS/RH/web-app/scripts/server-pull-deploy.sh
 | `/quests` | Квесты (заглушка) |
 | `/kanban` | Канбан (заглушка) |
 | `/changelog` | История изменений |
+| `/login` | Вход (Google, Яндекс, VK) |
 
 С главного экрана: свайп **влево** — финансы, **вправо** — здоровье, **вверх** — канбан, **вниз** — квесты.
 

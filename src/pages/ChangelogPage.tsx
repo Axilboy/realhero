@@ -6,6 +6,15 @@ type Entry = { version: string; date: string; items: string[] };
 /** Синхронизируйте с package.json и CHANGELOG.md при каждом релизе. */
 const ENTRIES: Entry[] = [
   {
+    version: "0.4.0",
+    date: "2026-03-28",
+    items: [
+      "Вход через Google, Яндекс, VK: экран /login и OAuth через общий API.",
+      "Сессия: cookie rh_session, GET /api/v1/me, выход из шапки.",
+      "Прокси Vite /api → localhost:3000 для локальной разработки.",
+    ],
+  },
+  {
     version: "0.3.0",
     date: "2026-03-28",
     items: [

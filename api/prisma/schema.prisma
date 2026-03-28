@@ -1,5 +1,4 @@
-// Единая БД для веба, Telegram Mini App и будущих Android/iOS (через тот же API).
-// Для продакшена рекомендуется PostgreSQL: смените provider и DATABASE_URL.
+// Единая БД для веба и будущих мобильных клиентов (тот же API).
 
 generator client {
   provider = "prisma-client-js"
@@ -11,10 +10,22 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  /// Telegram user id (строка, чтобы не упираться в int64 в разных клиентах)
-  telegramId  String?  @unique
+  id          String          @id @default(uuid())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  email       String?         @unique
   displayName String?
+  accounts    OAuthAccount[]
+}
+
+/// Привязка к Google / Яндекс / VK / Apple (один пользователь — несколько провайдеров).
+model OAuthAccount {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider           String
+  providerAccountId  String
+  createdAt          DateTime @default(now())
+
+  @@unique([provider, providerAccountId])
 }

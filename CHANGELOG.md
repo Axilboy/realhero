@@ -3,6 +3,15 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).  
 **Единый номер версии** веб-клиента: поле `version` в `package.json` (его же подхватывает UI и `src/version.ts`).
 
+## [0.4.0] — 2026-03-28
+
+### Добавлено
+
+- Страница **`/login`**: вход через Google, Яндекс, VK (редирект на API OAuth).
+- **`SessionProvider`** / **`useSession`**: `GET /api/v1/me`, выход через `POST /api/v1/auth/logout` (cookie `rh_session`).
+- Верхняя панель: ссылки «Войти» / имя и «Выйти».
+- Vite **proxy** `/api` → `http://127.0.0.1:3000` для локальной разработки (один origin с callback OAuth).
+
 ## [0.3.0] — 2026-03-28
 
 ### Добавлено

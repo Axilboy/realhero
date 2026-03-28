@@ -7,6 +7,7 @@ import Fastify from "fastify";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { authPreHandler } from "./authHook.js";
 import { prisma } from "./db.js";
+import { seedUserDefaultAccount } from "./lib/seedUserAccounts.js";
 import { seedUserCategories } from "./lib/seedUserCategories.js";
 import { financePlugin } from "./routes/finance.js";
 
@@ -91,6 +92,7 @@ async function main() {
     });
 
     await seedUserCategories(prisma, user.id);
+    await seedUserDefaultAccount(prisma, user.id);
 
     const token = await reply.jwtSign(
       { sub: user.id },

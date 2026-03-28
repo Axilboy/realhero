@@ -1,5 +1,7 @@
 export type CategoryType = "EXPENSE" | "INCOME" | "BOTH";
 export type TransactionKind = "EXPENSE" | "INCOME";
+export type AccountType = "CARD" | "CASH" | "BANK" | "OTHER";
+export type InvestmentAssetKind = "STOCK" | "BOND" | "FUND" | "CRYPTO" | "OTHER";
 
 export type Category = {
   id: string;
@@ -10,6 +12,20 @@ export type Category = {
   sortOrder: number;
 };
 
+export type AccountRow = {
+  id: string;
+  name: string;
+  type: AccountType;
+  sortOrder: number;
+  balanceMinor: number;
+};
+
+export type TransactionAccount = {
+  id: string;
+  name: string;
+  type: AccountType;
+} | null;
+
 export type TransactionRow = {
   id: string;
   kind: TransactionKind;
@@ -17,6 +33,18 @@ export type TransactionRow = {
   note: string | null;
   occurredAt: string;
   category: Category;
+  account: TransactionAccount;
+};
+
+export type InvestmentHoldingRow = {
+  id: string;
+  name: string;
+  assetKind: InvestmentAssetKind;
+  units: number;
+  pricePerUnitMinor: number;
+  valueMinor: number;
+  note: string | null;
+  updatedAt: string;
 };
 
 async function json<T>(
@@ -33,6 +61,64 @@ async function json<T>(
   });
   const data = (await res.json().catch(() => ({}))) as T;
   return { ok: res.ok, status: res.status, data };
+}
+
+export async function fetchAccounts() {
+  return json<{
+    accounts: AccountRow[];
+    investmentsTotalMinor: number;
+  }>("/api/v1/finance/accounts");
+}
+
+export async function createAccount(name: string, type: AccountType) {
+  return json<{ account: Omit<AccountRow, "balanceMinor"> }>(
+    "/api/v1/finance/accounts",
+    {
+      method: "POST",
+      body: JSON.stringify({ name, type }),
+    },
+  );
+}
+
+export async function deleteAccount(id: string) {
+  return json<{ ok: boolean }>(`/api/v1/finance/accounts/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchInvestOverview() {
+  return json<{
+    totalValueMinor: number;
+    holdings: InvestmentHoldingRow[];
+    metrics: {
+      per1000DayMinor: number | null;
+      per1000MonthMinor: number | null;
+      per1000YearMinor: number | null;
+      note: string;
+    };
+  }>("/api/v1/finance/investments/overview");
+}
+
+export async function createHolding(payload: {
+  name: string;
+  assetKind: InvestmentAssetKind;
+  units: number;
+  pricePerUnitRub: number;
+  note?: string;
+}) {
+  return json<{ holding: InvestmentHoldingRow }>(
+    "/api/v1/finance/investments/holdings",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteHolding(id: string) {
+  return json<{ ok: boolean }>(`/api/v1/finance/investments/holdings/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchCategories(includeArchived = false) {
@@ -66,6 +152,16 @@ export async function fetchSummary(monthYm: string) {
   }>(`/api/v1/finance/summary?month=${encodeURIComponent(monthYm)}`);
 }
 
+export async function fetchSummaryByCategory(monthYm: string) {
+  return json<{
+    month: string;
+    expenses: { categoryId: string; categoryName: string; amountMinor: number }[];
+    incomes: { categoryId: string; categoryName: string; amountMinor: number }[];
+  }>(
+    `/api/v1/finance/summary/by-category?month=${encodeURIComponent(monthYm)}`,
+  );
+}
+
 export async function fetchTransactions(from?: string, to?: string) {
   const p =
     from && to
@@ -77,6 +173,7 @@ export async function fetchTransactions(from?: string, to?: string) {
 }
 
 export async function createTransaction(payload: {
+  accountId?: string;
   categoryId: string;
   kind: TransactionKind;
   amountRub: number;

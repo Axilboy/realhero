@@ -66,7 +66,11 @@ export default function AppShell() {
         {TABS.map(({ id, Screen }) => (
           <section
             key={id}
-            className="shell__slide"
+            className={
+              id === "finance"
+                ? "shell__slide shell__slide--finance"
+                : "shell__slide"
+            }
             aria-label={id}
             id={`panel-${id}`}
           >

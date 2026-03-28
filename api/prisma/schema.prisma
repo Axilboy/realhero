@@ -18,13 +18,43 @@ enum TransactionKind {
   INCOME
 }
 
+enum AccountType {
+  CARD
+  CASH
+  BANK
+  OTHER
+}
+
+enum InvestmentAssetKind {
+  STOCK
+  BOND
+  FUND
+  CRYPTO
+  OTHER
+}
+
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
+  id           String               @id @default(uuid())
+  email        String               @unique
   passwordHash String
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime             @default(now())
   categories   Category[]
   transactions Transaction[]
+  accounts     Account[]
+  investments  InvestmentPosition[]
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  type         AccountType
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+
+  @@index([userId])
 }
 
 model Category {
@@ -46,6 +76,8 @@ model Transaction {
   id          String           @id @default(uuid())
   userId      String
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String?
+  account     Account?         @relation(fields: [accountId], references: [id], onDelete: Restrict)
   categoryId  String
   category    Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   kind        TransactionKind
@@ -55,4 +87,20 @@ model Transaction {
   createdAt   DateTime         @default(now())
 
   @@index([userId, occurredAt])
+  @@index([accountId])
+}
+
+model InvestmentPosition {
+  id                String              @id @default(uuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  assetKind         InvestmentAssetKind
+  units             Float
+  pricePerUnitMinor Int
+  note              String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([userId])
 }

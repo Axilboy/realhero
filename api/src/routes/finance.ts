@@ -1,11 +1,14 @@
 import {
+  type AccountType,
   type CategoryType,
+  type InvestmentAssetKind,
   type Prisma,
   type TransactionKind,
 } from "@prisma/client";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { authPreHandler, getUserId } from "../authHook.js";
 import { prisma } from "../db.js";
+import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
 
 function categoryAllowsKind(type: CategoryType, kind: TransactionKind): boolean {
@@ -30,8 +33,340 @@ function toMinor(amountRub: unknown): number | null {
   return Math.round(amountRub * 100);
 }
 
+function holdingValueMinor(units: number, pricePerUnitMinor: number): number {
+  return Math.round(units * pricePerUnitMinor);
+}
+
+async function resolveAccountId(
+  userId: string,
+  bodyAccountId: string | undefined,
+  reply: FastifyReply,
+): Promise<string | undefined> {
+  await ensureUserHasAccounts(prisma, userId);
+  if (bodyAccountId) {
+    const a = await prisma.account.findFirst({
+      where: { id: bodyAccountId, userId },
+    });
+    if (!a) {
+      reply.status(400).send({ error: { message: "Счёт не найден" } });
+      return undefined;
+    }
+    return a.id;
+  }
+  const first = await prisma.account.findFirst({
+    where: { userId },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+  });
+  if (!first) {
+    reply.status(500).send({ error: { message: "Нет счёта" } });
+    return undefined;
+  }
+  return first.id;
+}
+
+async function accountBalancesMap(userId: string): Promise<Map<string, number>> {
+  const agg = await prisma.transaction.groupBy({
+    by: ["accountId", "kind"],
+    where: { userId, accountId: { not: null } },
+    _sum: { amountMinor: true },
+  });
+  const m = new Map<string, number>();
+  for (const r of agg) {
+    const id = r.accountId as string;
+    const add = r.kind === "INCOME" ? (r._sum.amountMinor ?? 0) : -(r._sum.amountMinor ?? 0);
+    m.set(id, (m.get(id) ?? 0) + add);
+  }
+  return m;
+}
+
+async function investmentsTotalMinor(userId: string): Promise<number> {
+  const rows = await prisma.investmentPosition.findMany({
+    where: { userId },
+    select: { units: true, pricePerUnitMinor: true },
+  });
+  let t = 0;
+  for (const r of rows) {
+    t += holdingValueMinor(r.units, r.pricePerUnitMinor);
+  }
+  return t;
+}
+
 export const financePlugin: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", authPreHandler);
+
+  app.get("/accounts", async (request) => {
+    const userId = getUserId(request);
+    await ensureUserHasAccounts(prisma, userId);
+    const accounts = await prisma.account.findMany({
+      where: { userId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
+    const bal = await accountBalancesMap(userId);
+    const inv = await investmentsTotalMinor(userId);
+    return {
+      accounts: accounts.map((a) => ({
+        ...a,
+        balanceMinor: bal.get(a.id) ?? 0,
+      })),
+      investmentsTotalMinor: inv,
+    };
+  });
+
+  app.post("/accounts", async (request, reply) => {
+    const userId = getUserId(request);
+    await ensureUserHasAccounts(prisma, userId);
+    const body = request.body as { name?: string; type?: AccountType };
+    const name = body.name?.trim() ?? "";
+    if (!name || name.length > 80) {
+      return reply.status(400).send({
+        error: { message: "Название счёта 1–80 символов" },
+      });
+    }
+    const t = body.type;
+    if (t !== "CARD" && t !== "CASH" && t !== "BANK" && t !== "OTHER") {
+      return reply.status(400).send({
+        error: { message: "Тип: CARD, CASH, BANK или OTHER" },
+      });
+    }
+    const maxSort = await prisma.account.aggregate({
+      where: { userId },
+      _max: { sortOrder: true },
+    });
+    const sortOrder = (maxSort._max.sortOrder ?? -1) + 1;
+    const acc = await prisma.account.create({
+      data: { userId, name, type: t, sortOrder },
+    });
+    return reply.status(201).send({ account: acc });
+  });
+
+  app.patch("/accounts/:id", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const body = request.body as { name?: string; sortOrder?: number };
+    const existing = await prisma.account.findFirst({ where: { id, userId } });
+    if (!existing) {
+      return reply.status(404).send({ error: { message: "Счёт не найден" } });
+    }
+    if (body.name !== undefined) {
+      const name = body.name.trim();
+      if (!name || name.length > 80) {
+        return reply.status(400).send({
+          error: { message: "Название 1–80 символов" },
+        });
+      }
+    }
+    const updated = await prisma.account.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined ? { name: body.name.trim() } : {}),
+        ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
+      },
+    });
+    return { account: updated };
+  });
+
+  app.delete("/accounts/:id", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const existing = await prisma.account.findFirst({ where: { id, userId } });
+    if (!existing) {
+      return reply.status(404).send({ error: { message: "Счёт не найден" } });
+    }
+    const cnt = await prisma.transaction.count({
+      where: { userId, accountId: id },
+    });
+    if (cnt > 0) {
+      return reply.status(400).send({
+        error: {
+          message: `Нельзя удалить счёт с операциями (${cnt}). Сначала удалите или перенесите операции.`,
+        },
+      });
+    }
+    await prisma.account.delete({ where: { id } });
+    return { ok: true };
+  });
+
+  app.get("/investments/overview", async (request) => {
+    const userId = getUserId(request);
+    const holdings = await prisma.investmentPosition.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+    });
+    let total = 0;
+    const list = holdings.map((h) => {
+      const valueMinor = holdingValueMinor(h.units, h.pricePerUnitMinor);
+      total += valueMinor;
+      return {
+        id: h.id,
+        name: h.name,
+        assetKind: h.assetKind,
+        units: h.units,
+        pricePerUnitMinor: h.pricePerUnitMinor,
+        valueMinor,
+        note: h.note,
+        updatedAt: h.updatedAt.toISOString(),
+      };
+    });
+    return {
+      totalValueMinor: total,
+      holdings: list,
+      metrics: {
+        per1000DayMinor: null as number | null,
+        per1000MonthMinor: null as number | null,
+        per1000YearMinor: null as number | null,
+        note: "Доходность по дням/месяцам — после истории оценок портфеля",
+      },
+    };
+  });
+
+  app.post("/investments/holdings", async (request, reply) => {
+    const userId = getUserId(request);
+    const body = request.body as {
+      name?: string;
+      assetKind?: InvestmentAssetKind;
+      units?: number;
+      pricePerUnitRub?: number;
+      note?: string;
+    };
+    const name = body.name?.trim() ?? "";
+    if (!name || name.length > 120) {
+      return reply.status(400).send({
+        error: { message: "Название актива 1–120 символов" },
+      });
+    }
+    const k = body.assetKind;
+    if (
+      k !== "STOCK" &&
+      k !== "BOND" &&
+      k !== "FUND" &&
+      k !== "CRYPTO" &&
+      k !== "OTHER"
+    ) {
+      return reply.status(400).send({
+        error: { message: "assetKind: STOCK, BOND, FUND, CRYPTO, OTHER" },
+      });
+    }
+    const units = body.units;
+    if (typeof units !== "number" || !Number.isFinite(units) || units <= 0) {
+      return reply.status(400).send({
+        error: { message: "Количество (units) — положительное число" },
+      });
+    }
+    const ppm = toMinor(body.pricePerUnitRub);
+    if (ppm === null || ppm === 0) {
+      return reply.status(400).send({
+        error: { message: "Цена за единицу (₽) — положительное число" },
+      });
+    }
+    const note =
+      typeof body.note === "string" ? body.note.trim().slice(0, 500) : undefined;
+    const row = await prisma.investmentPosition.create({
+      data: {
+        userId,
+        name,
+        assetKind: k,
+        units,
+        pricePerUnitMinor: ppm,
+        note: note || null,
+      },
+    });
+    return reply.status(201).send({
+      holding: {
+        ...row,
+        valueMinor: holdingValueMinor(row.units, row.pricePerUnitMinor),
+      },
+    });
+  });
+
+  app.patch("/investments/holdings/:id", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const body = request.body as {
+      name?: string;
+      assetKind?: InvestmentAssetKind;
+      units?: number;
+      pricePerUnitRub?: number;
+      note?: string | null;
+    };
+    const existing = await prisma.investmentPosition.findFirst({
+      where: { id, userId },
+    });
+    if (!existing) {
+      return reply.status(404).send({ error: { message: "Позиция не найдена" } });
+    }
+    if (body.name !== undefined) {
+      const name = body.name.trim();
+      if (!name || name.length > 120) {
+        return reply.status(400).send({
+          error: { message: "Название 1–120 символов" },
+        });
+      }
+    }
+    if (body.assetKind !== undefined) {
+      const k = body.assetKind;
+      if (
+        k !== "STOCK" &&
+        k !== "BOND" &&
+        k !== "FUND" &&
+        k !== "CRYPTO" &&
+        k !== "OTHER"
+      ) {
+        return reply.status(400).send({ error: { message: "Недопустимый assetKind" } });
+      }
+    }
+    let units = existing.units;
+    if (body.units !== undefined) {
+      if (typeof body.units !== "number" || !Number.isFinite(body.units) || body.units <= 0) {
+        return reply.status(400).send({
+          error: { message: "Некорректное количество" },
+        });
+      }
+      units = body.units;
+    }
+    let pricePerUnitMinor = existing.pricePerUnitMinor;
+    if (body.pricePerUnitRub !== undefined) {
+      const ppm = toMinor(body.pricePerUnitRub);
+      if (ppm === null || ppm === 0) {
+        return reply.status(400).send({
+          error: { message: "Некорректная цена" },
+        });
+      }
+      pricePerUnitMinor = ppm;
+    }
+    let note = existing.note;
+    if (body.note !== undefined) {
+      note =
+        body.note === null || body.note === ""
+          ? null
+          : String(body.note).trim().slice(0, 500);
+    }
+    const row = await prisma.investmentPosition.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined ? { name: body.name.trim() } : {}),
+        ...(body.assetKind !== undefined ? { assetKind: body.assetKind } : {}),
+        units,
+        pricePerUnitMinor,
+        note,
+      },
+    });
+    return {
+      holding: {
+        ...row,
+        valueMinor: holdingValueMinor(row.units, row.pricePerUnitMinor),
+      },
+    };
+  });
+
+  app.delete("/investments/holdings/:id", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const res = await prisma.investmentPosition.deleteMany({ where: { id, userId } });
+    if (res.count === 0) {
+      return reply.status(404).send({ error: { message: "Не найдено" } });
+    }
+    return { ok: true };
+  });
 
   app.get("/categories", async (request) => {
     const userId = getUserId(request);
@@ -137,6 +472,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
   app.get("/transactions", async (request, reply) => {
     const userId = getUserId(request);
     await ensureUserHasCategories(prisma, userId);
+    await ensureUserHasAccounts(prisma, userId);
 
     const q = request.query as {
       from?: string;
@@ -169,7 +505,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
 
     const list = await prisma.transaction.findMany({
       where,
-      include: { category: true },
+      include: { category: true, account: true },
       orderBy: { occurredAt: "desc" },
       take: 200,
     });
@@ -181,6 +517,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     await ensureUserHasCategories(prisma, userId);
 
     const body = request.body as {
+      accountId?: string;
       categoryId?: string;
       kind?: TransactionKind;
       amountRub?: number;
@@ -208,6 +545,9 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         error: { message: "Укажите categoryId" },
       });
     }
+
+    const accountId = await resolveAccountId(userId, body.accountId, reply);
+    if (accountId === undefined) return;
 
     const cat = await prisma.category.findFirst({
       where: { id: categoryId, userId, isArchived: false },
@@ -241,13 +581,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const tx = await prisma.transaction.create({
       data: {
         userId,
+        accountId,
         categoryId,
         kind,
         amountMinor: minor,
         note: note || null,
         occurredAt,
       },
-      include: { category: true },
+      include: { category: true, account: true },
     });
     return reply.status(201).send({ transaction: tx });
   });
@@ -256,6 +597,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const userId = getUserId(request);
     const id = (request.params as { id: string }).id;
     const body = request.body as {
+      accountId?: string;
       categoryId?: string;
       kind?: TransactionKind;
       amountRub?: number;
@@ -294,6 +636,18 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       });
     }
 
+    let accountId = existing.accountId;
+    if (body.accountId !== undefined) {
+      await ensureUserHasAccounts(prisma, userId);
+      const a = await prisma.account.findFirst({
+        where: { id: body.accountId, userId },
+      });
+      if (!a) {
+        return reply.status(400).send({ error: { message: "Счёт не найден" } });
+      }
+      accountId = a.id;
+    }
+
     let amountMinor = existing.amountMinor;
     if (body.amountRub !== undefined) {
       const m = toMinor(body.amountRub);
@@ -327,13 +681,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const tx = await prisma.transaction.update({
       where: { id },
       data: {
+        accountId,
         categoryId,
         kind: nextKind,
         amountMinor,
         note,
         occurredAt,
       },
-      include: { category: true },
+      include: { category: true, account: true },
     });
     return { transaction: tx };
   });
@@ -383,6 +738,63 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       incomeMinor,
       expenseMinor,
       balanceMinor: incomeMinor - expenseMinor,
+    };
+  });
+
+  app.get("/summary/by-category", async (request, reply) => {
+    const userId = getUserId(request);
+    await ensureUserHasCategories(prisma, userId);
+    const q = request.query as { month?: string };
+    const ym = q.month ?? new Date().toISOString().slice(0, 7);
+    const range = parseMonth(ym);
+    if (!range) {
+      return reply.status(400).send({
+        error: { message: "month=YYYY-MM" },
+      });
+    }
+
+    const expenseRows = await prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: {
+        userId,
+        kind: "EXPENSE",
+        occurredAt: { gte: range.start, lt: range.end },
+      },
+      _sum: { amountMinor: true },
+    });
+    const incomeRows = await prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: {
+        userId,
+        kind: "INCOME",
+        occurredAt: { gte: range.start, lt: range.end },
+      },
+      _sum: { amountMinor: true },
+    });
+
+    const catIds = [
+      ...new Set([
+        ...expenseRows.map((r) => r.categoryId),
+        ...incomeRows.map((r) => r.categoryId),
+      ]),
+    ];
+    const cats = await prisma.category.findMany({
+      where: { id: { in: catIds }, userId },
+    });
+    const nameById = new Map(cats.map((c) => [c.id, c.name]));
+
+    return {
+      month: ym,
+      expenses: expenseRows.map((r) => ({
+        categoryId: r.categoryId,
+        categoryName: nameById.get(r.categoryId) ?? "—",
+        amountMinor: r._sum.amountMinor ?? 0,
+      })),
+      incomes: incomeRows.map((r) => ({
+        categoryId: r.categoryId,
+        categoryName: nameById.get(r.categoryId) ?? "—",
+        amountMinor: r._sum.amountMinor ?? 0,
+      })),
     };
   });
 };

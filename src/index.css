@@ -2,26 +2,130 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
-  font-family: system-ui, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   background: #0f1115;
   color: #e8eaed;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.app {
-  max-width: 40rem;
+/* —— Карусель —— */
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 32rem;
   margin: 0 auto;
-  padding: 2rem;
 }
 
-h1 {
+.shell__carousel {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shell__carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.shell__slide {
+  flex: 0 0 100%;
+  width: 100%;
+  min-height: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow-y: auto;
+  padding: 1.25rem 1.25rem 0.5rem;
+}
+
+/* —— Экраны-заглушки —— */
+.screen {
+  min-height: 100%;
+}
+
+.screen--hub .screen__badge {
+  color: #8ab4ff;
+}
+
+.screen__badge {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7c8088;
 }
 
-p {
-  line-height: 1.5;
+.screen__title {
+  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.screen__text {
+  margin: 0 0 1.25rem;
+  line-height: 1.55;
   color: #9aa0a6;
+  font-size: 0.95rem;
+}
+
+.screen__placeholder {
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #1a1d24 0%, #14171c 100%);
+  border: 1px solid #2a2f38;
+  color: #6d727b;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* —— Нижняя навигация —— */
+.shell__nav {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: #12151a;
+  border-top: 1px solid #252a33;
+}
+
+.shell__nav-btn {
+  flex: 1;
+  min-height: 44px;
+  padding: 0.35rem 0.2rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #8b9099;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.15;
+}
+
+.shell__nav-btn:hover {
+  color: #c4c7cc;
+  background: #1c2028;
+}
+
+.shell__nav-btn--active {
+  color: #e8eaed;
+  background: #252b36;
+}
+
+.shell__nav-btn:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
 }

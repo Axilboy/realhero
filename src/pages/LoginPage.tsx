@@ -35,6 +35,19 @@ export function LoginPage() {
     window.location.href = apiUrl(path);
   };
 
+  const devLogin = async () => {
+    try {
+      const r = await fetch(apiUrl("/api/v1/auth/dev-login"), {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) return;
+      window.location.href = "/";
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div className="login">
       <header className="login__header">
@@ -68,6 +81,18 @@ export function LoginPage() {
       <p className="login__note">
         Вход через Apple возможен отдельно: нужен Apple Developer и ключ .p8 — см. <code>api/README.md</code>.
       </p>
+
+      {import.meta.env.DEV ? (
+        <div className="login__dev">
+          <p className="login__dev-title">Только локальная разработка</p>
+          <p className="login__note">
+            В <code className="api-hint__code">api/.env</code> добавьте <code className="api-hint__code">DEV_RELAXED_AUTH=1</code> и перезапустите API — затем:
+          </p>
+          <button type="button" className="login__btn login__btn--google" onClick={() => void devLogin()}>
+            Войти как разработчик
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -115,6 +115,18 @@ body {
   text-decoration: underline;
 }
 
+.app-topbar__profile {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.app-topbar__profile:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .app-topbar__ver {
   font-size: 0.75rem;
   color: var(--muted);
@@ -226,6 +238,137 @@ body {
   font-size: 0.88em;
   color: var(--accent);
   word-break: break-all;
+}
+
+.login__dev {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--border);
+}
+
+.login__dev-title {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+}
+
+/* ——— Profile ——— */
+.profile {
+  flex: 1;
+  padding: 16px 18px 24px;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.profile__header {
+  margin-bottom: 20px;
+}
+
+.profile__back {
+  display: inline-block;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+
+.profile__back:hover {
+  text-decoration: underline;
+}
+
+.profile__title {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.profile__lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.profile__muted {
+  color: var(--muted);
+  padding: 24px 0;
+}
+
+.profile__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.profile__label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.profile__input {
+  font: inherit;
+  font-size: 1rem;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.profile__input--readonly {
+  opacity: 0.85;
+  cursor: default;
+}
+
+.profile__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 18px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.profile__check input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.profile__error {
+  color: var(--danger);
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+}
+
+.profile__ok {
+  color: var(--success);
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+}
+
+.profile__save {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: #1a2336;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.profile__save:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.profile__save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ——— Dashboard ——— */

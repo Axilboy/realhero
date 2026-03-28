@@ -14,6 +14,9 @@ export function AppLayout() {
           {!loading && user ? (
             <span className="app-topbar__user">
               <span className="app-topbar__user-name">{user.displayName ?? user.email ?? "Игрок"}</span>
+              <Link to="/profile" className="app-topbar__profile">
+                Профиль
+              </Link>
               <button type="button" className="app-topbar__logout" onClick={() => void logout()}>
                 Выйти
               </button>

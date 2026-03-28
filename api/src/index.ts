@@ -5,6 +5,7 @@ import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import { healthRoutes } from "./routes/health.js";
 import { metaRoutes } from "./routes/meta.js";
+import { authDevRoutes } from "./routes/authDev.js";
 import { oauthRoutes } from "./routes/oauth.js";
 import { sessionRoutes } from "./routes/session.js";
 
@@ -65,6 +66,7 @@ async function main() {
   await app.register(healthRoutes);
   await app.register(metaRoutes, { prefix: "/api/v1" });
   await app.register(oauthRoutes, { prefix: "/api/v1" });
+  await app.register(authDevRoutes, { prefix: "/api/v1" });
   await app.register(sessionRoutes, { prefix: "/api/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });

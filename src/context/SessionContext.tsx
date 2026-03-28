@@ -13,6 +13,7 @@ export type SessionUser = {
   id: string;
   email: string | null;
   displayName: string | null;
+  settings: Record<string, unknown> | null;
   createdAt: string;
 };
 

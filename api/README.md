@@ -19,6 +19,8 @@ npm run dev
 
 - `GET http://localhost:3000/health` → `{ "ok": true }`
 - `GET http://localhost:3000/api/v1/meta` → версия API и список целевых клиентов
+- `GET /api/v1/me`, `PATCH /api/v1/me` (cookie `rh_session`) — профиль и JSON-настройки пользователя
+- Локально при `DEV_RELAXED_AUTH=1` и не-production: `POST /api/v1/auth/dev-login` — тестовый пользователь без OAuth
 
 ## Переменные окружения
 

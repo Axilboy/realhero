@@ -8,6 +8,7 @@ import { QuestsPage } from "./pages/QuestsPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { ApiProxyHintPage } from "./pages/ApiProxyHintPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
       <Route path="api/*" element={<ApiProxyHintPage />} />
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="changelog" element={<ChangelogPage />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="health" element={<HealthPage />} />

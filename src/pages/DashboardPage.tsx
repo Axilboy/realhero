@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchDashboardSnapshot, type DashboardSnapshot } from "../api/mock";
+import { useSession } from "../context/SessionContext";
 import { useDashboardHomeSwipe } from "../hooks/useSwipeNavigate";
 
 export function DashboardPage() {
+  const { user } = useSession();
   const [data, setData] = useState<DashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const swipe = useDashboardHomeSwipe(true);
@@ -49,7 +51,11 @@ export function DashboardPage() {
       {data ? (
         <>
           <section className="dashboard__hero">
-            <h1 className="dashboard__greeting">{data.greeting}</h1>
+            <h1 className="dashboard__greeting">
+              {user?.displayName?.trim()
+                ? `Привет, ${user.displayName.trim()}!`
+                : data.greeting}
+            </h1>
             <div className="dashboard__level">
               <span className="dashboard__level-label">Уровень {data.level}</span>
               <div className="dashboard__expbar" role="progressbar" aria-valuenow={expPct} aria-valuemin={0} aria-valuemax={100}>

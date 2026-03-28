@@ -10,3 +10,13 @@ export function useSecureSessionCookie(request: FastifyRequest): boolean {
   if (o === "true" || o === "1") return true;
   return request.protocol === "https";
 }
+
+export function rhSessionCookieOptions(request: FastifyRequest) {
+  return {
+    path: "/",
+    httpOnly: true,
+    secure: useSecureSessionCookie(request),
+    sameSite: "lax" as const,
+    maxAge: 60 * 60 * 24 * 30,
+  };
+}

@@ -3,6 +3,16 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).  
 **Единый номер версии** веб-клиента: поле `version` в `package.json` (его же подхватывает UI и `src/version.ts`).
 
+## [0.5.0] — 2026-03-28
+
+### Добавлено
+
+- Экран **`/profile`**: имя для обращения, почта (только чтение), настройка «подсказки на главном» (`settings.dashboardHints` в БД).
+- API: **`PATCH /api/v1/me`** (обновление `displayName` и слияние `settings` JSON).
+- Поле **`User.settings`** в Prisma (SQLite dev).
+- Локально: **`POST /api/v1/auth/dev-login`** при **`DEV_RELAXED_AUTH=1`** и не-production — кнопка на `/login` только в Vite dev.
+- Дашборд: приветствие с **именем из профиля**, если пользователь вошёл.
+
 ## [0.4.0] — 2026-03-28
 
 ### Добавлено

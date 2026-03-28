@@ -14,7 +14,7 @@ import {
   encodeOAuthCookie,
 } from "../lib/oauthCookie.js";
 import { findOrCreateUserFromOAuth } from "../lib/oauthUser.js";
-import { useSecureSessionCookie } from "../lib/cookieSecure.js";
+import { rhSessionCookieOptions, useSecureSessionCookie } from "../lib/cookieSecure.js";
 
 function oauthStateCookieOpts(request: FastifyRequest) {
   const secure = useSecureSessionCookie(request);
@@ -24,17 +24,6 @@ function oauthStateCookieOpts(request: FastifyRequest) {
     secure,
     sameSite: "lax" as const,
     maxAge: OAUTH_COOKIE_MAX_AGE,
-  };
-}
-
-function sessionCookieOpts(request: FastifyRequest) {
-  const secure = useSecureSessionCookie(request);
-  return {
-    path: "/",
-    httpOnly: true,
-    secure,
-    sameSite: "lax" as const,
-    maxAge: 60 * 60 * 24 * 30,
   };
 }
 
@@ -159,7 +148,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
         displayName: p.displayName,
       });
       const token = await reply.jwtSign({ sub: user.id });
-      reply.setCookie("rh_session", token, sessionCookieOpts(request));
+      reply.setCookie("rh_session", token, rhSessionCookieOptions(request));
       return reply.redirect((process.env.FRONTEND_URL ?? "http://localhost:5173") + "/");
     } catch (e) {
       app.log.error(e);
@@ -208,7 +197,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
         displayName: p.displayName,
       });
       const token = await reply.jwtSign({ sub: user.id });
-      reply.setCookie("rh_session", token, sessionCookieOpts(request));
+      reply.setCookie("rh_session", token, rhSessionCookieOptions(request));
       return reply.redirect((process.env.FRONTEND_URL ?? "http://localhost:5173") + "/");
     } catch (e) {
       app.log.error(e);
@@ -258,7 +247,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
         displayName,
       });
       const token = await reply.jwtSign({ sub: user.id });
-      reply.setCookie("rh_session", token, sessionCookieOpts(request));
+      reply.setCookie("rh_session", token, rhSessionCookieOptions(request));
       return reply.redirect((process.env.FRONTEND_URL ?? "http://localhost:5173") + "/");
     } catch (e) {
       app.log.error(e);

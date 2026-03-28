@@ -6,6 +6,16 @@ type Entry = { version: string; date: string; items: string[] };
 /** Синхронизируйте с package.json и CHANGELOG.md при каждом релизе. */
 const ENTRIES: Entry[] = [
   {
+    version: "0.5.0",
+    date: "2026-03-28",
+    items: [
+      "Профиль /profile: имя, настройки (подсказки дашборда), PATCH /api/v1/me.",
+      "В БД у пользователя поле settings (JSON).",
+      "Dev-вход с Vite: api/.env → DEV_RELAXED_AUTH=1, кнопка на странице входа.",
+      "На главной — приветствие по имени из профиля, если есть сессия.",
+    ],
+  },
+  {
     version: "0.4.0",
     date: "2026-03-28",
     items: [

@@ -1,6 +1,6 @@
 # Real Hero — веб-клиент
 
-Версия веб-клиента: **`package.json` → `version`** (сейчас **0.4.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
+Версия веб-клиента: **`package.json` → `version`** (сейчас **0.5.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
 
 **Бэкенд (общий для веба, Telegram и будущих приложений):** каталог **`api/`** — см. `api/README.md` и **`docs/ARCHITECTURE.md`**.
 
@@ -44,6 +44,7 @@ bash /PROGS/RH/web-app/scripts/server-pull-deploy.sh
 | `/kanban` | Канбан (заглушка) |
 | `/changelog` | История изменений |
 | `/login` | Вход (Google, Яндекс, VK) |
+| `/profile` | Профиль и настройки (после входа) |
 
 С главного экрана: свайп **влево** — финансы, **вправо** — здоровье, **вверх** — канбан, **вниз** — квесты.
 
@@ -61,7 +62,7 @@ $env:RH_DEPLOY_PATH   = "/PROGS/RH/www"
 
 Скрипт собирает `dist`, упаковывает в архив, заливает в `/tmp` и распаковывает в `$RH_DEPLOY_PATH`.
 
-Для **nginx** используйте `try_files` для SPA **и** отдельный `location /api/` на Node (порт API) — иначе OAuth по туннелю/домену не заработает. Пример: `deploy/nginx-spa.example.conf`.
+Для **nginx** используйте `try_files` для SPA **и** отдельный `location /api/` на Node (порт API) — иначе OAuth по туннелю/домену не заработает. Готовый цельный конфиг: **`deploy/nginx-realhero.conf`**. Если порт 3000 занят Docker: **`bash deploy/free-port-3000-docker.sh`**. Старый короткий пример: `deploy/nginx-spa.example.conf`.
 
 Временный бесплатный **HTTPS** для Mini App (туннель или Vercel): см. `deploy/temporary-https.md`.
 

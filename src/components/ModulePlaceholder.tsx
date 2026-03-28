@@ -1,14 +1,18 @@
 import { Link } from "react-router-dom";
+import { useSwipeBackToHome, type SwipeModule } from "../hooks/useSwipeNavigate";
 
 type Props = {
   title: string;
   subtitle: string;
   directionHint: string;
+  swipeModule: SwipeModule;
 };
 
-export function ModulePlaceholder({ title, subtitle, directionHint }: Props) {
+export function ModulePlaceholder({ title, subtitle, directionHint, swipeModule }: Props) {
+  const swipe = useSwipeBackToHome(swipeModule, true);
+
   return (
-    <div className="module">
+    <div className="module module--swipe" {...swipe}>
       <header className="module__header">
         <Link to="/" className="module__back">
           ← Центр

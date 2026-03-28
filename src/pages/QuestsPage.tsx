@@ -5,7 +5,8 @@ export function QuestsPage() {
     <ModulePlaceholder
       title="Квесты и привычки"
       subtitle="Рутины, EXP, награды — позже."
-      directionHint="Открыто свайпом вниз с главного экрана или через нижнюю навигацию."
+      directionHint="Свайп вверх — вернуться на центр. Также «← Центр» или нижняя навигация."
+      swipeModule="quests"
     />
   );
 }

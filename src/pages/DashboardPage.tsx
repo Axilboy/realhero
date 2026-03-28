@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { fetchDashboardSnapshot, type DashboardSnapshot } from "../api/mock";
 import { useDashboardHomeSwipe } from "../hooks/useSwipeNavigate";
 
@@ -33,10 +34,11 @@ export function DashboardPage() {
       role="application"
       aria-label="Главный экран Real Hero. Свайп влево — финансы, вправо — здоровье, вверх — канбан, вниз — квесты."
     >
-      <header className="dashboard__brand">
-        <span className="dashboard__logo">Real Hero</span>
-        <span className="dashboard__ver">0.1</span>
-      </header>
+      <div className="dashboard__links">
+        <Link to="/changelog" className="dashboard__changelog-link">
+          История изменений
+        </Link>
+      </div>
 
       {error ? <p className="dashboard__error">{error}</p> : null}
 
@@ -83,13 +85,6 @@ export function DashboardPage() {
               ))}
             </ul>
           </section>
-
-          <aside className="dashboard__compass" aria-hidden="true">
-            <span className="dashboard__compass-item dashboard__compass-item--left">← Финансы</span>
-            <span className="dashboard__compass-item dashboard__compass-item--right">Здоровье →</span>
-            <span className="dashboard__compass-item dashboard__compass-item--up">Канбан ↑</span>
-            <span className="dashboard__compass-item dashboard__compass-item--down">↓ Квесты</span>
-          </aside>
         </>
       ) : null}
     </div>

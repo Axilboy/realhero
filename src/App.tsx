@@ -5,12 +5,14 @@ import { FinancePage } from "./pages/FinancePage";
 import { HealthPage } from "./pages/HealthPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { QuestsPage } from "./pages/QuestsPage";
+import { ChangelogPage } from "./pages/ChangelogPage";
 
 export default function App() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="changelog" element={<ChangelogPage />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="health" element={<HealthPage />} />
         <Route path="quests" element={<QuestsPage />} />

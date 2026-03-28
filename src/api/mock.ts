@@ -16,10 +16,7 @@ const snapshot: DashboardSnapshot = {
   expCurrent: 120,
   expToNext: 300,
   streakDays: 0,
-  highlights: [
-    "Центр — сводка дня и подсказки.",
-    "Свайпы с главного экрана открывают модули (v0.1).",
-  ],
+  highlights: ["Центр — сводка дня и краткие подсказки по прогрессу."],
   notifications: [
     { id: "1", text: "Версия 0.1: каркас без бэкенда.", tone: "info" },
     { id: "2", text: "Добавьте привычки и квесты в следующих релизах.", tone: "success" },

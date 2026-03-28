@@ -5,7 +5,8 @@ export function FinancePage() {
     <ModulePlaceholder
       title="Финансы"
       subtitle="Доходы, расходы, бюджеты — позже."
-      directionHint="Открыто свайпом влево с главного экрана или через нижнюю навигацию."
+      directionHint="Свайп вправо — вернуться на центр. Также «← Центр» или нижняя навигация."
+      swipeModule="finance"
     />
   );
 }

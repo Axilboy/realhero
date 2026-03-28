@@ -5,7 +5,8 @@ export function KanbanPage() {
     <ModulePlaceholder
       title="Канбан"
       subtitle="Доски в духе Trello — позже."
-      directionHint="Открыто свайпом вверх с главного экрана или через нижнюю навигацию."
+      directionHint="Свайп вниз — вернуться на центр. Также «← Центр» или нижняя навигация."
+      swipeModule="kanban"
     />
   );
 }

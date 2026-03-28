@@ -5,7 +5,8 @@ export function HealthPage() {
     <ModulePlaceholder
       title="Здоровье и фитнес"
       subtitle="Калории, тренировки, замеры — позже."
-      directionHint="Открыто свайпом вправо с главного экрана или через нижнюю навигацию."
+      directionHint="Свайп влево — вернуться на центр. Также «← Центр» или нижняя навигация."
+      swipeModule="health"
     />
   );
 }

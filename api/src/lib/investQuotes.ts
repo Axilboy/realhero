@@ -6,6 +6,8 @@ export type QuoteSearchHit = {
   name: string;
   symbol: string;
   assetKind: InvestmentAssetKind;
+  /** Для котировки MOEX: где искать цену. */
+  moexMarket?: "shares" | "bonds";
 };
 
 const UA = "RealHeroFinance/1.0";
@@ -50,6 +52,58 @@ function issRows(
   });
 }
 
+function moexRowAssetKindAndMarket(
+  r: Record<string, unknown>,
+): { assetKind: InvestmentAssetKind; moexMarket: "shares" | "bonds" } {
+  const t = String(
+    r.type ?? r.typename ?? r.instrtype ?? r.grouptype ?? "",
+  ).toLowerCase();
+  const sn = String(r.shortname ?? r.name ?? "");
+  const bondHints =
+    t.includes("bond") ||
+    t.includes("облига") ||
+    t.includes("ofz") ||
+    t.includes("корп") ||
+    /\d{3}[Pp]-/.test(sn) ||
+    /\bофз\b/i.test(sn);
+  if (bondHints) return { assetKind: "BOND", moexMarket: "bonds" };
+  if (t.includes("share") || t.includes("акци")) {
+    return { assetKind: "STOCK", moexMarket: "shares" };
+  }
+  if (t.includes("pif") || t.includes("фонд") || t.includes("etf")) {
+    return { assetKind: "FUND", moexMarket: "shares" };
+  }
+  return { assetKind: "STOCK", moexMarket: "shares" };
+}
+
+function moexPickRow(
+  rows: Record<string, unknown>[],
+  sid: string,
+): Record<string, unknown> | undefined {
+  const u = sid.toUpperCase();
+  return rows.find((r) => String(r.secid ?? "").toUpperCase() === u) ?? rows[0];
+}
+
+function moexNumericPrice(pick: Record<string, unknown>): number | null {
+  const keys = [
+    "last",
+    "prevprice",
+    "currentprice",
+    "marketprice",
+    "marketprice2",
+    "waprice",
+    "close",
+    "legalcloseprice",
+  ];
+  for (const k of keys) {
+    const v = pick[k];
+    if (v == null || v === "") continue;
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 async function searchCoinGecko(q: string): Promise<QuoteSearchHit[]> {
   const j = await cached(`cg:search:${q}`, () =>
     getJson<{
@@ -81,15 +135,17 @@ async function searchMoex(q: string): Promise<QuoteSearchHit[]> {
   for (const r of rows) {
     const secid = r.secid;
     const sid = typeof secid === "string" ? secid.trim().toUpperCase() : "";
-    if (!sid || !/^[A-Z0-9-]+$/.test(sid)) continue;
+    if (!sid || !/^[A-Z0-9.-]{2,24}$/i.test(sid)) continue;
     const shortname = String(r.shortname ?? sid);
     const name = String(r.secname ?? r.name ?? shortname);
+    const { assetKind, moexMarket } = moexRowAssetKindAndMarket(r);
     out.push({
       source: "moex",
       externalId: sid,
       name: name.length > 120 ? name.slice(0, 117) + "…" : name,
       symbol: sid,
-      assetKind: "STOCK",
+      assetKind,
+      moexMarket,
     });
     if (out.length >= 10) break;
   }
@@ -157,59 +213,97 @@ async function priceCoinGeckoRub(
   return { priceRub: rub, asOf: null };
 }
 
+async function moexHistoryClose(
+  sid: string,
+  dateYmd: string,
+): Promise<{ num: number; note: string } | null> {
+  const enc = encodeURIComponent(sid);
+  const tryUrls = [
+    `https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+    `https://iss.moex.com/iss/history/engines/stock/markets/shares/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+    `https://iss.moex.com/iss/history/engines/stock/markets/bonds/boards/TQCB/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+    `https://iss.moex.com/iss/history/engines/stock/markets/bonds/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+  ];
+  for (const u of tryUrls) {
+    const j = await cached(`moex:hist:${sid}:${dateYmd}:${u}`, () =>
+      getJson<{ history?: { columns?: string[]; data?: unknown[][] } }>(u),
+    );
+    const rows = issRows(j.history);
+    if (!rows.length) continue;
+    const row =
+      rows.find((r) => {
+        const b = String(r.boardid ?? "").toUpperCase();
+        return b === "TQBR" || b === "TQCB" || b === "TQOB" || b === "TQOD";
+      }) ?? rows[0];
+    const num = moexNumericPrice(row);
+    if (num != null) {
+      return {
+        num,
+        note: "MOEX, цена закрытия (₽)",
+      };
+    }
+  }
+  return null;
+}
+
+async function moexCurrentPrice(
+  sid: string,
+  preferred: "shares" | "bonds" | "auto",
+): Promise<{ priceRub: number; note: string }> {
+  const order: ("shares" | "bonds")[] =
+    preferred === "auto"
+      ? ["shares", "bonds"]
+      : preferred === "bonds"
+        ? ["bonds", "shares"]
+        : ["shares", "bonds"];
+
+  let lastErr: Error | null = null;
+  for (const market of order) {
+    try {
+      const url = `https://iss.moex.com/iss/engines/stock/markets/${market}/securities/${encodeURIComponent(sid)}.json?iss.meta=off`;
+      const j = await cached(`moex:md:${market}:${sid}`, () =>
+        getJson<{ marketdata?: { columns?: string[]; data?: unknown[][] } }>(
+          url,
+        ),
+      );
+      const rows = issRows(j.marketdata);
+      const pick = moexPickRow(rows, sid);
+      if (!pick) continue;
+      const raw = moexNumericPrice(pick);
+      if (raw != null) {
+        const label = market === "bonds" ? "облигации" : "акции";
+        return {
+          priceRub: raw,
+          note: `MOEX (${label}), последняя или закрытие`,
+        };
+      }
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+  if (lastErr) throw lastErr;
+  throw new Error("no moex price");
+}
+
 async function priceMoexRub(
   secid: string,
   dateYmd: string | undefined,
+  preferredMarket: "shares" | "bonds" | "auto",
 ): Promise<{ priceRub: number; asOf: string | null; note?: string }> {
   const sid = secid.trim().toUpperCase();
-  if (!/^[A-Z0-9-]{1,20}$/.test(sid)) {
+  if (!/^[A-Z0-9.-]{2,24}$/i.test(sid)) {
     throw new Error("invalid moex secid");
   }
   if (dateYmd) {
-    const tryUrls = [
-      `https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/${encodeURIComponent(sid)}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
-      `https://iss.moex.com/iss/history/engines/stock/markets/shares/securities/${encodeURIComponent(sid)}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
-    ];
-    let rows: Record<string, unknown>[] = [];
-    for (const u of tryUrls) {
-      const j = await cached(`moex:hist:${sid}:${dateYmd}:${u}`, () =>
-        getJson<{ history?: { columns?: string[]; data?: unknown[][] } }>(u),
-      );
-      rows = issRows(j.history);
-      if (rows.length) break;
-    }
-    const row =
-      rows.find((r) => String(r.boardid ?? "").toUpperCase() === "TQBR") ??
-      rows[0];
-    if (!row) throw new Error("no history row");
-    const close = row.close ?? row.legalcloseprice ?? row.marketprice2;
-    const num = typeof close === "number" ? close : Number(close);
-    if (!Number.isFinite(num) || num <= 0) throw new Error("no close price");
-    return {
-      priceRub: num,
-      asOf: dateYmd,
-      note: "MOEX, цена закрытия (₽)",
-    };
+    const h = await moexHistoryClose(sid, dateYmd);
+    if (!h) throw new Error("no history price");
+    return { priceRub: h.num, asOf: dateYmd, note: h.note };
   }
-  const url = `https://iss.moex.com/iss/engines/stock/markets/shares/securities/${encodeURIComponent(sid)}.json?iss.meta=off`;
-  const j = await cached(`moex:md:${sid}`, () => getJson<{
-    marketdata?: { columns?: string[]; data?: unknown[][] };
-  }>(url));
-  const rows = issRows(j.marketdata);
-  const pick =
-    rows.find((r) => String(r.secid ?? "").toUpperCase() === sid) ?? rows[0];
-  if (!pick) throw new Error("no marketdata");
-  const last = pick.last;
-  const prev = pick.prevprice;
-  const raw =
-    last != null && Number(last) > 0 ? Number(last) : Number(prev);
-  if (!Number.isFinite(raw) || raw <= 0) {
-    throw new Error("no last price");
-  }
+  const cur = await moexCurrentPrice(sid, preferredMarket);
   return {
-    priceRub: raw,
+    priceRub: cur.priceRub,
     asOf: null,
-    note: "MOEX, последняя сделка или закрытие",
+    note: cur.note,
   };
 }
 
@@ -217,9 +311,11 @@ export async function fetchQuotePriceRub(
   source: "coingecko" | "moex",
   id: string,
   dateYmd?: string,
+  moexPreferredMarket?: "shares" | "bonds" | "auto",
 ): Promise<{ priceRub: number; asOf: string | null; note?: string }> {
   if (source === "coingecko") {
     return priceCoinGeckoRub(id, dateYmd);
   }
-  return priceMoexRub(id, dateYmd);
+  const pref = moexPreferredMarket ?? "auto";
+  return priceMoexRub(id, dateYmd, pref);
 }

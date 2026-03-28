@@ -213,6 +213,7 @@ export type QuoteSearchHit = {
   name: string;
   symbol: string;
   assetKind: InvestmentAssetKind;
+  moexMarket?: "shares" | "bonds";
 };
 
 export async function searchInvestQuotes(q: string) {
@@ -226,12 +227,17 @@ export async function fetchInvestQuotePrice(params: {
   source: "coingecko" | "moex";
   id: string;
   date?: string;
+  /** Порядок опроса рынков MOEX при котировке. */
+  moexMarket?: "shares" | "bonds" | "auto";
 }) {
   const sp = new URLSearchParams({
     source: params.source,
     id: params.id,
   });
   if (params.date) sp.set("date", params.date);
+  if (params.source === "moex" && params.moexMarket && params.moexMarket !== "auto") {
+    sp.set("moexMarket", params.moexMarket);
+  }
   return json<{
     priceRub: number;
     asOf: string | null;

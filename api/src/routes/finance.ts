@@ -326,7 +326,12 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/investments/quote-price", async (request, reply) => {
-    const q = request.query as { source?: string; id?: string; date?: string };
+    const q = request.query as {
+      source?: string;
+      id?: string;
+      date?: string;
+      moexMarket?: string;
+    };
     const source = q.source;
     const id = String(q.id ?? "").trim();
     if (source !== "coingecko" && source !== "moex") {
@@ -338,6 +343,16 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({
         error: { message: "Укажите id актива" },
       });
+    }
+    let moexPref: "shares" | "bonds" | "auto" = "auto";
+    if (source === "moex" && q.moexMarket !== undefined && q.moexMarket !== "") {
+      const m = q.moexMarket.trim().toLowerCase();
+      if (m === "shares" || m === "bonds") moexPref = m;
+      else if (m !== "auto") {
+        return reply.status(400).send({
+          error: { message: "moexMarket: shares, bonds или auto" },
+        });
+      }
     }
     let dateYmd: string | undefined;
     if (q.date !== undefined && q.date !== "") {
@@ -355,7 +370,12 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       dateYmd = q.date;
     }
     try {
-      const r = await fetchQuotePriceRub(source, id, dateYmd);
+      const r = await fetchQuotePriceRub(
+        source,
+        id,
+        dateYmd,
+        source === "moex" ? moexPref : undefined,
+      );
       return {
         priceRub: Math.round(r.priceRub * 100) / 100,
         asOf: r.asOf,

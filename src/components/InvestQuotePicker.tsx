@@ -77,10 +77,16 @@ export default function InvestQuotePicker({ onApply, disabled }: Props) {
     setPriceErr(null);
     setPriceRub(null);
     setPriceNote(null);
+    const moexMarket =
+      selected.source === "moex"
+        ? selected.moexMarket ??
+          (selected.assetKind === "BOND" ? "bonds" : "auto")
+        : undefined;
     const r = await fetchInvestQuotePrice({
       source: selected.source,
       id: selected.externalId,
       date: priceMode === "date" ? histDate : undefined,
+      moexMarket,
     });
     setPriceBusy(false);
     if (!r.ok) {
@@ -124,7 +130,7 @@ export default function InvestQuotePicker({ onApply, disabled }: Props) {
   return (
     <div className="finance-invquote">
       <p className="finance-invquote__hint">
-        Поиск: крипто (CoinGecko) и акции РФ (MOEX). Цены ориентировочные.
+        Поиск: крипто (CoinGecko), акции и облигации РФ (MOEX). Цены ориентировочные.
       </p>
       <div className="finance-invquote__search-wrap">
         <input
@@ -163,7 +169,14 @@ export default function InvestQuotePicker({ onApply, disabled }: Props) {
               >
                 <span className="finance-invquote__hit-name">{h.name}</span>
                 <span className="finance-invquote__hit-meta">
-                  {h.symbol} · {h.source === "moex" ? "акция РФ" : "крипто"}
+                  {h.symbol} ·{" "}
+                  {h.source === "moex"
+                    ? h.assetKind === "BOND"
+                      ? "облигация РФ"
+                      : h.assetKind === "FUND"
+                        ? "фонд РФ"
+                        : "акция РФ"
+                    : "крипто"}
                 </span>
               </button>
             ))}

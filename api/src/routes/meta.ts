@@ -6,10 +6,15 @@ import { readApiVersion } from "../lib/readApiVersion.js";
  * См. также GET /api/v1/openapi.json.
  */
 export const metaRoutes: FastifyPluginAsync = async (app) => {
-  app.get("/meta", async () => ({
-    name: "real-hero-api",
-    version: readApiVersion(),
-    apiPrefix: "/api/v1",
-    clients: ["web", "telegram_mini_app", "android", "ios"],
-  }));
+  app.get("/meta", async () => {
+    const v = process.env.RELAXED_AUTH?.toLowerCase();
+    const guestLogin = v === "1" || v === "true" || v === "yes";
+    return {
+      name: "real-hero-api",
+      version: readApiVersion(),
+      apiPrefix: "/api/v1",
+      clients: ["web", "telegram_mini_app", "android", "ios"],
+      guestLogin,
+    };
+  });
 };

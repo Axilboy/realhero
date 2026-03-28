@@ -26,45 +26,63 @@ type SessionState = {
 
 const SessionContext = createContext<SessionState | null>(null);
 
+async function loadSessionUser(signal?: AbortSignal): Promise<SessionUser | null> {
+  let r = await fetch(apiUrl("/api/v1/me"), { credentials: "include", signal });
+  if (r.ok) {
+    const data = (await r.json()) as { user: SessionUser };
+    return data.user;
+  }
+  if (r.status !== 401) return null;
+  let meta: { guestLogin?: boolean };
+  try {
+    const metaR = await fetch(apiUrl("/api/v1/meta"), { signal });
+    if (!metaR.ok) return null;
+    meta = (await metaR.json()) as { guestLogin?: boolean };
+  } catch {
+    return null;
+  }
+  if (!meta.guestLogin) return null;
+  const gl = await fetch(apiUrl("/api/v1/auth/guest-login"), {
+    method: "POST",
+    credentials: "include",
+    signal,
+  });
+  if (!gl.ok) return null;
+  r = await fetch(apiUrl("/api/v1/me"), { credentials: "include", signal });
+  if (!r.ok) return null;
+  const data = (await r.json()) as { user: SessionUser };
+  return data.user;
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch(apiUrl("/api/v1/me"), { credentials: "include" });
-      if (!r.ok) {
-        setUser(null);
-        return;
-      }
-      const data = (await r.json()) as { user: SessionUser };
-      setUser(data.user);
+      const u = await loadSessionUser();
+      setUser(u);
     } catch {
       setUser(null);
     }
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const ac = new AbortController();
     (async () => {
       setLoading(true);
       try {
-        const r = await fetch(apiUrl("/api/v1/me"), { credentials: "include" });
-        if (cancelled) return;
-        if (!r.ok) setUser(null);
-        else {
-          const data = (await r.json()) as { user: SessionUser };
-          setUser(data.user);
-        }
+        const u = await loadSessionUser(ac.signal);
+        if (ac.signal.aborted) return;
+        setUser(u);
       } catch {
-        if (!cancelled) setUser(null);
+        if (ac.signal.aborted) return;
+        setUser(null);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => ac.abort();
   }, []);
 
   const logout = useCallback(async () => {
@@ -73,6 +91,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       credentials: "include",
     });
     setUser(null);
+    try {
+      const u = await loadSessionUser();
+      setUser(u);
+    } catch {
+      setUser(null);
+    }
   }, []);
 
   const value = useMemo(

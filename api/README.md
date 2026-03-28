@@ -18,7 +18,7 @@ npm run dev
 ```
 
 - `GET http://localhost:3000/health` → `{ "ok": true }`
-- `GET http://localhost:3000/api/v1/meta` → версия API и список целевых клиентов
+- `GET http://localhost:3000/api/v1/meta` → версия API, список клиентов; поле **`guestLogin`** — включён ли гостевой вход (`RELAXED_AUTH`)
 - `GET /api/v1/me`, `PATCH /api/v1/me` (cookie `rh_session`) — профиль и JSON-настройки пользователя
 - `GET /api/v1/dashboard` — сводка дня (нужна сессия): уровень, EXP, стрик, highlights/notifications
 - `GET/POST /api/v1/quests`, `PATCH/DELETE /api/v1/quests/:id`, `POST .../complete` — квесты и награды
@@ -26,6 +26,7 @@ npm run dev
 - `GET/POST /api/v1/kanban/cards`, `PATCH/DELETE /api/v1/kanban/cards/:id` — колонки `todo` | `doing` | `done`
 - **`GET /api/v1/openapi.json`** — черновая OpenAPI 3.0 (описание маршрутов)
 - Локально при `DEV_RELAXED_AUTH=1` и не-production: `POST /api/v1/auth/dev-login` — тестовый пользователь без OAuth
+- При **`RELAXED_AUTH=1`**: `POST /api/v1/auth/guest-login` — один общий пользователь для всех; веб сам подхватывает сессию, если cookie ещё нет. **На проде отключайте**, когда понадобятся отдельные аккаунты и нормальный OAuth/Telegram.
 
 ## Переменные окружения
 

@@ -5,6 +5,7 @@ import {
   useState,
   type ComponentType,
 } from "react";
+import { useAuth } from "../auth/AuthContext";
 import HubScreen from "../screens/HubScreen";
 import FinanceScreen from "../screens/FinanceScreen";
 import BodyScreen from "../screens/BodyScreen";
@@ -20,6 +21,7 @@ const TABS: { id: string; label: string; Screen: ComponentType }[] = [
 ];
 
 export default function AppShell() {
+  const { user, logout } = useAuth();
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
 
@@ -48,6 +50,18 @@ export default function AppShell() {
 
   return (
     <div className="shell">
+      <header className="shell__bar">
+        <span className="shell__bar-email" title={user?.email}>
+          {user?.email}
+        </span>
+        <button
+          type="button"
+          className="shell__bar-logout"
+          onClick={() => void logout()}
+        >
+          Выйти
+        </button>
+      </header>
       <div className="shell__carousel" ref={trackRef}>
         {TABS.map(({ id, Screen }) => (
           <section

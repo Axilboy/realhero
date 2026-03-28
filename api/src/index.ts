@@ -19,14 +19,29 @@ function parseCorsOrigins(): string[] {
     .filter(Boolean);
 }
 
+function cookieDomain(): string | undefined {
+  const d = process.env.COOKIE_DOMAIN?.trim();
+  return d || undefined;
+}
+
 function sessionCookieOptions() {
+  const domain = cookieDomain();
   return {
     path: "/",
     httpOnly: true,
     sameSite: "lax" as const,
     maxAge: 60 * 60 * 24 * 30,
     secure: process.env.NODE_ENV === "production",
+    ...(domain ? { domain } : {}),
   };
+}
+
+function clearSessionCookie(reply: FastifyReply) {
+  const domain = cookieDomain();
+  reply.clearCookie("rh_session", {
+    path: "/",
+    ...(domain ? { domain } : {}),
+  });
 }
 
 async function main() {
@@ -116,7 +131,7 @@ async function main() {
   });
 
   app.post("/api/v1/auth/logout", async (_request, reply) => {
-    reply.clearCookie("rh_session", { path: "/" });
+    clearSessionCookie(reply);
     return { ok: true };
   });
 

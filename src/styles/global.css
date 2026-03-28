@@ -182,6 +182,39 @@ body {
   font-size: 0.9rem;
 }
 
+.login__telegram-block {
+  margin-bottom: 8px;
+}
+
+.login__telegram-label {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.login__tg-widget {
+  min-height: 44px;
+}
+
+.login__tg-widget iframe {
+  border-radius: var(--radius);
+}
+
+.login__oauth-divider {
+  margin: 18px 0 14px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.login__note--warn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: rgba(255, 200, 80, 0.06);
+}
+
 .login__buttons {
   display: flex;
   flex-direction: column;

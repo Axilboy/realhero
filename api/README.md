@@ -29,7 +29,15 @@ npm run dev
 
 ## Переменные окружения
 
-См. `.env.example`: `PORT`, `DATABASE_URL`, `CORS_ORIGINS`, `FRONTEND_URL`, `JWT_SECRET`, ключи **Google / Яндекс / VK** и **redirect URI** для каждого провайдера.
+См. `.env.example`: `PORT`, `DATABASE_URL`, `CORS_ORIGINS`, `FRONTEND_URL`, `JWT_SECRET`, **Telegram** (`TELEGRAM_BOT_TOKEN`), ключи **Google / Яндекс / VK** и **redirect URI** для каждого OAuth-провайдера.
+
+### Вход через Telegram (Login Widget)
+
+1. Создайте бота в @BotFather, скопируйте токен в `TELEGRAM_BOT_TOKEN`.
+2. Команда **`/setdomain`** — укажите домен страницы входа (тот же host, что у фронта в браузере).
+3. Callback виджета: **`GET /api/v1/auth/telegram`** с query-параметрами от Telegram. Локально с Vite: `http://localhost:5173/api/v1/auth/telegram` (прокси `/api` → API), чтобы cookie `rh_session` оставались на одном origin с SPA.
+4. Опционально `TELEGRAM_BOT_USERNAME` (без `@`) — иначе username подтянется один раз через `getMe`.
+5. Публично: `GET /api/v1/auth/telegram/widget-info` → `{ "botUsername": "..." | null }` для отрисовки виджета на `/login`.
 
 ### Вход через OAuth (Google, Яндекс, VK)
 

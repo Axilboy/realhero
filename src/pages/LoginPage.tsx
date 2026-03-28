@@ -1,9 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../config/api";
 import { useSession } from "../context/SessionContext";
 
+function absoluteAuthCallbackUrl(path: string): string {
+  const rel = apiUrl(path);
+  if (rel.startsWith("http")) return rel;
+  return new URL(rel, window.location.origin).href;
+}
+
 const ERRORS: Record<string, string> = {
+  telegram_not_configured: "Вход через Telegram на сервере не настроен (TELEGRAM_BOT_TOKEN).",
+  telegram_bad_request: "Telegram: неполные данные авторизации.",
+  telegram_invalid: "Telegram: подпись недействительна или сессия устарела. Попробуйте снова.",
+  telegram_failed: "Не удалось завершить вход через Telegram.",
   google_not_configured: "Вход через Google на сервере не настроен.",
   google_denied: "Google: доступ отклонён.",
   google_bad_request: "Ошибка запроса к Google.",
@@ -26,10 +36,45 @@ export function LoginPage() {
   const [params] = useSearchParams();
   const err = params.get("error");
   const { user, loading } = useSession();
+  const tgWidgetRef = useRef<HTMLDivElement>(null);
+  const [tgBotUsername, setTgBotUsername] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     if (!loading && user) navigate("/", { replace: true });
   }, [loading, user, navigate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(apiUrl("/api/v1/auth/telegram/widget-info"));
+        const j = (await r.json()) as { botUsername?: string | null };
+        if (!cancelled) setTgBotUsername(j.botUsername ?? null);
+      } catch {
+        if (!cancelled) setTgBotUsername(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!tgBotUsername || !tgWidgetRef.current) return;
+    const el = tgWidgetRef.current;
+    el.innerHTML = "";
+    const script = document.createElement("script");
+    script.src = "https://telegram.org/js/telegram-widget.js?22";
+    script.async = true;
+    script.setAttribute("data-telegram-login", tgBotUsername);
+    script.setAttribute("data-size", "large");
+    script.setAttribute("data-auth-url", absoluteAuthCallbackUrl("/api/v1/auth/telegram"));
+    script.setAttribute("data-request-access", "write");
+    el.appendChild(script);
+    return () => {
+      el.innerHTML = "";
+    };
+  }, [tgBotUsername]);
 
   const startOAuth = (path: string) => {
     window.location.href = apiUrl(path);
@@ -56,7 +101,7 @@ export function LoginPage() {
         </Link>
         <h1 className="login__title">Вход</h1>
         <p className="login__lead">
-          Без пароля: через аккаунт Google, Яндекс или VK. Почта подтянется из аккаунта провайдера.
+          Сейчас удобнее всего войти через Telegram. Также доступны Google, Яндекс и VK — почта подтянется у провайдера, у Telegram её нет.
         </p>
       </header>
 
@@ -65,6 +110,24 @@ export function LoginPage() {
           {ERRORS[err] ?? `Ошибка: ${err}`}
         </p>
       ) : null}
+
+      <div className="login__telegram-block">
+        <p className="login__telegram-label">Войти через Telegram</p>
+        {tgBotUsername === undefined ? (
+          <p className="login__note" style={{ marginTop: 0 }}>
+            Загрузка виджета…
+          </p>
+        ) : tgBotUsername ? (
+          <div ref={tgWidgetRef} className="login__tg-widget" />
+        ) : (
+          <p className="login__note login__note--warn" style={{ marginTop: 0 }}>
+            Укажите в <code className="api-hint__code">api/.env</code> переменную <code className="api-hint__code">TELEGRAM_BOT_TOKEN</code> и в @BotFather команду{" "}
+            <code className="api-hint__code">/setdomain</code> для домена страницы входа.
+          </p>
+        )}
+      </div>
+
+      <p className="login__oauth-divider">или</p>
 
       <div className="login__buttons">
         <button type="button" className="login__btn login__btn--google" onClick={() => startOAuth("/api/v1/auth/google")}>

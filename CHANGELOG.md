@@ -3,6 +3,14 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).  
 **Единый номер версии** веб-клиента: поле `version` в `package.json` (его же подхватывает UI и `src/version.ts`).
 
+## [0.3.0] — 2026-03-28
+
+### Добавлено
+
+- Каталог **`api/`** — HTTP API (Fastify + Prisma) для веба, Telegram и будущих Android/iOS; префикс `/api/v1`.
+- Модель **`User`** (заготовка под Telegram `telegramId`).
+- Документ **`docs/ARCHITECTURE.md`** и обновление паспорта проекта.
+
 ## [0.2.0] — 2026-03-28
 
 ### Добавлено

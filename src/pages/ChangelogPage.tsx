@@ -6,6 +6,16 @@ type Entry = { version: string; date: string; items: string[] };
 /** Синхронизируйте с package.json и CHANGELOG.md при каждом релизе. */
 const ENTRIES: Entry[] = [
   {
+    version: "0.3.0",
+    date: "2026-03-28",
+    items: [
+      "Инфраструктура API: папка api/ (Fastify + Prisma, SQLite в dev).",
+      "Эндпоинты /health и /api/v1/meta для проверки и версионирования контракта.",
+      "Документ docs/ARCHITECTURE.md: один бэкенд для веба, Telegram и нативных клиентов.",
+      "Обновлён паспорт проекта (версия паспорта 0.4).",
+    ],
+  },
+  {
     version: "0.2.0",
     date: "2026-03-28",
     items: [

@@ -1,6 +1,8 @@
 # Real Hero — веб-клиент
 
-Версия веб-клиента: **`package.json` → `version`** (сейчас **0.2.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
+Версия веб-клиента: **`package.json` → `version`** (сейчас **0.3.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
+
+**Бэкенд (общий для веба, Telegram и будущих приложений):** каталог **`api/`** — см. `api/README.md` и **`docs/ARCHITECTURE.md`**.
 
 ## Запуск
 

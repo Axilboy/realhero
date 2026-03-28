@@ -27,6 +27,8 @@ npm run dev
 
 ## Продакшен
 
+Полное обновление сайта на сервере (фронт + API + PM2) — из корня репозитория **`bash scripts/server-update.sh`**; если терминал уже в **`api/`** — **`bash update-all.sh`** (см. корневой **`README.md`**).
+
 - Задайте **`JWT_SECRET`**, **`NODE_ENV=production`**, **`CORS_ORIGINS`** с вашим `https://домен`.
 - БД: при росте можно перейти на PostgreSQL (смена `provider` в `schema.prisma`).
 - Запуск: `npm run build && npm start` под **pm2** или **systemd**; **nginx** проксирует `location /api/` на порт API (как раньше в проекте).

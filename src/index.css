@@ -1277,6 +1277,36 @@ body {
   color: #8ab4ff;
 }
 
+.finance-inv__metrics {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0.65rem 0 0;
+  border-top: 1px solid #2a3448;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.finance-inv__metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+}
+
+.finance-inv__metric-label {
+  color: #9aa0a6;
+  flex: 1;
+  line-height: 1.35;
+}
+
+.finance-inv__metric-val {
+  font-weight: 600;
+  color: #81c995;
+  white-space: nowrap;
+}
+
 .finance-inv__hint {
   font-size: 0.78rem;
   color: #6d727b;
@@ -1313,9 +1343,38 @@ body {
   margin-top: 0.2rem;
 }
 
+.finance-inv__meta--inc {
+  color: #9db88a;
+}
+
 .finance-inv__row-r {
   text-align: right;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.finance-inv__income-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #8ab4ff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.finance-inv__income-btn:hover {
+  color: #a8c4ff;
+}
+
+.finance-inv__edit-name {
+  font-size: 0.88rem;
+  color: #c4c7cc;
+  margin: 0 0 0.75rem;
 }
 
 .finance-an__bars {

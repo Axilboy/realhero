@@ -34,6 +34,27 @@ function toMinor(amountRub: unknown): number | null {
   return Math.round(amountRub * 100);
 }
 
+/** Годовой купон+дивиденд в ₽ → коп. в БД; null = не задано. */
+function parseAnnualCouponDividendRub(
+  raw: unknown,
+):
+  | { ok: true; minor: number | null }
+  | { ok: false; message: string } {
+  if (raw === undefined || raw === null || raw === "") {
+    return { ok: true, minor: null };
+  }
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
+    return {
+      ok: false,
+      message: "Годовой купон+дивиденд (₽) — неотрицательное число",
+    };
+  }
+  const m = toMinor(raw);
+  if (m === null) return { ok: false, message: "Некорректная сумма" };
+  if (m === 0) return { ok: true, minor: null };
+  return { ok: true, minor: m };
+}
+
 function holdingValueMinor(units: number, pricePerUnitMinor: number): number {
   return Math.round(units * pricePerUnitMinor);
 }
@@ -273,9 +294,12 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       orderBy: { name: "asc" },
     });
     let total = 0;
+    let totalAnnualMinor = 0;
     const list = holdings.map((h) => {
       const valueMinor = holdingValueMinor(h.units, h.pricePerUnitMinor);
       total += valueMinor;
+      const ann = h.annualCouponDividendMinor;
+      if (typeof ann === "number" && ann > 0) totalAnnualMinor += ann;
       return {
         id: h.id,
         name: h.name,
@@ -283,18 +307,36 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         units: h.units,
         pricePerUnitMinor: h.pricePerUnitMinor,
         valueMinor,
+        annualCouponDividendMinor: ann,
         note: h.note,
         updatedAt: h.updatedAt.toISOString(),
       };
     });
+    const hasFlow = totalAnnualMinor > 0 && total > 0;
+    const couponDividendYearMinor = hasFlow ? totalAnnualMinor : null;
+    const couponDividendMonthMinor = hasFlow
+      ? Math.round(totalAnnualMinor / 12)
+      : null;
+    const couponDividendDayMinor = hasFlow
+      ? Math.round(totalAnnualMinor / 365)
+      : null;
+    const incomePer1000YearMinor = hasFlow
+      ? Math.round((totalAnnualMinor * 1000 * 100) / total)
+      : null;
     return {
       totalValueMinor: total,
       holdings: list,
       metrics: {
-        per1000DayMinor: null as number | null,
-        per1000MonthMinor: null as number | null,
-        per1000YearMinor: null as number | null,
-        note: "Доходность по дням/месяцам — после истории оценок портфеля",
+        incomePer1000YearMinor,
+        couponDividendDayMinor,
+        couponDividendMonthMinor,
+        couponDividendYearMinor,
+        note:
+          total === 0
+            ? "Добавьте позиции и при желании укажите ожидаемый годовой купон и дивиденды."
+            : totalAnnualMinor === 0
+              ? "Укажите в позициях ожидаемый годовой доход (купоны + дивиденды) — тогда появятся оценки ниже."
+              : "Оценочно по введённым годовым суммам по позициям (равномерно по году).",
       },
     };
   });
@@ -400,6 +442,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       units?: number;
       pricePerUnitRub?: number;
       note?: string;
+      annualCouponDividendRub?: number | null;
     };
     const name = body.name?.trim() ?? "";
     if (!name || name.length > 120) {
@@ -433,6 +476,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     const note =
       typeof body.note === "string" ? body.note.trim().slice(0, 500) : undefined;
+    let annualCouponDividendMinor: number | null = null;
+    if (body.annualCouponDividendRub !== undefined) {
+      const p = parseAnnualCouponDividendRub(body.annualCouponDividendRub);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualCouponDividendMinor = p.minor;
+    }
     const row = await prisma.investmentPosition.create({
       data: {
         userId,
@@ -440,6 +491,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         assetKind: k,
         units,
         pricePerUnitMinor: ppm,
+        annualCouponDividendMinor,
         note: note || null,
       },
     });
@@ -460,6 +512,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       units?: number;
       pricePerUnitRub?: number;
       note?: string | null;
+      annualCouponDividendRub?: number | null;
     };
     const existing = await prisma.investmentPosition.findFirst({
       where: { id, userId },
@@ -513,6 +566,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           ? null
           : String(body.note).trim().slice(0, 500);
     }
+    let annualCouponDividendMinor = existing.annualCouponDividendMinor;
+    if (body.annualCouponDividendRub !== undefined) {
+      const p = parseAnnualCouponDividendRub(body.annualCouponDividendRub);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualCouponDividendMinor = p.minor;
+    }
     const row = await prisma.investmentPosition.update({
       where: { id },
       data: {
@@ -521,6 +582,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         units,
         pricePerUnitMinor,
         note,
+        annualCouponDividendMinor,
       },
     });
     return {

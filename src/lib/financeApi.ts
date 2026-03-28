@@ -45,6 +45,7 @@ export type InvestmentHoldingRow = {
   units: number;
   pricePerUnitMinor: number;
   valueMinor: number;
+  annualCouponDividendMinor: number | null;
   note: string | null;
   updatedAt: string;
 };
@@ -146,9 +147,10 @@ export async function fetchInvestOverview() {
     totalValueMinor: number;
     holdings: InvestmentHoldingRow[];
     metrics: {
-      per1000DayMinor: number | null;
-      per1000MonthMinor: number | null;
-      per1000YearMinor: number | null;
+      incomePer1000YearMinor: number | null;
+      couponDividendDayMinor: number | null;
+      couponDividendMonthMinor: number | null;
+      couponDividendYearMinor: number | null;
       note: string;
     };
   }>("/api/v1/finance/investments/overview");
@@ -160,6 +162,8 @@ export async function createHolding(payload: {
   units: number;
   pricePerUnitRub: number;
   note?: string;
+  /** Ожидаемые купоны + дивиденды по позиции за год, ₽ */
+  annualCouponDividendRub?: number | null;
 }) {
   return json<{ holding: InvestmentHoldingRow }>(
     "/api/v1/finance/investments/holdings",
@@ -177,6 +181,7 @@ export async function patchHolding(
     pricePerUnitRub: number;
     name: string;
     note: string | null;
+    annualCouponDividendRub: number | null;
   }>,
 ) {
   return json<{ holding: InvestmentHoldingRow }>(

@@ -1247,7 +1247,13 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
   const [data, setData] = useState<{
     totalValueMinor: number;
     holdings: InvestmentHoldingRow[];
-    metrics: { note: string };
+    metrics: {
+      incomePer1000YearMinor: number | null;
+      couponDividendDayMinor: number | null;
+      couponDividendMonthMinor: number | null;
+      couponDividendYearMinor: number | null;
+      note: string;
+    };
   } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
@@ -1255,7 +1261,13 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
   const [assetKind, setAssetKind] = useState<InvestmentAssetKind>("STOCK");
   const [unitsStr, setUnitsStr] = useState("");
   const [priceStr, setPriceStr] = useState("");
+  const [annualIncomeStr, setAnnualIncomeStr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [incomeModal, setIncomeModal] = useState<InvestmentHoldingRow | null>(
+    null,
+  );
+  const [incomeModalStr, setIncomeModalStr] = useState("");
+  const [incomeBusy, setIncomeBusy] = useState(false);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -1281,12 +1293,24 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
     const price = Number(String(priceStr).replace(",", "."));
     if (!Number.isFinite(units) || units <= 0) return;
     if (!Number.isFinite(price) || price <= 0) return;
+    let annualRub: number | null | undefined;
+    if (annualIncomeStr.trim()) {
+      const a = Number(String(annualIncomeStr).replace(",", "."));
+      if (!Number.isFinite(a) || a < 0) {
+        setErr("Годовой купон+дивиденд — неотрицательное число");
+        return;
+      }
+      annualRub = a;
+    }
     setBusy(true);
     const res = await createHolding({
       name: name.trim(),
       assetKind,
       units,
       pricePerUnitRub: price,
+      ...(annualRub !== undefined
+        ? { annualCouponDividendRub: annualRub }
+        : {}),
     });
     setBusy(false);
     if (!res.ok) {
@@ -1296,7 +1320,36 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
     setName("");
     setUnitsStr("");
     setPriceStr("");
+    setAnnualIncomeStr("");
     setModal(false);
+    void load();
+  }
+
+  async function onSaveIncome(e: FormEvent) {
+    e.preventDefault();
+    if (!incomeModal) return;
+    const raw = incomeModalStr.trim();
+    const payload =
+      raw === ""
+        ? { annualCouponDividendRub: null as const }
+        : (() => {
+            const a = Number(raw.replace(",", "."));
+            if (!Number.isFinite(a) || a < 0) {
+              setErr("Годовой купон+дивиденд — неотрицательное число");
+              return null;
+            }
+            return { annualCouponDividendRub: a };
+          })();
+    if (!payload) return;
+    setIncomeBusy(true);
+    setErr(null);
+    const r = await patchHolding(incomeModal.id, payload);
+    setIncomeBusy(false);
+    if (!r.ok) {
+      setErr(errorMessage(r.data));
+      return;
+    }
+    setIncomeModal(null);
     void load();
   }
 
@@ -1323,6 +1376,48 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
             <span className="finance-inv__hero-val">
               {formatRubFromMinor(data.totalValueMinor)}
             </span>
+            <ul className="finance-inv__metrics" aria-label="Доходность по купонам и дивидендам">
+              <li className="finance-inv__metric">
+                <span className="finance-inv__metric-label">
+                  На вложенные 1000 ₽ (в год, оценка)
+                </span>
+                <span className="finance-inv__metric-val">
+                  {data.metrics.incomePer1000YearMinor != null
+                    ? formatRubFromMinor(data.metrics.incomePer1000YearMinor)
+                    : "—"}
+                </span>
+              </li>
+              <li className="finance-inv__metric">
+                <span className="finance-inv__metric-label">
+                  Доход в день (купоны и дивиденды)
+                </span>
+                <span className="finance-inv__metric-val">
+                  {data.metrics.couponDividendDayMinor != null
+                    ? formatRubFromMinor(data.metrics.couponDividendDayMinor)
+                    : "—"}
+                </span>
+              </li>
+              <li className="finance-inv__metric">
+                <span className="finance-inv__metric-label">
+                  Доход в месяц (купоны и дивиденды)
+                </span>
+                <span className="finance-inv__metric-val">
+                  {data.metrics.couponDividendMonthMinor != null
+                    ? formatRubFromMinor(data.metrics.couponDividendMonthMinor)
+                    : "—"}
+                </span>
+              </li>
+              <li className="finance-inv__metric">
+                <span className="finance-inv__metric-label">
+                  Доход в год (купоны и дивиденды)
+                </span>
+                <span className="finance-inv__metric-val">
+                  {data.metrics.couponDividendYearMinor != null
+                    ? formatRubFromMinor(data.metrics.couponDividendYearMinor)
+                    : "—"}
+                </span>
+              </li>
+            </ul>
           </div>
           <p className="finance-inv__hint">{data.metrics.note}</p>
           <button
@@ -1347,9 +1442,32 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
                       {ASSET_LABEL[h.assetKind]} · {h.units} ×{" "}
                       {formatRubFromMinor(h.pricePerUnitMinor)}
                     </span>
+                    {h.annualCouponDividendMinor != null &&
+                    h.annualCouponDividendMinor > 0 ? (
+                      <span className="finance-inv__meta finance-inv__meta--inc">
+                        Купон/див:{" "}
+                        {formatRubFromMinor(h.annualCouponDividendMinor)}/год
+                      </span>
+                    ) : null}
                   </div>
                   <div className="finance-inv__row-r">
                     <span>{formatRubFromMinor(h.valueMinor)}</span>
+                    <button
+                      type="button"
+                      className="finance-inv__income-btn"
+                      onClick={() => {
+                        setErr(null);
+                        setIncomeModal(h);
+                        setIncomeModalStr(
+                          h.annualCouponDividendMinor != null &&
+                            h.annualCouponDividendMinor > 0
+                            ? String(h.annualCouponDividendMinor / 100)
+                            : "",
+                        );
+                      }}
+                    >
+                      Доход
+                    </button>
                     <button
                       type="button"
                       className="finance__tx-del"
@@ -1433,12 +1551,70 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
                   required
                 />
               </label>
+              <label className="finance__field">
+                Ожидаемый купон + дивиденды в год, ₽
+                <input
+                  className="finance__input"
+                  inputMode="decimal"
+                  placeholder="необязательно"
+                  value={annualIncomeStr}
+                  onChange={(e) => setAnnualIncomeStr(e.target.value)}
+                />
+              </label>
               <button className="finance__submit" type="submit" disabled={busy}>
                 Добавить
               </button>
             </form>
           </div>
         </div>,
+          )
+        : null}
+
+      {incomeModal
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Купон и дивиденды"
+            >
+              <div className="finance__modal">
+                <div className="finance__modal-head">
+                  <h2 className="finance__h2">Купон и дивиденды</h2>
+                  <button
+                    type="button"
+                    className="finance__modal-close"
+                    onClick={() => setIncomeModal(null)}
+                  >
+                    Закрыть
+                  </button>
+                </div>
+                <p className="finance-inv__edit-name">{incomeModal.name}</p>
+                <form
+                  className="finance__form"
+                  onSubmit={(e) => void onSaveIncome(e)}
+                >
+                  <label className="finance__field">
+                    Ожидаемый доход в год (купоны + дивиденды), ₽
+                    <input
+                      className="finance__input"
+                      inputMode="decimal"
+                      placeholder="Пусто — не учитывать"
+                      value={incomeModalStr}
+                      onChange={(e) => setIncomeModalStr(e.target.value)}
+                    />
+                  </label>
+                  {err ? <p className="finance__err">{err}</p> : null}
+                  <button
+                    className="finance__submit"
+                    type="submit"
+                    disabled={incomeBusy}
+                  >
+                    {incomeBusy ? "…" : "Сохранить"}
+                  </button>
+                </form>
+              </div>
+            </div>,
           )
         : null}
     </div>

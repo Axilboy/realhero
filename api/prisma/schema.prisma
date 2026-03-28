@@ -18,6 +18,37 @@ model User {
   /// UI-настройки (JSON), например { "dashboardHints": true }
   settings    Json?
   accounts    OAuthAccount[]
+  stats       UserStats?
+  quests      Quest[]
+}
+
+/// Прогресс героя: уровень, EXP в текущем уровне, монеты, стрик.
+model UserStats {
+  userId         String   @id
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level          Int      @default(1)
+  expInLevel     Int      @default(0)
+  expToNext      Int      @default(100)
+  coins          Int      @default(0)
+  streakCount    Int      @default(0)
+  /// UTC YYYY-MM-DD последнего дня, засчитанного в стрик
+  lastStreakDate String?
+  updatedAt      DateTime @updatedAt
+}
+
+/// Малый квест / привычка на сегодня.
+model Quest {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  done        Boolean   @default(false)
+  rewardExp   Int       @default(10)
+  rewardCoins Int       @default(0)
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([userId, done])
 }
 
 /// Привязка к Google / Яндекс / VK / Apple (один пользователь — несколько провайдеров).

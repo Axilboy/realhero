@@ -1,33 +1,74 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchDashboardSnapshot, type DashboardSnapshot } from "../api/mock";
+import { fetchDashboard } from "../api/realHero";
 import { useSession } from "../context/SessionContext";
+import type { DashboardSnapshot } from "../types/dashboard";
 import { useDashboardHomeSwipe } from "../hooks/useSwipeNavigate";
 
 export function DashboardPage() {
-  const { user } = useSession();
+  const { user, loading: sessionLoading } = useSession();
   const [data, setData] = useState<DashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needLogin, setNeedLogin] = useState(false);
   const swipe = useDashboardHomeSwipe(true);
 
   useEffect(() => {
+    if (sessionLoading) return;
+    if (!user) {
+      setNeedLogin(true);
+      setData(null);
+      setError(null);
+      return;
+    }
     let cancelled = false;
-    fetchDashboardSnapshot()
+    setNeedLogin(false);
+    fetchDashboard()
       .then((d) => {
-        if (!cancelled) setData(d);
+        if (!cancelled) {
+          setData(d);
+          setError(null);
+        }
       })
-      .catch(() => {
-        if (!cancelled) setError("Не удалось загрузить сводку (mock).");
+      .catch((e: Error) => {
+        if (cancelled) return;
+        if (e.message === "unauthorized") {
+          setNeedLogin(true);
+          setData(null);
+        } else {
+          setError("Не удалось загрузить сводку. Проверь API и сеть.");
+          setData(null);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user, sessionLoading]);
 
   const expPct =
     data && data.expToNext > 0
       ? Math.min(100, Math.round((100 * data.expCurrent) / data.expToNext))
       : 0;
+
+  if (sessionLoading) {
+    return (
+      <div className="dashboard dashboard--swipe" {...swipe}>
+        <p className="dashboard__loading">Загрузка…</p>
+      </div>
+    );
+  }
+
+  if (needLogin) {
+    return (
+      <div className="dashboard dashboard--swipe" {...swipe}>
+        <div className="dashboard__guest">
+          <p className="dashboard__guest-text">Войдите, чтобы видеть прогресс, квесты и стрик.</p>
+          <Link to="/login" className="dashboard__guest-link">
+            Перейти ко входу
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

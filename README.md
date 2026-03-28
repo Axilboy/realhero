@@ -1,6 +1,6 @@
 # Real Hero — веб-клиент
 
-Версия веб-клиента: **`package.json` → `version`** (сейчас **0.5.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
+Версия веб-клиента: **`package.json` → `version`** (сейчас **0.6.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
 
 **Бэкенд (общий для веба, Telegram и будущих приложений):** каталог **`api/`** — см. `api/README.md` и **`docs/ARCHITECTURE.md`**.
 
@@ -40,7 +40,7 @@ bash /PROGS/RH/web-app/scripts/server-pull-deploy.sh
 | `/` | Дашборд (центр) |
 | `/finance` | Финансы (заглушка) |
 | `/health` | Здоровье (заглушка) |
-| `/quests` | Квесты (заглушка) |
+| `/quests` | Квесты: список, создание, выполнение (EXP/монеты) |
 | `/kanban` | Канбан (заглушка) |
 | `/changelog` | История изменений |
 | `/login` | Вход (Google, Яндекс, VK) |

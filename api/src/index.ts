@@ -7,6 +7,8 @@ import { healthRoutes } from "./routes/health.js";
 import { metaRoutes } from "./routes/meta.js";
 import { authDevRoutes } from "./routes/authDev.js";
 import { oauthRoutes } from "./routes/oauth.js";
+import { dashboardRoutes } from "./routes/dashboard.js";
+import { questRoutes } from "./routes/quests.js";
 import { sessionRoutes } from "./routes/session.js";
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -68,6 +70,8 @@ async function main() {
   await app.register(oauthRoutes, { prefix: "/api/v1" });
   await app.register(authDevRoutes, { prefix: "/api/v1" });
   await app.register(sessionRoutes, { prefix: "/api/v1" });
+  await app.register(dashboardRoutes, { prefix: "/api/v1" });
+  await app.register(questRoutes, { prefix: "/api/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }

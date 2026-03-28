@@ -6,6 +6,15 @@ type Entry = { version: string; date: string; items: string[] };
 /** Синхронизируйте с package.json и CHANGELOG.md при каждом релизе. */
 const ENTRIES: Entry[] = [
   {
+    version: "0.6.0",
+    date: "2026-03-28",
+    items: [
+      "Дашборд с бэкенда: уровень, EXP, стрик, квесты в тексте подсказок.",
+      "Квесты: CRUD через API, награды EXP и монеты, уровни 100×N EXP за уровень.",
+      "Таблицы UserStats и Quest; mock сводки убран.",
+    ],
+  },
+  {
     version: "0.5.0",
     date: "2026-03-28",
     items: [

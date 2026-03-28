@@ -19,7 +19,7 @@ echo "==> git pull"
 git pull
 
 echo "==> фронтенд (npm ci, build, копирование в www)"
-./scripts/deploy-server.sh
+bash "$ROOT/scripts/deploy-server.sh"
 
 API_ROOT="$ROOT/api"
 PM2_NAME="${PM2_NAME:-realhero-api}"

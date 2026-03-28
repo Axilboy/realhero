@@ -39,6 +39,8 @@ $env:RH_DEPLOY_PATH   = "/PROGS/RH/www"
 
 Для **nginx** используйте `try_files` для SPA — пример: `deploy/nginx-spa.example.conf`.
 
+Временный бесплатный **HTTPS** для Mini App (туннель или Vercel): см. `deploy/temporary-https.md`.
+
 Документация проекта: `../docs/`.
 
 ## Деплой на сервере (после `git clone` + push в удалённый репозиторий)

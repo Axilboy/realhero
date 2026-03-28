@@ -76,6 +76,14 @@ async function accountBalancesMap(userId: string): Promise<Map<string, number>> 
     const add = r.kind === "INCOME" ? (r._sum.amountMinor ?? 0) : -(r._sum.amountMinor ?? 0);
     m.set(id, (m.get(id) ?? 0) + add);
   }
+  const trRows = await prisma.transfer.findMany({
+    where: { userId },
+    select: { fromAccountId: true, toAccountId: true, amountMinor: true },
+  });
+  for (const t of trRows) {
+    m.set(t.fromAccountId, (m.get(t.fromAccountId) ?? 0) - t.amountMinor);
+    m.set(t.toAccountId, (m.get(t.toAccountId) ?? 0) + t.amountMinor);
+  }
   return m;
 }
 
@@ -175,6 +183,9 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const cnt = await prisma.transaction.count({
       where: { userId, accountId: id },
     });
+    const trCnt =
+      (await prisma.transfer.count({ where: { userId, fromAccountId: id } })) +
+      (await prisma.transfer.count({ where: { userId, toAccountId: id } }));
     if (cnt > 0) {
       return reply.status(400).send({
         error: {
@@ -182,8 +193,76 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         },
       });
     }
+    if (trCnt > 0) {
+      return reply.status(400).send({
+        error: {
+          message: `Нельзя удалить счёт: есть переводы (${trCnt}).`,
+        },
+      });
+    }
     await prisma.account.delete({ where: { id } });
     return { ok: true };
+  });
+
+  app.post("/transfers", async (request, reply) => {
+    const userId = getUserId(request);
+    await ensureUserHasAccounts(prisma, userId);
+    const body = request.body as {
+      fromAccountId?: string;
+      toAccountId?: string;
+      amountRub?: number;
+      note?: string;
+      occurredAt?: string;
+    };
+    const fromId = body.fromAccountId;
+    const toId = body.toAccountId;
+    if (!fromId || !toId) {
+      return reply.status(400).send({
+        error: { message: "Укажите счёт «откуда» и «куда»" },
+      });
+    }
+    if (fromId === toId) {
+      return reply.status(400).send({
+        error: { message: "Выберите два разных счёта" },
+      });
+    }
+    const fromA = await prisma.account.findFirst({
+      where: { id: fromId, userId },
+    });
+    const toA = await prisma.account.findFirst({
+      where: { id: toId, userId },
+    });
+    if (!fromA || !toA) {
+      return reply.status(400).send({ error: { message: "Счёт не найден" } });
+    }
+    const minor = toMinor(body.amountRub);
+    if (minor === null || minor === 0) {
+      return reply.status(400).send({
+        error: { message: "Сумма перевода — положительное число (₽)" },
+      });
+    }
+    let occurredAt = new Date();
+    if (body.occurredAt) {
+      occurredAt = new Date(body.occurredAt);
+      if (Number.isNaN(occurredAt.getTime())) {
+        return reply.status(400).send({
+          error: { message: "Некорректная дата" },
+        });
+      }
+    }
+    const note =
+      typeof body.note === "string" ? body.note.trim().slice(0, 500) : undefined;
+    const row = await prisma.transfer.create({
+      data: {
+        userId,
+        fromAccountId: fromId,
+        toAccountId: toId,
+        amountMinor: minor,
+        note: note || null,
+        occurredAt,
+      },
+    });
+    return reply.status(201).send({ transfer: row });
   });
 
   app.get("/investments/overview", async (request) => {

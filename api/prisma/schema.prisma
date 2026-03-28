@@ -42,6 +42,7 @@ model User {
   transactions Transaction[]
   accounts     Account[]
   investments  InvestmentPosition[]
+  transfers    Transfer[]
 }
 
 model Account {
@@ -53,8 +54,28 @@ model Account {
   sortOrder    Int           @default(0)
   createdAt    DateTime      @default(now())
   transactions Transaction[]
+  transfersOut Transfer[]    @relation("TransferFromAccount")
+  transfersIn  Transfer[]    @relation("TransferToAccount")
 
   @@index([userId])
+}
+
+model Transfer {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromAccountId String
+  fromAccount   Account  @relation("TransferFromAccount", fields: [fromAccountId], references: [id], onDelete: Restrict)
+  toAccountId   String
+  toAccount     Account  @relation("TransferToAccount", fields: [toAccountId], references: [id], onDelete: Restrict)
+  amountMinor   Int
+  note          String?
+  occurredAt    DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([userId, occurredAt])
+  @@index([fromAccountId])
+  @@index([toAccountId])
 }
 
 model Category {

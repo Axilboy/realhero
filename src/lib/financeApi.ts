@@ -47,18 +47,51 @@ export type InvestmentHoldingRow = {
   updatedAt: string;
 };
 
-async function json<T>(
+/** Абсолютный URL к API (надёжнее для cookie при нестандартном base / PWA). */
+export function resolveApiUrl(path: string): string {
+  if (path.startsWith("http")) return path;
+  if (typeof window === "undefined") return path;
+  return new URL(path, window.location.origin).href;
+}
+
+let refreshSession: (() => Promise<void>) | null = null;
+
+/** Вызывать из AuthProvider: при 401 повторим запрос после обновления сессии. */
+export function bindFinanceAuthRefresh(fn: () => Promise<void>): void {
+  refreshSession = fn;
+}
+
+async function financeFetch(
   path: string,
   init?: RequestInit,
-): Promise<{ ok: boolean; status: number; data: T }> {
-  const res = await fetch(path, {
+): Promise<Response> {
+  const url = resolveApiUrl(path);
+  const merged: RequestInit = {
     ...init,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
-  });
+  };
+  const doReq = () => fetch(url, { ...merged, body: init?.body });
+  let res = await doReq();
+  if (res.status === 401 && refreshSession) {
+    try {
+      await refreshSession();
+    } catch {
+      /* ignore */
+    }
+    res = await doReq();
+  }
+  return res;
+}
+
+async function json<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<{ ok: boolean; status: number; data: T }> {
+  const res = await financeFetch(path, init);
   const text = await res.text();
   let data = {} as T;
   if (text) {
@@ -130,6 +163,37 @@ export async function createHolding(payload: {
       body: JSON.stringify(payload),
     },
   );
+}
+
+export async function patchHolding(
+  id: string,
+  body: Partial<{
+    units: number;
+    pricePerUnitRub: number;
+    name: string;
+    note: string | null;
+  }>,
+) {
+  return json<{ holding: InvestmentHoldingRow }>(
+    `/api/v1/finance/investments/holdings/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function createTransfer(payload: {
+  fromAccountId: string;
+  toAccountId: string;
+  amountRub: number;
+  note?: string;
+  occurredAt?: string;
+}) {
+  return json<{ transfer: { id: string } }>("/api/v1/finance/transfers", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function deleteHolding(id: string) {

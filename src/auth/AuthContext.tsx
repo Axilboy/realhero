@@ -6,6 +6,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  bindFinanceAuthRefresh,
+  resolveApiUrl,
+} from "../lib/financeApi";
 
 export type AuthUser = { id: string; email: string };
 
@@ -38,7 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const res = await fetch("/api/v1/me", { credentials: "include" });
+    const res = await fetch(resolveApiUrl("/api/v1/me"), {
+      credentials: "include",
+    });
     if (!res.ok) {
       setUser(null);
       return;
@@ -51,8 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh().finally(() => setLoading(false));
   }, [refresh]);
 
+  useEffect(() => {
+    bindFinanceAuthRefresh(refresh);
+  }, [refresh]);
+
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch("/api/v1/auth/login", {
+    const res = await fetch(resolveApiUrl("/api/v1/auth/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -64,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
-    const res = await fetch("/api/v1/auth/register", {
+    const res = await fetch(resolveApiUrl("/api/v1/auth/register"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -76,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await fetch("/api/v1/auth/logout", {
+    await fetch(resolveApiUrl("/api/v1/auth/logout"), {
       method: "POST",
       credentials: "include",
     });

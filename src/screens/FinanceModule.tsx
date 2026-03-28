@@ -17,6 +17,7 @@ import {
   createCategory,
   createHolding,
   createTransaction,
+  createTransfer,
   deleteAccount,
   deleteHolding,
   deleteTransaction,
@@ -28,6 +29,7 @@ import {
   fetchSummaryByCategory,
   fetchTransactions,
   patchCategory,
+  patchHolding,
   type AccountRow,
   type AccountType,
   type Category,
@@ -65,6 +67,16 @@ const ANALYTICS_CHIPS = [
   { icon: "🏷️", label: "Теги" },
   { icon: "📈", label: "Тренд" },
 ];
+
+const ADD_OP_TABS = [
+  { key: "expense", label: "Расходы" },
+  { key: "income", label: "Доходы" },
+  { key: "transfer", label: "Перевод" },
+  { key: "debt", label: "Долг" },
+  { key: "invest", label: "Инвестиции" },
+] as const;
+
+type AddOpTab = (typeof ADD_OP_TABS)[number]["key"];
 
 function categoryOptionsForKind(cats: Category[], kind: TransactionKind) {
   return cats.filter(
@@ -166,17 +178,28 @@ function FinanceMainPanel({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
 
-  const [kind, setKind] = useState<TransactionKind>("EXPENSE");
+  const [addOpOpen, setAddOpOpen] = useState(false);
+  const [opTab, setOpTab] = useState<AddOpTab>("expense");
   const [amountStr, setAmountStr] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [fromAccountId, setFromAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
   const [occurredDate, setOccurredDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
   const [note, setNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [formBusy, setFormBusy] = useState(false);
-  const [txModal, setTxModal] = useState(false);
+
+  const [invHoldings, setInvHoldings] = useState<InvestmentHoldingRow[]>([]);
+  const [invMode, setInvMode] = useState<"new" | "add">("new");
+  const [invHoldingId, setInvHoldingId] = useState("");
+  const [invName, setInvName] = useState("");
+  const [invAssetKind, setInvAssetKind] =
+    useState<InvestmentAssetKind>("STOCK");
+  const [invUnitsStr, setInvUnitsStr] = useState("");
+  const [invPriceStr, setInvPriceStr] = useState("");
 
   const [catModal, setCatModal] = useState(false);
   const [catIncludeArchived, setCatIncludeArchived] = useState(false);
@@ -230,8 +253,15 @@ function FinanceMainPanel({
     setAccounts(a.data.accounts);
     setInvestmentsTotal(a.data.investmentsTotalMinor);
     const first = a.data.accounts[0]?.id ?? "";
+    const second = a.data.accounts[1]?.id ?? first;
     setAccountId((prev) =>
       a.data.accounts.some((x) => x.id === prev) ? prev : first,
+    );
+    setFromAccountId((prev) =>
+      a.data.accounts.some((x) => x.id === prev) ? prev : first,
+    );
+    setToAccountId((prev) =>
+      a.data.accounts.some((x) => x.id === prev) ? prev : second,
     );
   }, [month]);
 
@@ -247,12 +277,32 @@ function FinanceMainPanel({
     })();
   }, [catModal, catIncludeArchived]);
 
-  const pickable = categoryOptionsForKind(categories, kind);
+  const txKindForTab: TransactionKind =
+    opTab === "income" ? "INCOME" : "EXPENSE";
+  const pickable =
+    opTab === "expense" || opTab === "income"
+      ? categoryOptionsForKind(categories, txKindForTab)
+      : [];
   useEffect(() => {
+    if (opTab !== "expense" && opTab !== "income") return;
     if (pickable.length && !pickable.some((c) => c.id === categoryId)) {
       setCategoryId(pickable[0]?.id ?? "");
     }
-  }, [pickable, categoryId]);
+  }, [pickable, categoryId, opTab]);
+
+  useEffect(() => {
+    if (!addOpOpen || opTab !== "invest") return;
+    void (async () => {
+      const r = await fetchInvestOverview();
+      if (r.ok) {
+        setInvHoldings(r.data.holdings);
+        const first = r.data.holdings[0]?.id ?? "";
+        setInvHoldingId((prev) =>
+          r.data.holdings.some((h) => h.id === prev) ? prev : first,
+        );
+      }
+    })();
+  }, [addOpOpen, opTab]);
 
   const accountsTotalMinor = accounts.reduce(
     (s, a) => s + a.balanceMinor,
@@ -260,35 +310,136 @@ function FinanceMainPanel({
   );
   const grandTotalMinor = accountsTotalMinor + investmentsTotal;
 
-  async function onSubmitTx(e: FormEvent) {
-    e.preventDefault();
+  function openAddOp() {
     setFormError(null);
-    const amountRub = Number(String(amountStr).replace(",", "."));
-    if (!Number.isFinite(amountRub) || amountRub <= 0) {
-      setFormError("Введите сумму больше нуля");
-      return;
-    }
-    if (!categoryId) {
-      setFormError("Выберите категорию");
-      return;
-    }
-    setFormBusy(true);
-    const res = await createTransaction({
-      accountId: accountId || undefined,
-      categoryId,
-      kind,
-      amountRub,
-      note: note.trim() || undefined,
-      occurredAt: `${occurredDate}T12:00:00.000Z`,
-    });
-    setFormBusy(false);
-    if (!res.ok) {
-      setFormError(errorMessage(res.data));
-      return;
-    }
+    setOpTab("expense");
     setAmountStr("");
     setNote("");
-    setTxModal(false);
+    setOccurredDate(new Date().toISOString().slice(0, 10));
+    const first = accounts[0]?.id ?? "";
+    const second = accounts[1]?.id ?? first;
+    setAccountId(first);
+    setFromAccountId(first);
+    setToAccountId(second !== first ? second : first);
+    setInvMode("new");
+    setInvName("");
+    setInvUnitsStr("");
+    setInvPriceStr("");
+    setInvAssetKind("STOCK");
+    setAddOpOpen(true);
+  }
+
+  async function onSubmitAddOp(e: FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    if (opTab === "debt") {
+      setFormError("Раздел «Долг» скоро появится");
+      return;
+    }
+
+    if (opTab === "expense" || opTab === "income") {
+      const amountRub = Number(String(amountStr).replace(",", "."));
+      if (!Number.isFinite(amountRub) || amountRub <= 0) {
+        setFormError("Введите сумму больше нуля");
+        return;
+      }
+      if (!categoryId) {
+        setFormError("Выберите категорию");
+        return;
+      }
+      setFormBusy(true);
+      const res = await createTransaction({
+        accountId: accountId || undefined,
+        categoryId,
+        kind: txKindForTab,
+        amountRub,
+        note: note.trim() || undefined,
+        occurredAt: `${occurredDate}T12:00:00.000Z`,
+      });
+      setFormBusy(false);
+      if (!res.ok) {
+        setFormError(errorMessage(res.data));
+        return;
+      }
+    } else if (opTab === "transfer") {
+      const amountRub = Number(String(amountStr).replace(",", "."));
+      if (!Number.isFinite(amountRub) || amountRub <= 0) {
+        setFormError("Введите сумму перевода");
+        return;
+      }
+      if (fromAccountId === toAccountId) {
+        setFormError("Выберите разные счета");
+        return;
+      }
+      setFormBusy(true);
+      const res = await createTransfer({
+        fromAccountId,
+        toAccountId,
+        amountRub,
+        note: note.trim() || undefined,
+        occurredAt: `${occurredDate}T12:00:00.000Z`,
+      });
+      setFormBusy(false);
+      if (!res.ok) {
+        setFormError(errorMessage(res.data));
+        return;
+      }
+    } else if (opTab === "invest") {
+      const units = Number(String(invUnitsStr).replace(",", "."));
+      const price = Number(String(invPriceStr).replace(",", "."));
+      if (!Number.isFinite(units) || units <= 0) {
+        setFormError("Укажите количество");
+        return;
+      }
+      if (!Number.isFinite(price) || price <= 0) {
+        setFormError("Укажите цену за единицу (₽)");
+        return;
+      }
+      setFormBusy(true);
+      if (invMode === "new") {
+        const name = invName.trim();
+        if (!name) {
+          setFormBusy(false);
+          setFormError("Название актива");
+          return;
+        }
+        const res = await createHolding({
+          name,
+          assetKind: invAssetKind,
+          units,
+          pricePerUnitRub: price,
+        });
+        setFormBusy(false);
+        if (!res.ok) {
+          setFormError(errorMessage(res.data));
+          return;
+        }
+      } else {
+        const h = invHoldings.find((x) => x.id === invHoldingId);
+        if (!h) {
+          setFormBusy(false);
+          setFormError("Выберите позицию");
+          return;
+        }
+        const oldVal = h.units * h.pricePerUnitMinor;
+        const addVal = units * Math.round(price * 100);
+        const newU = h.units + units;
+        const newPpm = Math.max(1, Math.round((oldVal + addVal) / newU));
+        const res = await patchHolding(h.id, {
+          units: newU,
+          pricePerUnitRub: newPpm / 100,
+        });
+        setFormBusy(false);
+        if (!res.ok) {
+          setFormError(errorMessage(res.data));
+          return;
+        }
+      }
+    }
+
+    setAmountStr("");
+    setNote("");
+    setAddOpOpen(false);
     onRefresh();
     await refresh();
     if (catModal) {
@@ -488,25 +639,10 @@ function FinanceMainPanel({
         <div className="finance-main__io-btns">
           <button
             type="button"
-            className="finance-main__io finance-main__io--out"
-            onClick={() => {
-              setFormError(null);
-              setKind("EXPENSE");
-              setTxModal(true);
-            }}
+            className="finance-main__io finance-main__io--add"
+            onClick={() => openAddOp()}
           >
-            Расход
-          </button>
-          <button
-            type="button"
-            className="finance-main__io finance-main__io--in"
-            onClick={() => {
-              setFormError(null);
-              setKind("INCOME");
-              setTxModal(true);
-            }}
-          >
-            Доход
+            Добавить
           </button>
         </div>
       ) : null}
@@ -558,95 +694,401 @@ function FinanceMainPanel({
         </section>
       ) : null}
 
-      {txModal
+      {addOpOpen
         ? modalPortal(
             <div
               className="finance__modal-back finance__modal-root"
               role="dialog"
               aria-modal="true"
-              aria-label={kind === "INCOME" ? "Доход" : "Расход"}
+              aria-label="Добавить операцию"
             >
-          <div className="finance__modal">
-            <div className="finance__modal-head">
-              <h2 className="finance__h2">
-                {kind === "INCOME" ? "Доход" : "Расход"}
-              </h2>
-              <button
-                type="button"
-                className="finance__modal-close"
-                onClick={() => setTxModal(false)}
-              >
-                Закрыть
-              </button>
-            </div>
-            <form className="finance__form" onSubmit={(e) => void onSubmitTx(e)}>
-              <label className="finance__field">
-                Сумма, ₽
-                <input
-                  className="finance__input"
-                  type="text"
-                  inputMode="decimal"
-                  value={amountStr}
-                  onChange={(e) => setAmountStr(e.target.value)}
-                  required
-                />
-              </label>
-              <label className="finance__field">
-                Счёт
-                <select
-                  className="finance__input"
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
+              <div className="finance__modal finance__modal--addop">
+                <div className="finance__modal-head">
+                  <h2 className="finance__h2">Добавить</h2>
+                  <button
+                    type="button"
+                    className="finance__modal-close"
+                    onClick={() => setAddOpOpen(false)}
+                  >
+                    Закрыть
+                  </button>
+                </div>
+                <form
+                  className="finance__form finance-addop"
+                  onSubmit={(e) => void onSubmitAddOp(e)}
                 >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({formatRubFromMinor(a.balanceMinor)})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="finance__field">
-                Категория
-                <select
-                  className="finance__input"
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  required
-                >
-                  {pickable.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="finance__field">
-                Дата
-                <input
-                  className="finance__input"
-                  type="date"
-                  value={occurredDate}
-                  onChange={(e) => setOccurredDate(e.target.value)}
-                  required
-                />
-              </label>
-              <label className="finance__field">
-                Комментарий
-                <input
-                  className="finance__input"
-                  type="text"
-                  maxLength={500}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-              </label>
-              {formError ? <p className="finance__err">{formError}</p> : null}
-              <button className="finance__submit" type="submit" disabled={formBusy}>
-                {formBusy ? "…" : "Сохранить"}
-              </button>
-            </form>
-          </div>
-        </div>,
+                  <div
+                    className="finance-addop__carousel"
+                    role="tablist"
+                    aria-label="Тип операции"
+                  >
+                    {ADD_OP_TABS.map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={opTab === t.key}
+                        className={
+                          opTab === t.key
+                            ? "finance-addop__chip finance-addop__chip--on"
+                            : "finance-addop__chip"
+                        }
+                        onClick={() => {
+                          setFormError(null);
+                          setOpTab(t.key);
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {opTab === "debt" ? (
+                    <p className="screen__text finance-addop__hint">
+                      Учёт долгов появится в следующих версиях.
+                    </p>
+                  ) : null}
+
+                  {opTab === "expense" ||
+                  opTab === "income" ||
+                  opTab === "transfer" ? (
+                    <label className="finance__field">
+                      {opTab === "transfer" ? "Сумма перевода, ₽" : "Сумма, ₽"}
+                      <input
+                        className="finance__input"
+                        type="text"
+                        inputMode="decimal"
+                        value={amountStr}
+                        onChange={(e) => setAmountStr(e.target.value)}
+                        required
+                      />
+                    </label>
+                  ) : null}
+
+                  {opTab === "expense" || opTab === "income" ? (
+                    <div className="finance-addop__block">
+                      <span className="finance-addop__sub">Счёт</span>
+                      <div
+                        className="finance-addop__carousel"
+                        role="listbox"
+                        aria-label="Счёт"
+                      >
+                        {accounts.length === 0 ? (
+                          <span className="finance-addop__empty">
+                            Нет счетов — создайте в шапке экрана.
+                          </span>
+                        ) : (
+                          accounts.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              role="option"
+                              aria-selected={accountId === a.id}
+                              className={
+                                accountId === a.id
+                                  ? "finance-addop__acc finance-addop__acc--on"
+                                  : "finance-addop__acc"
+                              }
+                              onClick={() => setAccountId(a.id)}
+                            >
+                              <span className="finance-addop__acc-name">
+                                {a.name}
+                              </span>
+                              <span className="finance-addop__acc-meta">
+                                {ACCOUNT_TYPE_LABEL[a.type]} ·{" "}
+                                {formatRubFromMinor(a.balanceMinor)}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {opTab === "transfer" ? (
+                    <>
+                      <div className="finance-addop__block">
+                        <span className="finance-addop__sub">Откуда</span>
+                        <div
+                          className="finance-addop__carousel"
+                          role="listbox"
+                          aria-label="Счёт списания"
+                        >
+                          {accounts.length < 2 ? (
+                            <span className="finance-addop__empty">
+                              Для перевода нужно минимум два счёта.
+                            </span>
+                          ) : (
+                            accounts.map((a) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                role="option"
+                                aria-selected={fromAccountId === a.id}
+                                className={
+                                  fromAccountId === a.id
+                                    ? "finance-addop__acc finance-addop__acc--on"
+                                    : "finance-addop__acc"
+                                }
+                                onClick={() => setFromAccountId(a.id)}
+                              >
+                                <span className="finance-addop__acc-name">
+                                  {a.name}
+                                </span>
+                                <span className="finance-addop__acc-meta">
+                                  {ACCOUNT_TYPE_LABEL[a.type]} ·{" "}
+                                  {formatRubFromMinor(a.balanceMinor)}
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="finance-addop__block">
+                        <span className="finance-addop__sub">Куда</span>
+                        <div
+                          className="finance-addop__carousel"
+                          role="listbox"
+                          aria-label="Счёт зачисления"
+                        >
+                          {accounts.length < 2 ? null : (
+                            accounts.map((a) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                role="option"
+                                aria-selected={toAccountId === a.id}
+                                className={
+                                  toAccountId === a.id
+                                    ? "finance-addop__acc finance-addop__acc--on"
+                                    : "finance-addop__acc"
+                                }
+                                onClick={() => setToAccountId(a.id)}
+                              >
+                                <span className="finance-addop__acc-name">
+                                  {a.name}
+                                </span>
+                                <span className="finance-addop__acc-meta">
+                                  {ACCOUNT_TYPE_LABEL[a.type]} ·{" "}
+                                  {formatRubFromMinor(a.balanceMinor)}
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+
+                  {opTab === "expense" || opTab === "income" ? (
+                    <div className="finance-addop__block">
+                      <span className="finance-addop__sub">Категория</span>
+                      {pickable.length === 0 ? (
+                        <span className="finance-addop__empty">
+                          Нет категорий этого типа — добавьте в «Категории».
+                        </span>
+                      ) : (
+                        <div
+                          className="finance-addop__cat-wrap"
+                          role="group"
+                          aria-label="Категория"
+                        >
+                          {pickable.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className={
+                                categoryId === c.id
+                                  ? "finance-addop__cat finance-addop__cat--on"
+                                  : "finance-addop__cat"
+                              }
+                              onClick={() => setCategoryId(c.id)}
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {opTab === "invest" ? (
+                    <>
+                      <div
+                        className="finance-addop__carousel"
+                        role="tablist"
+                        aria-label="Режим инвестиций"
+                      >
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={invMode === "new"}
+                          className={
+                            invMode === "new"
+                              ? "finance-addop__chip finance-addop__chip--on"
+                              : "finance-addop__chip"
+                          }
+                          onClick={() => {
+                            setFormError(null);
+                            setInvMode("new");
+                          }}
+                        >
+                          Новая позиция
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={invMode === "add"}
+                          className={
+                            invMode === "add"
+                              ? "finance-addop__chip finance-addop__chip--on"
+                              : "finance-addop__chip"
+                          }
+                          onClick={() => {
+                            setFormError(null);
+                            setInvMode("add");
+                          }}
+                        >
+                          Докупка
+                        </button>
+                      </div>
+                      {invMode === "new" ? (
+                        <>
+                          <label className="finance__field">
+                            Название
+                            <input
+                              className="finance__input"
+                              value={invName}
+                              onChange={(e) => setInvName(e.target.value)}
+                              maxLength={120}
+                            />
+                          </label>
+                          <label className="finance__field">
+                            Тип
+                            <select
+                              className="finance__input"
+                              value={invAssetKind}
+                              onChange={(e) =>
+                                setInvAssetKind(
+                                  e.target.value as InvestmentAssetKind,
+                                )
+                              }
+                            >
+                              {(
+                                Object.keys(ASSET_LABEL) as InvestmentAssetKind[]
+                              ).map((k) => (
+                                <option key={k} value={k}>
+                                  {ASSET_LABEL[k]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </>
+                      ) : (
+                        <div className="finance-addop__block">
+                          <span className="finance-addop__sub">Позиция</span>
+                          <div
+                            className="finance-addop__carousel"
+                            role="listbox"
+                          >
+                            {invHoldings.length === 0 ? (
+                              <span className="finance-addop__empty">
+                                Пока нет позиций — выберите «Новая позиция».
+                              </span>
+                            ) : (
+                              invHoldings.map((h) => (
+                                <button
+                                  key={h.id}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={invHoldingId === h.id}
+                                  className={
+                                    invHoldingId === h.id
+                                      ? "finance-addop__acc finance-addop__acc--on"
+                                      : "finance-addop__acc"
+                                  }
+                                  onClick={() => setInvHoldingId(h.id)}
+                                >
+                                  <span className="finance-addop__acc-name">
+                                    {h.name}
+                                  </span>
+                                  <span className="finance-addop__acc-meta">
+                                    {ASSET_LABEL[h.assetKind]} ·{" "}
+                                    {h.units} шт
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <label className="finance__field">
+                        Количество (шт.)
+                        <input
+                          className="finance__input"
+                          type="text"
+                          inputMode="decimal"
+                          value={invUnitsStr}
+                          onChange={(e) => setInvUnitsStr(e.target.value)}
+                        />
+                      </label>
+                      <label className="finance__field">
+                        Цена за единицу, ₽
+                        <input
+                          className="finance__input"
+                          type="text"
+                          inputMode="decimal"
+                          value={invPriceStr}
+                          onChange={(e) => setInvPriceStr(e.target.value)}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+
+                  {opTab !== "invest" && opTab !== "debt" ? (
+                    <>
+                      <label className="finance__field">
+                        Дата
+                        <input
+                          className="finance__input"
+                          type="date"
+                          value={occurredDate}
+                          onChange={(e) => setOccurredDate(e.target.value)}
+                          required
+                        />
+                      </label>
+                      <label className="finance__field">
+                        Комментарий
+                        <input
+                          className="finance__input"
+                          type="text"
+                          maxLength={500}
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                        />
+                      </label>
+                    </>
+                  ) : null}
+
+                  {formError ? (
+                    <p className="finance__err">{formError}</p>
+                  ) : null}
+                  <button
+                    className="finance__submit"
+                    type="submit"
+                    disabled={
+                      formBusy ||
+                      opTab === "debt" ||
+                      (opTab === "transfer" && accounts.length < 2) ||
+                      ((opTab === "expense" || opTab === "income") &&
+                        (accounts.length === 0 || pickable.length === 0))
+                    }
+                  >
+                    {formBusy ? "…" : "Добавить"}
+                  </button>
+                </form>
+              </div>
+            </div>,
           )
         : null}
 

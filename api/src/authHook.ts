@@ -7,7 +7,9 @@ export async function authPreHandler(
   try {
     await request.jwtVerify({ onlyCookie: true });
   } catch {
-    return reply.status(401).send({ error: "Unauthorized" });
+    return reply
+      .status(401)
+      .send({ error: { message: "Требуется вход" } });
   }
 }
 

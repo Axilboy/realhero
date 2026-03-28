@@ -146,7 +146,9 @@ async function main() {
         where: { id: payload.sub },
       });
       if (!user) {
-        return reply.status(401).send({ error: "Unauthorized" });
+        return reply
+          .status(401)
+          .send({ error: { message: "Пользователь не найден" } });
       }
       return { user: { id: user.id, email: user.email } };
     },

@@ -4,8 +4,14 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
   type TouchEvent,
 } from "react";
+import { createPortal } from "react-dom";
+
+function modalPortal(node: ReactNode) {
+  return createPortal(node, document.body);
+}
 import {
   createAccount,
   createCategory,
@@ -381,14 +387,20 @@ function FinanceMainPanel({
         <button
           type="button"
           className="finance__btn-secondary"
-          onClick={() => setCatModal(true)}
+          onClick={() => {
+            setCatError(null);
+            setCatModal(true);
+          }}
         >
           Категории
         </button>
         <button
           type="button"
           className="finance__btn-secondary"
-          onClick={() => setAccModal(true)}
+          onClick={() => {
+            setAccError(null);
+            setAccModal(true);
+          }}
         >
           Новый счёт
         </button>
@@ -478,6 +490,7 @@ function FinanceMainPanel({
             type="button"
             className="finance-main__io finance-main__io--out"
             onClick={() => {
+              setFormError(null);
               setKind("EXPENSE");
               setTxModal(true);
             }}
@@ -488,6 +501,7 @@ function FinanceMainPanel({
             type="button"
             className="finance-main__io finance-main__io--in"
             onClick={() => {
+              setFormError(null);
               setKind("INCOME");
               setTxModal(true);
             }}
@@ -544,13 +558,14 @@ function FinanceMainPanel({
         </section>
       ) : null}
 
-      {txModal ? (
-        <div
-          className="finance__modal-back"
-          role="dialog"
-          aria-modal="true"
-          aria-label={kind === "INCOME" ? "Доход" : "Расход"}
-        >
+      {txModal
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+              aria-label={kind === "INCOME" ? "Доход" : "Расход"}
+            >
           <div className="finance__modal">
             <div className="finance__modal-head">
               <h2 className="finance__h2">
@@ -631,11 +646,17 @@ function FinanceMainPanel({
               </button>
             </form>
           </div>
-        </div>
-      ) : null}
+        </div>,
+          )
+        : null}
 
-      {accModal ? (
-        <div className="finance__modal-back" role="dialog" aria-modal="true">
+      {accModal
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+            >
           <div className="finance__modal">
             <div className="finance__modal-head">
               <h2 className="finance__h2">Новый счёт</h2>
@@ -674,16 +695,18 @@ function FinanceMainPanel({
               </button>
             </form>
           </div>
-        </div>
-      ) : null}
+        </div>,
+          )
+        : null}
 
-      {catModal ? (
-        <div
-          className="finance__modal-back"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="cat-modal-title"
-        >
+      {catModal
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cat-modal-title"
+            >
           <div className="finance__modal">
             <div className="finance__modal-head">
               <h2 id="cat-modal-title" className="finance__h2">
@@ -762,8 +785,9 @@ function FinanceMainPanel({
               </button>
             </form>
           </div>
-        </div>
-      ) : null}
+        </div>,
+          )
+        : null}
     </div>
   );
 }
@@ -853,7 +877,10 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
           <button
             type="button"
             className="finance__submit finance-inv__add"
-            onClick={() => setModal(true)}
+            onClick={() => {
+              setErr(null);
+              setModal(true);
+            }}
           >
             Добавить позицию
           </button>
@@ -887,8 +914,13 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
         </>
       )}
 
-      {modal ? (
-        <div className="finance__modal-back" role="dialog" aria-modal="true">
+      {modal
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+            >
           <div className="finance__modal">
             <div className="finance__modal-head">
               <h2 className="finance__h2">Новая позиция</h2>
@@ -947,8 +979,9 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
               </button>
             </form>
           </div>
-        </div>
-      ) : null}
+        </div>,
+          )
+        : null}
     </div>
   );
 }

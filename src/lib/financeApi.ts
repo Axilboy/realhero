@@ -59,7 +59,24 @@ async function json<T>(
       ...(init?.headers ?? {}),
     },
   });
-  const data = (await res.json().catch(() => ({}))) as T;
+  const text = await res.text();
+  let data = {} as T;
+  if (text) {
+    try {
+      data = JSON.parse(text) as T;
+    } catch {
+      if (!res.ok) {
+        data = {
+          error: {
+            message:
+              text.length > 200 ? `${text.slice(0, 200)}…` : text || res.statusText,
+          },
+        } as T;
+      }
+    }
+  } else if (!res.ok) {
+    data = { error: { message: res.statusText || `HTTP ${res.status}` } } as T;
+  }
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -196,6 +213,19 @@ export async function deleteTransaction(id: string) {
 }
 
 export function errorMessage(data: unknown): string {
-  const d = data as { error?: { message?: string } };
-  return d?.error?.message ?? "Ошибка запроса";
+  const d = data as {
+    error?: { message?: string } | string;
+    message?: string;
+  };
+  if (typeof d?.error === "string") {
+    if (d.error === "Unauthorized")
+      return "Сессия истекла — войдите снова";
+    return d.error;
+  }
+  if (d?.error && typeof d.error === "object" && "message" in d.error) {
+    const m = (d.error as { message?: string }).message;
+    if (m) return m;
+  }
+  if (typeof d?.message === "string") return d.message;
+  return "Ошибка запроса";
 }

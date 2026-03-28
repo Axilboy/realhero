@@ -8,7 +8,11 @@ import {
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { authPreHandler, getUserId } from "../authHook.js";
 import { prisma } from "../db.js";
-import { fetchQuotePriceRub, searchInvestQuotes } from "../lib/investQuotes.js";
+import {
+  fetchQuoteFundamentals,
+  fetchQuotePriceRub,
+  searchInvestQuotes,
+} from "../lib/investQuotes.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
 
@@ -53,6 +57,15 @@ function parseAnnualCouponDividendRub(
   if (m === null) return { ok: false, message: "Некорректная сумма" };
   if (m === 0) return { ok: true, minor: null };
   return { ok: true, minor: m };
+}
+
+/** Годовой доход с одной бумаги, ₽ → коп/год. */
+function parseAnnualIncomePerUnitRub(
+  raw: unknown,
+):
+  | { ok: true; minor: number | null }
+  | { ok: false; message: string } {
+  return parseAnnualCouponDividendRub(raw);
 }
 
 function holdingValueMinor(units: number, pricePerUnitMinor: number): number {
@@ -119,6 +132,60 @@ async function investmentsTotalMinor(userId: string): Promise<number> {
     t += holdingValueMinor(r.units, r.pricePerUnitMinor);
   }
   return t;
+}
+
+function holdingAnnualCashflowTotalMinor(h: {
+  units: number;
+  annualIncomePerUnitMinor: number | null;
+  annualCouponDividendMinor: number | null;
+}): number {
+  if (
+    typeof h.annualIncomePerUnitMinor === "number" &&
+    h.annualIncomePerUnitMinor > 0
+  ) {
+    return Math.round(h.annualIncomePerUnitMinor * h.units);
+  }
+  if (
+    typeof h.annualCouponDividendMinor === "number" &&
+    h.annualCouponDividendMinor > 0
+  ) {
+    return h.annualCouponDividendMinor;
+  }
+  return 0;
+}
+
+async function refreshInvestmentQuotes(userId: string): Promise<void> {
+  const rows = await prisma.investmentPosition.findMany({ where: { userId } });
+  for (const h of rows) {
+    const src = h.quoteSource;
+    const ext = h.quoteExternalId?.trim();
+    if (!src || !ext) continue;
+    if (src !== "coingecko" && src !== "moex") continue;
+    try {
+      const mm = h.quoteMoexMarket;
+      const pref =
+        src === "moex"
+          ? mm === "bonds" || mm === "shares"
+            ? mm
+            : "auto"
+          : undefined;
+      const r = await fetchQuotePriceRub(
+        src as "coingecko" | "moex",
+        ext,
+        undefined,
+        pref,
+      );
+      const ppm = Math.round(r.priceRub * 100);
+      if (ppm > 0) {
+        await prisma.investmentPosition.update({
+          where: { id: h.id },
+          data: { pricePerUnitMinor: ppm },
+        });
+      }
+    } catch {
+      /* пропуск одной позиции */
+    }
+  }
 }
 
 export const financePlugin: FastifyPluginAsync = async (app) => {
@@ -289,17 +356,31 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
 
   app.get("/investments/overview", async (request) => {
     const userId = getUserId(request);
+    const qr = request.query as { refresh?: string };
+    if (qr.refresh === "1" || qr.refresh === "true") {
+      await refreshInvestmentQuotes(userId);
+    }
     const holdings = await prisma.investmentPosition.findMany({
       where: { userId },
       orderBy: { name: "asc" },
     });
+    const accounts = await prisma.account.findMany({ where: { userId } });
+    const bal = await accountBalancesMap(userId);
+
     let total = 0;
+    let stocksMinor = 0;
+    let bondsMinor = 0;
+    let otherInvMinor = 0;
     let totalAnnualMinor = 0;
+
     const list = holdings.map((h) => {
       const valueMinor = holdingValueMinor(h.units, h.pricePerUnitMinor);
       total += valueMinor;
-      const ann = h.annualCouponDividendMinor;
-      if (typeof ann === "number" && ann > 0) totalAnnualMinor += ann;
+      if (h.assetKind === "STOCK") stocksMinor += valueMinor;
+      else if (h.assetKind === "BOND") bondsMinor += valueMinor;
+      else otherInvMinor += valueMinor;
+      const lineAnn = holdingAnnualCashflowTotalMinor(h);
+      totalAnnualMinor += lineAnn;
       return {
         id: h.id,
         name: h.name,
@@ -307,11 +388,32 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         units: h.units,
         pricePerUnitMinor: h.pricePerUnitMinor,
         valueMinor,
-        annualCouponDividendMinor: ann,
+        annualIncomePerUnitMinor: h.annualIncomePerUnitMinor,
+        annualCouponDividendMinor: h.annualCouponDividendMinor,
+        annualCashflowTotalMinor: lineAnn,
+        quoteSource: h.quoteSource,
+        quoteExternalId: h.quoteExternalId,
+        quoteMoexMarket: h.quoteMoexMarket,
         note: h.note,
         updatedAt: h.updatedAt.toISOString(),
       };
     });
+
+    let onDepositsMinor = 0;
+    for (const a of accounts) {
+      const b = bal.get(a.id) ?? 0;
+      if (a.type === "BANK" || a.type === "CASH") onDepositsMinor += b;
+    }
+    let onCardsMinor = 0;
+    for (const a of accounts) {
+      const b = bal.get(a.id) ?? 0;
+      if (a.type === "CARD") onCardsMinor += b;
+    }
+    const accountsTotalMinor = onDepositsMinor + onCardsMinor;
+    const wealthMinor = accountsTotalMinor + total;
+    const pct = (part: number) =>
+      wealthMinor > 0 ? Math.round((part * 1000) / wealthMinor) / 10 : 0;
+
     const hasFlow = totalAnnualMinor > 0 && total > 0;
     const couponDividendYearMinor = hasFlow ? totalAnnualMinor : null;
     const couponDividendMonthMinor = hasFlow
@@ -323,6 +425,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const incomePer1000YearMinor = hasFlow
       ? Math.round((totalAnnualMinor * 1000 * 100) / total)
       : null;
+
     return {
       totalValueMinor: total,
       holdings: list,
@@ -333,10 +436,23 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         couponDividendYearMinor,
         note:
           total === 0
-            ? "Добавьте позиции и при желании укажите ожидаемый годовой купон и дивиденды."
+            ? "Добавьте позиции. Цены по бумагам из поиска обновляются при открытии вкладки."
             : totalAnnualMinor === 0
-              ? "Укажите в позициях ожидаемый годовой доход (купоны + дивиденды) — тогда появятся оценки ниже."
-              : "Оценочно по введённым годовым суммам по позициям (равномерно по году).",
+              ? "Укажите доход с одной бумаги (кнопка «Доход») или при добавлении из поиска — подставим из MOEX, если есть данные."
+              : "Доходность по введённым суммам с одной бумаги × количество (равномерно по году). Цены — по последнему обновлению котировок.",
+      },
+      allocation: {
+        totalWealthMinor: wealthMinor,
+        onDepositsMinor,
+        onCardsMinor,
+        stocksMinor,
+        bondsMinor,
+        otherInvestmentsMinor: otherInvMinor,
+        pctDeposits: pct(onDepositsMinor),
+        pctCards: pct(onCardsMinor),
+        pctStocks: pct(stocksMinor),
+        pctBonds: pct(bondsMinor),
+        pctOtherInvest: pct(otherInvMinor),
       },
     };
   });
@@ -434,6 +550,57 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
   });
 
+  app.get("/investments/quote-fundamentals", async (request, reply) => {
+    const q = request.query as {
+      source?: string;
+      id?: string;
+      assetKind?: string;
+      moexMarket?: string;
+    };
+    const source = q.source;
+    const id = String(q.id ?? "").trim();
+    if (source !== "coingecko" && source !== "moex") {
+      return reply.status(400).send({
+        error: { message: "source: coingecko или moex" },
+      });
+    }
+    if (!id) {
+      return reply.status(400).send({ error: { message: "Укажите id" } });
+    }
+    const ak = q.assetKind as InvestmentAssetKind | undefined;
+    if (
+      ak &&
+      ak !== "STOCK" &&
+      ak !== "BOND" &&
+      ak !== "FUND" &&
+      ak !== "CRYPTO" &&
+      ak !== "OTHER"
+    ) {
+      return reply.status(400).send({ error: { message: "assetKind" } });
+    }
+    const mm = q.moexMarket as "shares" | "bonds" | undefined;
+    if (mm && mm !== "shares" && mm !== "bonds") {
+      return reply.status(400).send({ error: { message: "moexMarket" } });
+    }
+    try {
+      const r = await fetchQuoteFundamentals(
+        source as "coingecko" | "moex",
+        id,
+        (ak ?? "STOCK") as InvestmentAssetKind,
+        mm,
+      );
+      return {
+        annualIncomePerUnitRub: r.annualIncomePerUnitRub,
+        note: r.note,
+      };
+    } catch (err) {
+      request.log.warn({ err }, "quote-fundamentals");
+      return reply.status(502).send({
+        error: { message: "Не удалось получить данные" },
+      });
+    }
+  });
+
   app.post("/investments/holdings", async (request, reply) => {
     const userId = getUserId(request);
     const body = request.body as {
@@ -443,6 +610,10 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       pricePerUnitRub?: number;
       note?: string;
       annualCouponDividendRub?: number | null;
+      annualIncomePerUnitRub?: number | null;
+      quoteSource?: string | null;
+      quoteExternalId?: string | null;
+      quoteMoexMarket?: string | null;
     };
     const name = body.name?.trim() ?? "";
     if (!name || name.length > 120) {
@@ -476,13 +647,44 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     const note =
       typeof body.note === "string" ? body.note.trim().slice(0, 500) : undefined;
+    let annualIncomePerUnitMinor: number | null = null;
+    if (body.annualIncomePerUnitRub !== undefined) {
+      const p = parseAnnualIncomePerUnitRub(body.annualIncomePerUnitRub);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualIncomePerUnitMinor = p.minor;
+    }
     let annualCouponDividendMinor: number | null = null;
-    if (body.annualCouponDividendRub !== undefined) {
+    if (
+      annualIncomePerUnitMinor == null &&
+      body.annualCouponDividendRub !== undefined
+    ) {
       const p = parseAnnualCouponDividendRub(body.annualCouponDividendRub);
       if (!p.ok) {
         return reply.status(400).send({ error: { message: p.message } });
       }
       annualCouponDividendMinor = p.minor;
+    }
+    let quoteSource: string | null = null;
+    let quoteExternalId: string | null = null;
+    let quoteMoexMarket: string | null = null;
+    if (body.quoteSource != null && String(body.quoteSource).trim()) {
+      const s = String(body.quoteSource).trim();
+      if (s !== "coingecko" && s !== "moex") {
+        return reply.status(400).send({ error: { message: "quoteSource" } });
+      }
+      quoteSource = s;
+    }
+    if (body.quoteExternalId != null && String(body.quoteExternalId).trim()) {
+      quoteExternalId = String(body.quoteExternalId).trim().slice(0, 80);
+    }
+    if (body.quoteMoexMarket != null && String(body.quoteMoexMarket).trim()) {
+      const m = String(body.quoteMoexMarket).trim();
+      if (m !== "shares" && m !== "bonds") {
+        return reply.status(400).send({ error: { message: "quoteMoexMarket" } });
+      }
+      quoteMoexMarket = m;
     }
     const row = await prisma.investmentPosition.create({
       data: {
@@ -491,7 +693,11 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         assetKind: k,
         units,
         pricePerUnitMinor: ppm,
+        annualIncomePerUnitMinor,
         annualCouponDividendMinor,
+        quoteSource,
+        quoteExternalId,
+        quoteMoexMarket,
         note: note || null,
       },
     });
@@ -499,6 +705,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       holding: {
         ...row,
         valueMinor: holdingValueMinor(row.units, row.pricePerUnitMinor),
+        annualCashflowTotalMinor: holdingAnnualCashflowTotalMinor(row),
       },
     });
   });
@@ -513,6 +720,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       pricePerUnitRub?: number;
       note?: string | null;
       annualCouponDividendRub?: number | null;
+      annualIncomePerUnitRub?: number | null;
     };
     const existing = await prisma.investmentPosition.findFirst({
       where: { id, userId },
@@ -566,13 +774,26 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           ? null
           : String(body.note).trim().slice(0, 500);
     }
+    let annualIncomePerUnitMinor = existing.annualIncomePerUnitMinor;
     let annualCouponDividendMinor = existing.annualCouponDividendMinor;
-    if (body.annualCouponDividendRub !== undefined) {
+    if (body.annualIncomePerUnitRub !== undefined) {
+      const p = parseAnnualIncomePerUnitRub(body.annualIncomePerUnitRub);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualIncomePerUnitMinor = p.minor;
+      annualCouponDividendMinor = null;
+    }
+    if (
+      body.annualCouponDividendRub !== undefined &&
+      body.annualIncomePerUnitRub === undefined
+    ) {
       const p = parseAnnualCouponDividendRub(body.annualCouponDividendRub);
       if (!p.ok) {
         return reply.status(400).send({ error: { message: p.message } });
       }
       annualCouponDividendMinor = p.minor;
+      annualIncomePerUnitMinor = null;
     }
     const row = await prisma.investmentPosition.update({
       where: { id },
@@ -582,6 +803,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         units,
         pricePerUnitMinor,
         note,
+        annualIncomePerUnitMinor,
         annualCouponDividendMinor,
       },
     });
@@ -589,6 +811,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       holding: {
         ...row,
         valueMinor: holdingValueMinor(row.units, row.pricePerUnitMinor),
+        annualCashflowTotalMinor: holdingAnnualCashflowTotalMinor(row),
       },
     };
   });

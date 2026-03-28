@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   errorMessage,
   fetchInvestQuotePrice,
+  fetchQuoteFundamentals,
   searchInvestQuotes,
   type InvestmentAssetKind,
   type QuoteSearchHit,
@@ -11,6 +12,12 @@ export type InvestQuoteApplyPayload = {
   displayName: string;
   assetKind: InvestmentAssetKind;
   priceRub: number;
+  quoteSource?: "coingecko" | "moex";
+  quoteExternalId?: string;
+  quoteMoexMarket?: "shares" | "bonds" | null;
+  /** ₽/год с одной бумаги (если API вернуло) */
+  annualIncomePerUnitRub?: number | null;
+  fundamentalsNote?: string | null;
 };
 
 type Props = {
@@ -37,6 +44,9 @@ export default function InvestQuotePicker({ onApply, disabled }: Props) {
   const [priceNote, setPriceNote] = useState<string | null>(null);
   const [priceBusy, setPriceBusy] = useState(false);
   const [priceErr, setPriceErr] = useState<string | null>(null);
+  const [fundRub, setFundRub] = useState<number | null>(null);
+  const [fundNote, setFundNote] = useState<string | null>(null);
+  const [fundBusy, setFundBusy] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -102,6 +112,39 @@ export default function InvestQuotePicker({ onApply, disabled }: Props) {
     void loadPrice();
   }, [selected, priceMode, loadPrice]);
 
+  useEffect(() => {
+    if (!selected) {
+      setFundRub(null);
+      setFundNote(null);
+      setFundBusy(false);
+      return;
+    }
+    let cancel = false;
+    setFundBusy(true);
+    setFundRub(null);
+    setFundNote(null);
+    const mm =
+      selected.source === "moex"
+        ? selected.moexMarket ??
+          (selected.assetKind === "BOND" ? "bonds" : "shares")
+        : undefined;
+    void fetchQuoteFundamentals({
+      source: selected.source,
+      id: selected.externalId,
+      assetKind: selected.assetKind,
+      moexMarket: mm,
+    }).then((r) => {
+      if (cancel) return;
+      setFundBusy(false);
+      if (!r.ok) return;
+      setFundRub(r.data.annualIncomePerUnitRub);
+      setFundNote(r.data.note);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [selected]);
+
   function pickHit(h: QuoteSearchHit) {
     setSelected(h);
     setOpen(false);
@@ -113,10 +156,20 @@ export default function InvestQuotePicker({ onApply, disabled }: Props) {
 
   function apply() {
     if (!selected || priceRub == null || priceRub <= 0) return;
+    const moexM =
+      selected.source === "moex"
+        ? selected.moexMarket ??
+          (selected.assetKind === "BOND" ? "bonds" : "shares")
+        : null;
     onApply({
       displayName: `${selected.name} (${selected.symbol})`,
       assetKind: selected.assetKind,
       priceRub,
+      quoteSource: selected.source,
+      quoteExternalId: selected.externalId,
+      quoteMoexMarket: moexM,
+      annualIncomePerUnitRub: fundRub,
+      fundamentalsNote: fundNote,
     });
   }
 
@@ -249,6 +302,22 @@ export default function InvestQuotePicker({ onApply, disabled }: Props) {
             <p className="finance-invquote__status">Загрузка цены…</p>
           ) : null}
           {priceErr ? <p className="finance__err">{priceErr}</p> : null}
+          {fundBusy ? (
+            <p className="finance-invquote__status">Загрузка купона/дивидендов…</p>
+          ) : null}
+          {!fundBusy && fundRub != null && fundRub > 0 ? (
+            <p className="finance-invquote__fund">
+              Оценка дохода с 1 шт в год:{" "}
+              {fundRub.toLocaleString("ru-RU", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4,
+              })}{" "}
+              ₽
+            </p>
+          ) : null}
+          {!fundBusy && fundNote ? (
+            <p className="finance-invquote__price-note">{fundNote}</p>
+          ) : null}
           {priceRub != null && priceRub > 0 ? (
             <div className="finance-invquote__price-block">
               <p className="finance-invquote__price-val">

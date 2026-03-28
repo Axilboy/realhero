@@ -1,6 +1,6 @@
 # Real Hero — API
 
-Минимальный бэкенд: **регистрация и вход по email + пароль**, без подтверждения почты.
+Бэкенд приложения **Real Hero**: аутентификация по **email + паролю** (без подтверждения почты), персональный **финансовый** модуль (счета, операции, инвестиции, котировки).
 
 ## Локально
 
@@ -17,6 +17,10 @@ npm run dev
 
 ## Эндпоинты
 
+Префикс бизнес-логики финансов: **`/api/v1/finance/`** (ниже пути относительно этого префикса, если не указано иное).
+
+### Система и авторизация
+
 | Метод | Путь | Описание |
 |--------|------|-----------|
 | GET | `/health` | Проверка живости |
@@ -25,14 +29,35 @@ npm run dev
 | POST | `/api/v1/auth/logout` | Сброс cookie-сессии |
 | GET | `/api/v1/me` | Текущий пользователь (cookie `rh_session`) |
 
-### Котировки для портфеля (нужна сессия)
+### Финансы (нужна сессия)
+
+Все маршруты ниже — **`/api/v1/finance/...`**.
 
 | Метод | Путь | Описание |
-|--------|------|----------|
-| GET | `/api/v1/finance/investments/quote-search?q=` | Поиск: MOEX (акции РФ) + CoinGecko (крипто), от 2 символов |
-| GET | `/api/v1/finance/investments/quote-price` | Параметры: `source` = `coingecko` или `moex`, `id`, опционально `date` (`YYYY-MM-DD`) — цена в ₽ |
+|--------|------|-----------|
+| GET | `/accounts` | Счета и балансы, сумма по инвестициям |
+| POST | `/accounts` | Создать счёт |
+| PATCH | `/accounts/:id` | Изменить счёт |
+| DELETE | `/accounts/:id` | Удалить счёт |
+| POST | `/transfers` | Перевод между счетами |
+| GET | `/categories` | Категории (`?includeArchived=1` — с архивными) |
+| POST | `/categories` | Новая категория |
+| PATCH | `/categories/:id` | Изменить / архив |
+| GET | `/transactions` | Операции (`?from=&to=` ISO-даты) |
+| POST | `/transactions` | Расход или доход |
+| PATCH | `/transactions/:id` | Правка операции |
+| DELETE | `/transactions/:id` | Удаление |
+| GET | `/summary` | Сводка за месяц `?month=YYYY-MM` |
+| GET | `/summary/by-category` | Расходы/доходы по категориям за месяц |
+| GET | `/investments/overview` | Портфель, метрики, **`allocation`** (структура счётов и инвестиций). **`?refresh=1`** — обновить цены по сохранённым котировкам |
+| GET | `/investments/quote-search` | Поиск: `?q=` (≥2 символа), MOEX + CoinGecko |
+| GET | `/investments/quote-price` | `source`, `id`, опционально `date`, `moexMarket` — цена в ₽ |
+| GET | `/investments/quote-fundamentals` | `source`, `id`, `assetKind`, опционально `moexMarket` — оценка **₽/год с одной бумаги** (купон/дивиденды MOEX) |
+| POST | `/investments/holdings` | Новая позиция (в т.ч. `quote*`, `annualIncomePerUnitRub`, legacy `annualCouponDividendRub`) |
+| PATCH | `/investments/holdings/:id` | Правка позиции |
+| DELETE | `/investments/holdings/:id` | Удаление позиции |
 
-Внешние API могут лимитировать частоту запросов; на сервере кеш ~45 с.
+Внешние API (MOEX, CoinGecko) могут лимитировать частоту запросов; на сервере кеш ~45 с.
 
 ## Продакшен
 
@@ -41,4 +66,8 @@ npm run dev
 - Задайте **`JWT_SECRET`**, **`NODE_ENV=production`**, **`CORS_ORIGINS`** с вашим `https://домен`.
 - **Сессия (cookie `rh_session`):** в коде **`maxAge` 30 дней** и **`SameSite=Lax`**. Если при каждом заходе снова просит войти — чаще всего открываешь сайт с **другого хоста**, чем при логине (например вошёл с **`www.`**, зашёл без него или наоборот): cookie привязана к хосту. Решение: в nginx **301 с одного варианта на другой** *или* в **`api/.env`** задать **`COOKIE_DOMAIN=.твой-домен.ru`** (точка в начале — для поддоменов), перезапустить API. По умолчанию при **`NODE_ENV=production`** cookie с флагом **`Secure`** — нужен **HTTPS**, иначе браузер не сохранит сессию; для HTTP в проде задайте **`COOKIE_SECURE=false`** в **`api/.env`**.
 - БД: при росте можно перейти на PostgreSQL (смена `provider` в `schema.prisma`).
-- Запуск: `npm run build && npm start` под **pm2** или **systemd**; **nginx** проксирует `location /api/` на порт API (как раньше в проекте).
+- Запуск: `npm run build && npm start` под **pm2** или **systemd**; **nginx** проксирует `location /api/` на порт API.
+
+## Документация проекта
+
+- Корень: **`README.md`**, **`CHANGELOG.md`**, **`ПАСПОРТ_ПРОЕКТА.md`**.

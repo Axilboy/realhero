@@ -319,3 +319,139 @@ export async function fetchQuotePriceRub(
   const pref = moexPreferredMarket ?? "auto";
   return priceMoexRub(id, dateYmd, pref);
 }
+
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  return d;
+}
+
+/** Сумма дивидендов на акцию за последние ~12 мес. (₽). */
+export async function moexDividendsLastYearSumRubPerShare(
+  secid: string,
+): Promise<number | null> {
+  const sid = secid.trim().toUpperCase();
+  const j = await cached(`moex:divsum:${sid}`, () =>
+    getJson<{ dividends?: { columns?: string[]; data?: unknown[][] } }>(
+      `https://iss.moex.com/iss/securities/${encodeURIComponent(sid)}/dividends.json?iss.meta=off`,
+    ),
+  );
+  const rows = issRows(j.dividends);
+  const cut = daysAgo(370);
+  let sum = 0;
+  for (const r of rows) {
+    const ds = r.registryclosedate;
+    if (!ds) continue;
+    const dt = new Date(String(ds).slice(0, 10));
+    if (Number.isNaN(dt.getTime()) || dt < cut) continue;
+    const v = r.value;
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n)) sum += n;
+  }
+  return sum > 0 ? Math.round(sum * 100) / 100 : null;
+}
+
+function couponPaymentRub(row: Record<string, unknown>): number {
+  const vr = row.value_rub;
+  if (vr != null && vr !== "") {
+    const n = typeof vr === "number" ? vr : Number(vr);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  const v = row.value;
+  if (v != null && v !== "") {
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  const vp = Number(row.valueprc ?? 0);
+  const fv = Number(row.facevalue ?? row.initialfacevalue ?? 0);
+  if (vp > 0 && fv > 0) return (vp / 100) * fv;
+  return 0;
+}
+
+/** Оценка годового купона в ₽ с одной облигации (по данным MOEX). */
+export async function moexBondAnnualCouponRubPerUnit(
+  secid: string,
+): Promise<number | null> {
+  const sid = secid.trim().toUpperCase();
+  const j = await cached(`moex:bondiz2:${sid}`, () =>
+    getJson<{ coupons?: { columns?: string[]; data?: unknown[][] } }>(
+      `https://iss.moex.com/iss/securities/${encodeURIComponent(sid)}/bondization.json?iss.meta=off`,
+    ),
+  );
+  const rows = issRows(j.coupons);
+  if (!rows.length) return null;
+  const cut = daysAgo(400);
+  let sumRub = 0;
+  for (const r of rows) {
+    const ds = r.coupondate ?? r.startdate;
+    if (!ds) continue;
+    const dt = new Date(String(ds).slice(0, 10));
+    if (Number.isNaN(dt.getTime()) || dt < cut) continue;
+    const pay = couponPaymentRub(r);
+    if (pay > 0) sumRub += pay;
+  }
+  if (sumRub > 0) return Math.round(sumRub * 100) / 100;
+  const last = rows[rows.length - 1];
+  const pay = couponPaymentRub(last);
+  if (!(pay > 0)) return null;
+  if (rows.length >= 2) {
+    const d0 = new Date(
+      String(
+        rows[rows.length - 2].coupondate ?? rows[rows.length - 2].startdate,
+      ).slice(0, 10),
+    );
+    const d1 = new Date(
+      String(
+        rows[rows.length - 1].coupondate ?? rows[rows.length - 1].startdate,
+      ).slice(0, 10),
+    );
+    const days = Math.abs(d1.getTime() - d0.getTime()) / 86400000;
+    if (days > 7) return Math.round(((pay * 365) / days) * 100) / 100;
+  }
+  return Math.round(pay * 2 * 100) / 100;
+}
+
+export type QuoteFundamentals = {
+  annualIncomePerUnitRub: number | null;
+  note: string | null;
+};
+
+export async function fetchQuoteFundamentals(
+  source: "coingecko" | "moex",
+  externalId: string,
+  assetKind: InvestmentAssetKind,
+  moexMarket?: "shares" | "bonds",
+): Promise<QuoteFundamentals> {
+  if (source !== "moex") {
+    return {
+      annualIncomePerUnitRub: null,
+      note: null,
+    };
+  }
+  const sid = externalId.trim();
+  try {
+    if (assetKind === "BOND" || moexMarket === "bonds") {
+      const c = await moexBondAnnualCouponRubPerUnit(sid);
+      return {
+        annualIncomePerUnitRub: c,
+        note:
+          c != null
+            ? "MOEX: оценка годового купона с одной облигации"
+            : "MOEX: нет данных по купону",
+      };
+    }
+    if (assetKind === "STOCK") {
+      const d = await moexDividendsLastYearSumRubPerShare(sid);
+      return {
+        annualIncomePerUnitRub: d,
+        note:
+          d != null
+            ? "MOEX: сумма дивидендов на акцию за ~12 мес."
+            : "MOEX: нет дивидендов за период",
+      };
+    }
+  } catch {
+    return { annualIncomePerUnitRub: null, note: null };
+  }
+  return { annualIncomePerUnitRub: null, note: null };
+}

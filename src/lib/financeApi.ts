@@ -45,9 +45,31 @@ export type InvestmentHoldingRow = {
   units: number;
   pricePerUnitMinor: number;
   valueMinor: number;
+  /** Годовой купон/див с одной бумаги, коп. */
+  annualIncomePerUnitMinor: number | null;
+  /** Legacy: годовой доход на всю позицию, коп. */
   annualCouponDividendMinor: number | null;
+  /** Итого по позиции (per-unit×units или legacy), коп/год */
+  annualCashflowTotalMinor: number;
+  quoteSource: string | null;
+  quoteExternalId: string | null;
+  quoteMoexMarket: string | null;
   note: string | null;
   updatedAt: string;
+};
+
+export type InvestAllocation = {
+  totalWealthMinor: number;
+  onDepositsMinor: number;
+  onCardsMinor: number;
+  stocksMinor: number;
+  bondsMinor: number;
+  otherInvestmentsMinor: number;
+  pctDeposits: number;
+  pctCards: number;
+  pctStocks: number;
+  pctBonds: number;
+  pctOtherInvest: number;
 };
 
 /** Абсолютный URL к API (надёжнее для cookie при нестандартном base / PWA). */
@@ -142,7 +164,9 @@ export async function deleteAccount(id: string) {
   });
 }
 
-export async function fetchInvestOverview() {
+export async function fetchInvestOverview(refreshQuotes?: boolean) {
+  const q =
+    refreshQuotes === true ? "?refresh=1" : "";
   return json<{
     totalValueMinor: number;
     holdings: InvestmentHoldingRow[];
@@ -153,7 +177,8 @@ export async function fetchInvestOverview() {
       couponDividendYearMinor: number | null;
       note: string;
     };
-  }>("/api/v1/finance/investments/overview");
+    allocation: InvestAllocation;
+  }>(`/api/v1/finance/investments/overview${q}`);
 }
 
 export async function createHolding(payload: {
@@ -162,8 +187,13 @@ export async function createHolding(payload: {
   units: number;
   pricePerUnitRub: number;
   note?: string;
-  /** Ожидаемые купоны + дивиденды по позиции за год, ₽ */
+  /** Legacy: купоны + дивиденды на всю позицию за год, ₽ */
   annualCouponDividendRub?: number | null;
+  /** Купон/див с одной бумаги в год, ₽ */
+  annualIncomePerUnitRub?: number | null;
+  quoteSource?: string | null;
+  quoteExternalId?: string | null;
+  quoteMoexMarket?: string | null;
 }) {
   return json<{ holding: InvestmentHoldingRow }>(
     "/api/v1/finance/investments/holdings",
@@ -182,6 +212,7 @@ export async function patchHolding(
     name: string;
     note: string | null;
     annualCouponDividendRub: number | null;
+    annualIncomePerUnitRub: number | null;
   }>,
 ) {
   return json<{ holding: InvestmentHoldingRow }>(
@@ -226,6 +257,26 @@ export async function searchInvestQuotes(q: string) {
     `/api/v1/finance/investments/quote-search?q=${encodeURIComponent(q)}`,
     { method: "GET" },
   );
+}
+
+export async function fetchQuoteFundamentals(params: {
+  source: "coingecko" | "moex";
+  id: string;
+  assetKind: InvestmentAssetKind;
+  moexMarket?: "shares" | "bonds";
+}) {
+  const sp = new URLSearchParams({
+    source: params.source,
+    id: params.id,
+    assetKind: params.assetKind,
+  });
+  if (params.moexMarket) sp.set("moexMarket", params.moexMarket);
+  return json<{
+    annualIncomePerUnitRub: number | null;
+    note: string | null;
+  }>(`/api/v1/finance/investments/quote-fundamentals?${sp}`, {
+    method: "GET",
+  });
 }
 
 export async function fetchInvestQuotePrice(params: {

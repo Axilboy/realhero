@@ -1277,6 +1277,52 @@ body {
   color: #8ab4ff;
 }
 
+.finance-inv__alloc {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #2a3448;
+}
+
+.finance-inv__alloc-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7c8088;
+}
+
+.finance-inv__alloc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+}
+
+.finance-inv__alloc-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  color: #c4c7cc;
+}
+
+.finance-inv__alloc-list li span:last-child {
+  text-align: right;
+  white-space: nowrap;
+  color: #e8eaed;
+}
+
+.finance-inv__alloc-total {
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #2a3448;
+  font-weight: 600;
+}
+
 .finance-inv__metrics {
   list-style: none;
   margin: 0.85rem 0 0;

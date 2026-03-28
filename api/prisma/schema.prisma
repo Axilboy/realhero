@@ -119,8 +119,13 @@ model InvestmentPosition {
   assetKind                 InvestmentAssetKind
   units                     Float
   pricePerUnitMinor         Int
-  /// Ожидаемые купоны + дивиденды по позиции за год, коп.
+  /// Купоны+дивиденды в год с одной бумаги (коп.). Приоритет над legacy total ниже.
+  annualIncomePerUnitMinor  Int?
+  /// Устарело: годовой доход по всей позиции; если perUnit пусто — используется это.
   annualCouponDividendMinor Int?
+  quoteSource               String?
+  quoteExternalId           String?
+  quoteMoexMarket           String?
   note                      String?
   createdAt                 DateTime            @default(now())
   updatedAt                 DateTime            @updatedAt

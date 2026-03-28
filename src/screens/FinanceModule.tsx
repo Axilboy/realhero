@@ -36,6 +36,7 @@ import {
   type Category,
   type InvestmentAssetKind,
   type InvestmentHoldingRow,
+  type InvestAllocation,
   type TransactionKind,
   type TransactionRow,
 } from "../lib/financeApi";
@@ -125,7 +126,7 @@ export default function FinanceModule() {
             <FinanceMainPanel bump={bump} onRefresh={refreshAll} />
           </div>
           <div className="finance-mod__panel">
-            <FinanceInvestPanel bump={bump} />
+            <FinanceInvestPanel bump={bump} investActive={tab === 1} />
           </div>
           <div className="finance-mod__panel">
             <FinanceAnalyticsPanel bump={bump} />
@@ -201,6 +202,12 @@ function FinanceMainPanel({
     useState<InvestmentAssetKind>("STOCK");
   const [invUnitsStr, setInvUnitsStr] = useState("");
   const [invPriceStr, setInvPriceStr] = useState("");
+  const [invQuoteMeta, setInvQuoteMeta] = useState<{
+    quoteSource: "coingecko" | "moex";
+    quoteExternalId: string;
+    quoteMoexMarket: "shares" | "bonds" | null;
+    annualIncomePerUnitRub?: number | null;
+  } | null>(null);
 
   const [catModal, setCatModal] = useState(false);
   const [catIncludeArchived, setCatIncludeArchived] = useState(false);
@@ -327,6 +334,7 @@ function FinanceMainPanel({
     setInvUnitsStr("");
     setInvPriceStr("");
     setInvAssetKind("STOCK");
+    setInvQuoteMeta(null);
     setAddOpOpen(true);
   }
 
@@ -409,6 +417,17 @@ function FinanceMainPanel({
           assetKind: invAssetKind,
           units,
           pricePerUnitRub: price,
+          ...(invQuoteMeta
+            ? {
+                quoteSource: invQuoteMeta.quoteSource,
+                quoteExternalId: invQuoteMeta.quoteExternalId,
+                quoteMoexMarket: invQuoteMeta.quoteMoexMarket,
+              }
+            : {}),
+          ...(invQuoteMeta?.annualIncomePerUnitRub != null &&
+          invQuoteMeta.annualIncomePerUnitRub > 0
+            ? { annualIncomePerUnitRub: invQuoteMeta.annualIncomePerUnitRub }
+            : {}),
         });
         setFormBusy(false);
         if (!res.ok) {
@@ -961,6 +980,17 @@ function FinanceMainPanel({
                               setInvName(p.displayName);
                               setInvAssetKind(p.assetKind);
                               setInvPriceStr(String(p.priceRub));
+                              if (p.quoteSource && p.quoteExternalId) {
+                                setInvQuoteMeta({
+                                  quoteSource: p.quoteSource,
+                                  quoteExternalId: p.quoteExternalId,
+                                  quoteMoexMarket: p.quoteMoexMarket ?? null,
+                                  annualIncomePerUnitRub:
+                                    p.annualIncomePerUnitRub,
+                                });
+                              } else {
+                                setInvQuoteMeta(null);
+                              }
                             }}
                           />
                           <label className="finance__field">
@@ -1243,10 +1273,17 @@ function FinanceMainPanel({
   );
 }
 
-function FinanceInvestPanel({ bump }: { bump: number }) {
+function FinanceInvestPanel({
+  bump,
+  investActive,
+}: {
+  bump: number;
+  investActive: boolean;
+}) {
   const [data, setData] = useState<{
     totalValueMinor: number;
     holdings: InvestmentHoldingRow[];
+    allocation: InvestAllocation;
     metrics: {
       incomePer1000YearMinor: number | null;
       couponDividendDayMinor: number | null;
@@ -1262,16 +1299,23 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
   const [unitsStr, setUnitsStr] = useState("");
   const [priceStr, setPriceStr] = useState("");
   const [annualIncomeStr, setAnnualIncomeStr] = useState("");
+  const [invQuoteMeta, setInvQuoteMeta] = useState<{
+    quoteSource: "coingecko" | "moex";
+    quoteExternalId: string;
+    quoteMoexMarket: "shares" | "bonds" | null;
+    annualIncomePerUnitRub?: number | null;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [incomeModal, setIncomeModal] = useState<InvestmentHoldingRow | null>(
     null,
   );
   const [incomeModalStr, setIncomeModalStr] = useState("");
   const [incomeBusy, setIncomeBusy] = useState(false);
+  const investEnteredRef = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (refreshQuotes?: boolean) => {
     setErr(null);
-    const r = await fetchInvestOverview();
+    const r = await fetchInvestOverview(refreshQuotes === true);
     if (!r.ok) {
       setErr(errorMessage(r.data));
       return;
@@ -1279,13 +1323,20 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
     setData({
       totalValueMinor: r.data.totalValueMinor,
       holdings: r.data.holdings,
+      allocation: r.data.allocation,
       metrics: r.data.metrics,
     });
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load, bump]);
+    if (!investActive) {
+      investEnteredRef.current = false;
+      return;
+    }
+    const refreshQuotes = !investEnteredRef.current;
+    investEnteredRef.current = true;
+    void load(refreshQuotes);
+  }, [investActive, bump, load]);
 
   async function onAdd(e: FormEvent) {
     e.preventDefault();
@@ -1293,14 +1344,19 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
     const price = Number(String(priceStr).replace(",", "."));
     if (!Number.isFinite(units) || units <= 0) return;
     if (!Number.isFinite(price) || price <= 0) return;
-    let annualRub: number | null | undefined;
+    let annualPerUnit: number | undefined;
     if (annualIncomeStr.trim()) {
       const a = Number(String(annualIncomeStr).replace(",", "."));
       if (!Number.isFinite(a) || a < 0) {
-        setErr("Годовой купон+дивиденд — неотрицательное число");
+        setErr("Доход с одной бумаги в год — неотрицательное число");
         return;
       }
-      annualRub = a;
+      annualPerUnit = a;
+    } else if (
+      invQuoteMeta?.annualIncomePerUnitRub != null &&
+      invQuoteMeta.annualIncomePerUnitRub > 0
+    ) {
+      annualPerUnit = invQuoteMeta.annualIncomePerUnitRub;
     }
     setBusy(true);
     const res = await createHolding({
@@ -1308,8 +1364,15 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
       assetKind,
       units,
       pricePerUnitRub: price,
-      ...(annualRub !== undefined
-        ? { annualCouponDividendRub: annualRub }
+      ...(invQuoteMeta
+        ? {
+            quoteSource: invQuoteMeta.quoteSource,
+            quoteExternalId: invQuoteMeta.quoteExternalId,
+            quoteMoexMarket: invQuoteMeta.quoteMoexMarket,
+          }
+        : {}),
+      ...(annualPerUnit !== undefined
+        ? { annualIncomePerUnitRub: annualPerUnit }
         : {}),
     });
     setBusy(false);
@@ -1321,8 +1384,9 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
     setUnitsStr("");
     setPriceStr("");
     setAnnualIncomeStr("");
+    setInvQuoteMeta(null);
     setModal(false);
-    void load();
+    void load(false);
   }
 
   async function onSaveIncome(e: FormEvent) {
@@ -1331,14 +1395,17 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
     const raw = incomeModalStr.trim();
     const payload =
       raw === ""
-        ? { annualCouponDividendRub: null as const }
+        ? ({
+            annualIncomePerUnitRub: null,
+            annualCouponDividendRub: null,
+          } as const)
         : (() => {
             const a = Number(raw.replace(",", "."));
             if (!Number.isFinite(a) || a < 0) {
-              setErr("Годовой купон+дивиденд — неотрицательное число");
+              setErr("Доход с одной бумаги в год — неотрицательное число");
               return null;
             }
-            return { annualCouponDividendRub: a };
+            return { annualIncomePerUnitRub: a } as const;
           })();
     if (!payload) return;
     setIncomeBusy(true);
@@ -1350,7 +1417,7 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
       return;
     }
     setIncomeModal(null);
-    void load();
+    void load(false);
   }
 
   async function onDel(id: string) {
@@ -1376,6 +1443,59 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
             <span className="finance-inv__hero-val">
               {formatRubFromMinor(data.totalValueMinor)}
             </span>
+            <div
+              className="finance-inv__alloc"
+              aria-label="Структура: счета и инвестиции"
+            >
+              <h3 className="finance__h3 finance-inv__alloc-title">
+                Структура портфеля
+              </h3>
+              <ul className="finance-inv__alloc-list">
+                <li>
+                  <span>Вклады и наличные</span>
+                  <span>
+                    {formatRubFromMinor(data.allocation.onDepositsMinor)} ·{" "}
+                    {data.allocation.pctDeposits}%
+                  </span>
+                </li>
+                <li>
+                  <span>Карты</span>
+                  <span>
+                    {formatRubFromMinor(data.allocation.onCardsMinor)} ·{" "}
+                    {data.allocation.pctCards}%
+                  </span>
+                </li>
+                <li>
+                  <span>Акции</span>
+                  <span>
+                    {formatRubFromMinor(data.allocation.stocksMinor)} ·{" "}
+                    {data.allocation.pctStocks}%
+                  </span>
+                </li>
+                <li>
+                  <span>Облигации</span>
+                  <span>
+                    {formatRubFromMinor(data.allocation.bondsMinor)} ·{" "}
+                    {data.allocation.pctBonds}%
+                  </span>
+                </li>
+                <li>
+                  <span>Прочие инструменты</span>
+                  <span>
+                    {formatRubFromMinor(
+                      data.allocation.otherInvestmentsMinor,
+                    )}{" "}
+                    · {data.allocation.pctOtherInvest}%
+                  </span>
+                </li>
+                <li className="finance-inv__alloc-total">
+                  <span>Всего (счета + инвестиции)</span>
+                  <span>
+                    {formatRubFromMinor(data.allocation.totalWealthMinor)}
+                  </span>
+                </li>
+              </ul>
+            </div>
             <ul className="finance-inv__metrics" aria-label="Доходность по купонам и дивидендам">
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
@@ -1425,6 +1545,8 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
             className="finance__submit finance-inv__add"
             onClick={() => {
               setErr(null);
+              setInvQuoteMeta(null);
+              setAnnualIncomeStr("");
               setModal(true);
             }}
           >
@@ -1442,11 +1564,24 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
                       {ASSET_LABEL[h.assetKind]} · {h.units} ×{" "}
                       {formatRubFromMinor(h.pricePerUnitMinor)}
                     </span>
-                    {h.annualCouponDividendMinor != null &&
-                    h.annualCouponDividendMinor > 0 ? (
+                    {h.annualCashflowTotalMinor > 0 ? (
                       <span className="finance-inv__meta finance-inv__meta--inc">
-                        Купон/див:{" "}
-                        {formatRubFromMinor(h.annualCouponDividendMinor)}/год
+                        {h.annualIncomePerUnitMinor != null &&
+                        h.annualIncomePerUnitMinor > 0 ? (
+                          <>
+                            С 1 шт:{" "}
+                            {formatRubFromMinor(h.annualIncomePerUnitMinor)}
+                            /год · итого{" "}
+                            {formatRubFromMinor(h.annualCashflowTotalMinor)}
+                            /год
+                          </>
+                        ) : (
+                          <>
+                            Купон/див (на позицию):{" "}
+                            {formatRubFromMinor(h.annualCashflowTotalMinor)}
+                            /год
+                          </>
+                        )}
                       </span>
                     ) : null}
                   </div>
@@ -1459,10 +1594,18 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
                         setErr(null);
                         setIncomeModal(h);
                         setIncomeModalStr(
-                          h.annualCouponDividendMinor != null &&
-                            h.annualCouponDividendMinor > 0
-                            ? String(h.annualCouponDividendMinor / 100)
-                            : "",
+                          h.annualIncomePerUnitMinor != null &&
+                            h.annualIncomePerUnitMinor > 0
+                            ? String(h.annualIncomePerUnitMinor / 100)
+                            : h.annualCouponDividendMinor != null &&
+                                h.annualCouponDividendMinor > 0 &&
+                                h.units > 0
+                              ? String(
+                                  h.annualCouponDividendMinor /
+                                    h.units /
+                                    100,
+                                )
+                              : "",
                         );
                       }}
                     >
@@ -1508,6 +1651,22 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
                   setName(p.displayName);
                   setAssetKind(p.assetKind);
                   setPriceStr(String(p.priceRub));
+                  if (p.quoteSource && p.quoteExternalId) {
+                    setInvQuoteMeta({
+                      quoteSource: p.quoteSource,
+                      quoteExternalId: p.quoteExternalId,
+                      quoteMoexMarket: p.quoteMoexMarket ?? null,
+                      annualIncomePerUnitRub: p.annualIncomePerUnitRub,
+                    });
+                  } else {
+                    setInvQuoteMeta(null);
+                  }
+                  if (
+                    p.annualIncomePerUnitRub != null &&
+                    p.annualIncomePerUnitRub > 0
+                  ) {
+                    setAnnualIncomeStr(String(p.annualIncomePerUnitRub));
+                  }
                 }}
               />
               <input
@@ -1576,11 +1735,11 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
               className="finance__modal-back finance__modal-root"
               role="dialog"
               aria-modal="true"
-              aria-label="Купон и дивиденды"
+              aria-label="Доход с одной бумаги"
             >
               <div className="finance__modal">
                 <div className="finance__modal-head">
-                  <h2 className="finance__h2">Купон и дивиденды</h2>
+                  <h2 className="finance__h2">Доход с одной бумаги</h2>
                   <button
                     type="button"
                     className="finance__modal-close"
@@ -1590,12 +1749,16 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
                   </button>
                 </div>
                 <p className="finance-inv__edit-name">{incomeModal.name}</p>
+                <p className="finance-inv__hint">
+                  Указывается доход с одной бумаги в год; итого по позиции =
+                  это значение × {incomeModal.units} шт.
+                </p>
                 <form
                   className="finance__form"
                   onSubmit={(e) => void onSaveIncome(e)}
                 >
                   <label className="finance__field">
-                    Ожидаемый доход в год (купоны + дивиденды), ₽
+                    ₽/год с одной бумаги (купон или дивиденды)
                     <input
                       className="finance__input"
                       inputMode="decimal"

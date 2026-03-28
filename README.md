@@ -61,7 +61,7 @@ $env:RH_DEPLOY_PATH   = "/PROGS/RH/www"
 
 Скрипт собирает `dist`, упаковывает в архив, заливает в `/tmp` и распаковывает в `$RH_DEPLOY_PATH`.
 
-Для **nginx** используйте `try_files` для SPA — пример: `deploy/nginx-spa.example.conf`.
+Для **nginx** используйте `try_files` для SPA **и** отдельный `location /api/` на Node (порт API) — иначе OAuth по туннелю/домену не заработает. Пример: `deploy/nginx-spa.example.conf`.
 
 Временный бесплатный **HTTPS** для Mini App (туннель или Vercel): см. `deploy/temporary-https.md`.
 

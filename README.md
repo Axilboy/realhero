@@ -25,22 +25,25 @@ npm run dev
 
 Сборка фронта: `npm run build`. Подробнее по API: **`api/README.md`**.
 
-## Деплой на сервер
+## Два шага: ПК → сервер
 
-Статика после `git push`:
+**1. На своём ПК (Git Bash), из корня репозитория** — сохранить изменения и отправить в Git:
+
+```bash
+bash scripts/push.sh
+```
+
+С суффиксом в сообщении коммита: `bash scripts/push.sh "финансы"`. Если правок в файлах нет, коммит пропускается, но выполняется **`git push`** (удобно, если коммит уже есть).
+
+То же самое: `bash scripts/quick-push.sh` (старый вызов).
+
+**2. На сервере (Linux, SSH)** — подтянуть код, собрать фронт в **`www`**, обновить API и перезапустить PM2 **одной командой**:
 
 ```bash
 cd /PROGS/RH/web-app
-git pull origin master
-./scripts/deploy-server.sh
+bash scripts/server-update.sh
 ```
 
-Отдельно на сервере подними API (`api/`: `npm ci`, `prisma db push`, `npm run build`, `npm start` или pm2) и nginx **`location /api/`** на порт бэкенда. В **`api/.env`** укажи **`CORS_ORIGINS`** с `https://твой-домен` и сильный **`JWT_SECRET`**.
+Путь к клону замени на свой, если отличается. Статика по умолчанию: **`DEPLOY_WWW=/PROGS/RH/www`** (см. `scripts/deploy-server.sh`). Процесс PM2: **`PM2_NAME=realhero-api`**.
 
-## Быстрый push (Git Bash)
-
-```bash
-bash scripts/quick-push.sh
-```
-
-Сообщение коммита — дата и время; опционально суффикс: `bash scripts/quick-push.sh "wip"`.
+Первичная настройка: nginx **`location /api/`** на порт бэкенда, в **`api/.env`** — **`CORS_ORIGINS`** с твоим доменом и сильный **`JWT_SECRET`**. Подробнее: **`api/README.md`**.

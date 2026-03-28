@@ -6,6 +6,9 @@
 #   ./scripts/deploy-server.sh
 #
 # Optional: export DEPLOY_WWW=/PROGS/RH/www
+#
+# Не запускай в Git Bash на Windows с путём по умолчанию /PROGS/... — будет Permission denied.
+# Деплой статики делай на Linux-сервере или задай локальный каталог: DEPLOY_WWW=/c/temp/rh-www ./scripts/deploy-server.sh
 
 set -euo pipefail
 
@@ -13,6 +16,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 WWW="${DEPLOY_WWW:-/PROGS/RH/www}"
+
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
+  case "$WWW" in
+    /PROGS/*)
+      echo "ERROR: путь $WWW недоступен в Git Bash на Windows (mkdir в корень «/»)." >&2
+      echo "Запусти этот скрипт на сервере (см. scripts/server-pull-deploy.sh) или задай DEPLOY_WWW с Windows-путём." >&2
+      exit 1
+      ;;
+  esac
+fi
 
 echo "==> npm ci"
 npm ci

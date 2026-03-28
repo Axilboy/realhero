@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchDashboard } from "../api/realHero";
 import { useSession } from "../context/SessionContext";
@@ -12,6 +12,24 @@ export function DashboardPage() {
   const [needLogin, setNeedLogin] = useState(false);
   const swipe = useDashboardHomeSwipe(true);
 
+  const loadDashboard = useCallback(async () => {
+    if (!user) return;
+    try {
+      const d = await fetchDashboard();
+      setData(d);
+      setError(null);
+      setNeedLogin(false);
+    } catch (e) {
+      if (e instanceof Error && e.message === "unauthorized") {
+        setNeedLogin(true);
+        setData(null);
+      } else {
+        setError("Не удалось загрузить сводку. Проверь API и сеть.");
+        setData(null);
+      }
+    }
+  }, [user]);
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!user) {
@@ -20,29 +38,17 @@ export function DashboardPage() {
       setError(null);
       return;
     }
-    let cancelled = false;
     setNeedLogin(false);
-    fetchDashboard()
-      .then((d) => {
-        if (!cancelled) {
-          setData(d);
-          setError(null);
-        }
-      })
-      .catch((e: Error) => {
-        if (cancelled) return;
-        if (e.message === "unauthorized") {
-          setNeedLogin(true);
-          setData(null);
-        } else {
-          setError("Не удалось загрузить сводку. Проверь API и сеть.");
-          setData(null);
-        }
-      });
-    return () => {
-      cancelled = true;
+    void loadDashboard();
+  }, [user, sessionLoading, loadDashboard]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && user) void loadDashboard();
     };
-  }, [user, sessionLoading]);
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [user, loadDashboard]);
 
   const expPct =
     data && data.expToNext > 0

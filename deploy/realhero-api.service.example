@@ -1,0 +1,24 @@
+# Пример systemd (скопируйте в /etc/systemd/system/realhero-api.service).
+# Пути и пользователя подставьте под свой сервер.
+#
+#   sudo cp deploy/realhero-api.service.example /etc/systemd/system/realhero-api.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now realhero-api
+
+[Unit]
+Description=Real Hero API (Fastify)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/PROGS/RH/web-app/api
+Environment=NODE_ENV=production
+# Раскомментируйте, если держите секреты в файле:
+# EnvironmentFile=/PROGS/RH/web-app/api/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

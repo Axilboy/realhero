@@ -18,8 +18,10 @@ model User {
   /// UI-настройки (JSON), например { "dashboardHints": true }
   settings    Json?
   accounts    OAuthAccount[]
-  stats       UserStats?
-  quests      Quest[]
+  stats        UserStats?
+  quests       Quest[]
+  transactions Transaction[]
+  kanbanCards  KanbanCard[]
 }
 
 /// Прогресс героя: уровень, EXP в текущем уровне, монеты, стрик.
@@ -49,6 +51,35 @@ model Quest {
   completedAt DateTime?
 
   @@index([userId, done])
+}
+
+/// Доход / расход (сумма в копейках / центах, всегда > 0; тип задаёт знак в отчётах).
+model Transaction {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountMinor Int
+  type        String
+  category    String
+  note        String?
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([userId, occurredAt])
+}
+
+/// Карточка канбана (колонки: todo | doing | done).
+model KanbanCard {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  column    String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, column])
 }
 
 /// Привязка к Google / Яндекс / VK / Apple (один пользователь — несколько провайдеров).

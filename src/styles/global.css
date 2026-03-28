@@ -694,6 +694,171 @@ body {
   font-size: 0.9rem;
 }
 
+/* ——— Finance ——— */
+.finance__summary {
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.finance__stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+
+.finance__stat-label {
+  color: var(--muted);
+}
+
+.finance__stat-val--plus {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.finance__stat-val--minus {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.finance__cats {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.finance__cat {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.finance__form {
+  margin-bottom: 22px;
+}
+
+.finance__type-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.finance__radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.finance__txlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.finance__tx {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-size: 0.9rem;
+}
+
+.finance__tx-title {
+  font-weight: 600;
+  display: block;
+}
+
+.finance__tx-note {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+.finance__tx-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ——— Kanban ——— */
+.kanban__board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 720px) {
+  .kanban__board {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .kanban__column {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.kanban__column {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: var(--bg-elevated);
+}
+
+.kanban__col-title {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.kanban__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban__card {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.kanban__card-text {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.kanban__card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* ——— Changelog ——— */
 .changelog {
   flex: 1;

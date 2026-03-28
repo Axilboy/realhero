@@ -6,6 +6,15 @@ type Entry = { version: string; date: string; items: string[] };
 /** Синхронизируйте с package.json и CHANGELOG.md при каждом релизе. */
 const ENTRIES: Entry[] = [
   {
+    version: "0.7.0",
+    date: "2026-03-28",
+    items: [
+      "Финансы и канбан: полноценные экраны и API (копейки, три колонки).",
+      "Редактирование активного квеста; дашборд обновляется при возврате на вкладку.",
+      "openapi.json, примеры pm2 и systemd в deploy/.",
+    ],
+  },
+  {
     version: "0.6.0",
     date: "2026-03-28",
     items: [

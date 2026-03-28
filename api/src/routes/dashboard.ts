@@ -54,13 +54,14 @@ export const dashboardRoutes: FastifyPluginAsync = async (app) => {
       highlights.push("История версий — ссылка сверху.");
     }
 
-    const notifications: { id: string; text: string; tone: "info" | "warn" | "success" }[] = [
-      {
+    const notifications: { id: string; text: string; tone: "info" | "warn" | "success" }[] = [];
+    if (hints) {
+      notifications.push({
         id: "coins",
         text: `Монеты: ${stats.coins}. Потратить на косметику героя — в следующих релизах.`,
         tone: "info",
-      },
-    ];
+      });
+    }
     if (stats.streakCount > 0) {
       notifications.push({
         id: "streak",

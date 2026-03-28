@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { completeQuest, createQuest, deleteQuest, fetchQuests } from "../api/realHero";
+import { completeQuest, createQuest, deleteQuest, fetchQuests, updateQuest } from "../api/realHero";
 import { useSession } from "../context/SessionContext";
 import type { QuestDto } from "../types/dashboard";
 import { useSwipeBackToHome } from "../hooks/useSwipeNavigate";
@@ -28,6 +28,10 @@ export function QuestsPage() {
   const [rewardExp, setRewardExp] = useState("10");
   const [rewardCoins, setRewardCoins] = useState("0");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editExp, setEditExp] = useState("10");
+  const [editCoins, setEditCoins] = useState("0");
   const swipe = useSwipeBackToHome("quests", true);
 
   const load = useCallback(async () => {
@@ -95,6 +99,41 @@ export function QuestsPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось завершить");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const startEdit = (q: QuestDto) => {
+    setEditingId(q.id);
+    setEditTitle(q.title);
+    setEditExp(String(q.rewardExp));
+    setEditCoins(String(q.rewardCoins));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = async (id: string) => {
+    const t = editTitle.trim();
+    if (!t) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      const expN = parseInt(editExp, 10);
+      const coinsN = parseInt(editCoins, 10);
+      await updateQuest(id, {
+        title: t,
+        rewardExp: Number.isFinite(expN) ? expN : 10,
+        rewardCoins: Number.isFinite(coinsN) ? coinsN : 0,
+      });
+      setEditingId(null);
+      setToast("Сохранено");
+      setTimeout(() => setToast(null), 2000);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось сохранить");
     } finally {
       setBusyId(null);
     }
@@ -215,31 +254,84 @@ export function QuestsPage() {
               <ul className="quests__list">
                 {open.map((q) => (
                   <li key={q.id} className="quests__card">
-                    <div className="quests__card-main">
-                      <span className="quests__card-title">{q.title}</span>
-                      <span className="quests__card-meta">
-                        +{q.rewardExp} EXP
-                        {q.rewardCoins ? ` · +${q.rewardCoins} 🪙` : ""}
-                      </span>
-                    </div>
-                    <div className="quests__card-actions">
-                      <button
-                        type="button"
-                        className="quests__btn quests__btn--ok"
-                        disabled={busyId !== null}
-                        onClick={() => void onComplete(q.id)}
-                      >
-                        {busyId === q.id ? "…" : "Выполнено"}
-                      </button>
-                      <button
-                        type="button"
-                        className="quests__btn quests__btn--ghost"
-                        disabled={busyId !== null}
-                        onClick={() => void onDelete(q.id)}
-                      >
-                        Удалить
-                      </button>
-                    </div>
+                    {editingId === q.id ? (
+                      <>
+                        <input
+                          className="quests__input"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          maxLength={200}
+                        />
+                        <div className="quests__row">
+                          <label className="quests__mini">
+                            EXP
+                            <input
+                              className="quests__input quests__input--num"
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={editExp}
+                              onChange={(e) => setEditExp(e.target.value)}
+                            />
+                          </label>
+                          <label className="quests__mini">
+                            Монеты
+                            <input
+                              className="quests__input quests__input--num"
+                              type="number"
+                              min={0}
+                              max={1000}
+                              value={editCoins}
+                              onChange={(e) => setEditCoins(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="quests__card-actions">
+                          <button type="button" className="quests__btn quests__btn--primary" disabled={busyId !== null} onClick={() => void saveEdit(q.id)}>
+                            Сохранить
+                          </button>
+                          <button type="button" className="quests__btn quests__btn--ghost" disabled={busyId !== null} onClick={cancelEdit}>
+                            Отмена
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="quests__card-main">
+                          <span className="quests__card-title">{q.title}</span>
+                          <span className="quests__card-meta">
+                            +{q.rewardExp} EXP
+                            {q.rewardCoins ? ` · +${q.rewardCoins} 🪙` : ""}
+                          </span>
+                        </div>
+                        <div className="quests__card-actions">
+                          <button
+                            type="button"
+                            className="quests__btn"
+                            disabled={busyId !== null}
+                            onClick={() => startEdit(q)}
+                          >
+                            Изменить
+                          </button>
+                          <button
+                            type="button"
+                            className="quests__btn quests__btn--ok"
+                            disabled={busyId !== null}
+                            onClick={() => void onComplete(q.id)}
+                          >
+                            {busyId === q.id ? "…" : "Выполнено"}
+                          </button>
+                          <button
+                            type="button"
+                            className="quests__btn quests__btn--ghost"
+                            disabled={busyId !== null}
+                            onClick={() => void onDelete(q.id)}
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>

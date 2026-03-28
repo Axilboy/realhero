@@ -2,13 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { applyExpGain } from "../lib/progression.js";
 import { ensureUserStats } from "../lib/ensureUserStats.js";
-
-const TITLE_MIN = 1;
-const TITLE_MAX = 200;
-const EXP_MIN = 1;
-const EXP_MAX = 500;
-const COINS_MIN = 0;
-const COINS_MAX = 1000;
+import { parseQuestMutate } from "../lib/questMutate.js";
 
 export const questRoutes: FastifyPluginAsync = async (app) => {
   app.get("/quests", async (request, reply) => {
@@ -46,39 +40,13 @@ export const questRoutes: FastifyPluginAsync = async (app) => {
     const userId = request.user.sub;
     await ensureUserStats(userId);
 
-    const body = request.body as Record<string, unknown> | undefined;
-    if (!body || typeof body !== "object") {
-      return reply.status(400).send({ error: "invalid_body" });
+    const parsed = parseQuestMutate(request.body as Record<string, unknown> | undefined, true);
+    if (!parsed.ok) {
+      return reply.status(400).send({ error: parsed.error });
     }
-    const titleRaw = body.title;
-    if (typeof titleRaw !== "string") {
+    const { title, rewardExp = 10, rewardCoins = 0 } = parsed.fields;
+    if (!title) {
       return reply.status(400).send({ error: "invalid_title" });
-    }
-    const title = titleRaw.trim();
-    if (title.length < TITLE_MIN || title.length > TITLE_MAX) {
-      return reply.status(400).send({ error: "invalid_title" });
-    }
-
-    let rewardExp = 10;
-    if (body.rewardExp !== undefined) {
-      if (typeof body.rewardExp !== "number" || !Number.isInteger(body.rewardExp)) {
-        return reply.status(400).send({ error: "invalid_reward_exp" });
-      }
-      if (body.rewardExp < EXP_MIN || body.rewardExp > EXP_MAX) {
-        return reply.status(400).send({ error: "invalid_reward_exp" });
-      }
-      rewardExp = body.rewardExp;
-    }
-
-    let rewardCoins = 0;
-    if (body.rewardCoins !== undefined) {
-      if (typeof body.rewardCoins !== "number" || !Number.isInteger(body.rewardCoins)) {
-        return reply.status(400).send({ error: "invalid_reward_coins" });
-      }
-      if (body.rewardCoins < COINS_MIN || body.rewardCoins > COINS_MAX) {
-        return reply.status(400).send({ error: "invalid_reward_coins" });
-      }
-      rewardCoins = body.rewardCoins;
     }
 
     const quest = await prisma.quest.create({
@@ -100,6 +68,49 @@ export const questRoutes: FastifyPluginAsync = async (app) => {
     });
 
     return reply.status(201).send({ quest });
+  });
+
+  app.patch<{ Params: { id: string } }>("/quests/:id", async (request, reply) => {
+    try {
+      await request.jwtVerify({ onlyCookie: true });
+    } catch {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+    const userId = request.user.sub;
+    const { id } = request.params;
+
+    const existing = await prisma.quest.findFirst({ where: { id, userId } });
+    if (!existing) {
+      return reply.status(404).send({ error: "not_found" });
+    }
+    if (existing.done) {
+      return reply.status(400).send({ error: "quest_completed" });
+    }
+
+    const parsed = parseQuestMutate(request.body as Record<string, unknown> | undefined, false);
+    if (!parsed.ok) {
+      return reply.status(400).send({ error: parsed.error });
+    }
+
+    const quest = await prisma.quest.update({
+      where: { id },
+      data: {
+        ...(parsed.fields.title !== undefined ? { title: parsed.fields.title } : {}),
+        ...(parsed.fields.rewardExp !== undefined ? { rewardExp: parsed.fields.rewardExp } : {}),
+        ...(parsed.fields.rewardCoins !== undefined ? { rewardCoins: parsed.fields.rewardCoins } : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        done: true,
+        rewardExp: true,
+        rewardCoins: true,
+        createdAt: true,
+        completedAt: true,
+      },
+    });
+
+    return { quest };
   });
 
   app.post<{ Params: { id: string } }>("/quests/:id/complete", async (request, reply) => {

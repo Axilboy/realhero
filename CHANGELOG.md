@@ -3,6 +3,18 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/).  
 **Единый номер версии** веб-клиента: поле `version` в `package.json` (его же подхватывает UI и `src/version.ts`).
 
+## [0.7.0] — 2026-03-28
+
+### Добавлено
+
+- **Финансы:** модель `Transaction`, API список/создание/удаление, сводка за N дней и по категориям; экран `/finance` (рубли → копейки на сервере).
+- **Канбан:** модель `KanbanCard`, колонки todo/doing/done, API и экран `/kanban` с переносом кнопками.
+- **Квесты:** `PATCH /api/v1/quests/:id` и правка активного квеста в UI.
+- **Дашборд:** обновление сводки при возврате на вкладку (`visibilitychange`).
+- **Уведомления на главной:** подсказка про монеты только если включены `dashboardHints`.
+- **GET /api/v1/openapi.json** — черновая спецификация OpenAPI 3.0.
+- Деплой: примеры **PM2** (`deploy/ecosystem.config.cjs`) и **systemd** (`deploy/realhero-api.service.example`).
+
 ## [0.6.0] — 2026-03-28
 
 ### Добавлено

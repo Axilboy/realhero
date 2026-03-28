@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Запуск из Git Bash из ЛЮБОЙ папки — скрипт сам перейдёт в корень web-app.
-# Меняйте только текст в кавычках в конце:
-#   bash scripts/quick-push.sh "моё сообщение коммита"
+# Git Bash: bash scripts/quick-push.sh
+# Сообщение коммита по умолчанию — дата и время; опционально: bash scripts/quick-push.sh "суффикс"
 
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-MSG="${1:-chore: update}"
+STAMP=$(date '+%Y-%m-%d %H:%M:%S')
+if [ -n "${1:-}" ]; then
+  MSG="$STAMP $1"
+else
+  MSG="$STAMP"
+fi
 
 git add -A
 git status

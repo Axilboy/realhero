@@ -1,102 +1,31 @@
-# Real Hero — веб-клиент
+# Real Hero
 
-Версия веб-клиента: **`package.json` → `version`** (сейчас **0.7.0**, SemVer). История: `CHANGELOG.md` и экран `/changelog`.
+Чистый фронтенд (**Vite + React + TypeScript**). API и мобильные клиенты можно добавить позже отдельными каталогами или репозиториями.
 
-**Бэкенд (общий для веба, Telegram и будущих приложений):** каталог **`api/`** — см. `api/README.md` и **`docs/ARCHITECTURE.md`**.
-
-## Запуск
+## Локально
 
 ```bash
 npm install
 npm run dev
 ```
 
-В другом терминале поднимите API (`cd api && npm run dev`). Чтобы **не настраивать OAuth/Telegram**, в `api/.env` добавьте **`RELAXED_AUTH=1`** — приложение само получит сессию «гостя». Запросы с фронта на **`/api/...`** в **dev** и **`npm run preview`** проксируются на `http://127.0.0.1:3000` — иначе по клику «Войти через …» браузер получит SPA вместо редиректа OAuth (раньше это выглядело как мгновенный возврат на главную). На проде в **nginx** сначала проксируйте **`location /api/`** на Node, затем `try_files` для SPA. **Redirect URI** OAuth см. `api/.env.example`. Для отдельного origin API задайте **`VITE_API_URL`** (полный URL без слэша в конце).
-
 Сборка: `npm run build`, предпросмотр: `npm run preview`.
 
-## Быстрая заливка (ничего не переписывать, кроме текста в кавычках)
+## Деплой на сервер
 
-**С компьютера (Git Bash)** — одна строка, меняете только фразу в конце в кавычках:
-
-```bash
-bash "/c/Users/axilb/OneDrive/Рабочий стол/PROGS/RH/web-app/scripts/quick-push.sh" "название коммита"
-```
-
-Если папка проекта у вас в другом месте — замените длинный путь к `quick-push.sh` один раз и дальше снова меняйте только `"название коммита"`.
-
-**На сервере** — одна строка, без правок:
+После `git push` на VPS в каталоге клона:
 
 ```bash
-bash /PROGS/RH/web-app/scripts/server-pull-deploy.sh
-```
-
-(После первого `git pull` на сервере появятся эти скрипты; если файла ещё нет — один раз сделайте обычный `cd /PROGS/RH/web-app`, `git pull`, потом пользуйтесь строкой выше.)
-
-## Маршруты
-
-| Путь | Экран |
-|------|--------|
-| `/` | Дашборд (центр) |
-| `/finance` | Финансы: операции, сводка 30 дней, категории |
-| `/health` | Здоровье (заглушка) |
-| `/quests` | Квесты: список, создание, правка, выполнение |
-| `/kanban` | Канбан: три колонки, перенос кнопками |
-| `/changelog` | История изменений |
-| `/login` | Вход (Telegram, Google, Яндекс, VK; при `RELAXED_AUTH=1` на API — без кликов) |
-| `/profile` | Профиль и настройки (после входа) |
-
-С главного экрана: свайп **влево** — финансы, **вправо** — здоровье, **вверх** — канбан, **вниз** — квесты.
-
-## Деплой на сервер (статика)
-
-1. На сервере один раз создайте каталог (если ещё пусто): `/PROGS/RH/www`.
-2. Настройте **SSH-ключ** с вашего ПК на сервер (вход без пароля).
-3. В PowerShell из папки `web-app`:
-
-```powershell
-$env:RH_DEPLOY_TARGET = "user@ваш-сервер"
-$env:RH_DEPLOY_PATH   = "/PROGS/RH/www"
-.\scripts\deploy.ps1
-```
-
-Скрипт собирает `dist`, упаковывает в архив, заливает в `/tmp` и распаковывает в `$RH_DEPLOY_PATH`.
-
-Для **nginx** используйте `try_files` для SPA **и** отдельный `location /api/` на Node (порт API) — иначе OAuth по туннелю/домену не заработает. Готовый цельный конфиг: **`deploy/nginx-realhero.conf`**. Если порт 3000 занят Docker: **`bash deploy/free-port-3000-docker.sh`**. Старый короткий пример: `deploy/nginx-spa.example.conf`. **PM2:** `deploy/ecosystem.config.cjs`. **systemd:** `deploy/realhero-api.service.example`.
-
-Временный бесплатный **HTTPS** для Mini App (туннель или Vercel): см. `deploy/temporary-https.md`.
-
-Документация проекта: `../docs/`.
-
-## Деплой на сервере (после `git clone` + push в удалённый репозиторий)
-
-Один раз на сервере (Ubuntu): установите **Node.js 20+** (например с [nodesource](https://github.com/nodesource/distributions) или `nvm`), затем:
-
-```bash
-cd /PROGS/RH
-git clone <URL_ВАШЕГО_РЕПОЗИТОРИЯ> web-app
-cd web-app
-chmod +x scripts/deploy-server.sh
+git pull origin master
 ./scripts/deploy-server.sh
 ```
 
-Повторные выкладки после `git pull`:
+Статика по умолчанию: `/PROGS/RH/www` (см. `scripts/deploy-server.sh`). Nginx должен отдавать этот каталог как `root`.
+
+## Быстрый push (Git Bash)
 
 ```bash
-cd /PROGS/RH/web-app && git pull && ./scripts/deploy-server.sh
+bash scripts/quick-push.sh
 ```
 
-Каталог статики по умолчанию: `/PROGS/RH/www`. Другой путь: `DEPLOY_WWW=/var/www/real-hero ./scripts/deploy-server.sh`.
-
-### Коммит из Git Bash (Windows)
-
-```bash
-cd "/c/Users/axilb/OneDrive/Рабочий стол/PROGS/RH/web-app"
-git add -A
-git status
-git commit -m "ваше сообщение"
-git remote add origin <URL>   # один раз
-git push -u origin master
-```
-
-Перед первым `push` создайте пустой репозиторий на GitHub/GitLab и подставьте его URL.
+Сообщение коммита — дата и время; опционально суффикс: `bash scripts/quick-push.sh "wip"`.

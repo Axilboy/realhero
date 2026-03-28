@@ -1,0 +1,27 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, sans-serif;
+  background: #0f1115;
+  color: #e8eaed;
+}
+
+.app {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+h1 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+p {
+  line-height: 1.5;
+  color: #9aa0a6;
+}

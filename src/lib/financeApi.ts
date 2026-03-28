@@ -207,6 +207,38 @@ export async function deleteHolding(id: string) {
   });
 }
 
+export type QuoteSearchHit = {
+  source: "coingecko" | "moex";
+  externalId: string;
+  name: string;
+  symbol: string;
+  assetKind: InvestmentAssetKind;
+};
+
+export async function searchInvestQuotes(q: string) {
+  return json<{ results: QuoteSearchHit[] }>(
+    `/api/v1/finance/investments/quote-search?q=${encodeURIComponent(q)}`,
+    { method: "GET" },
+  );
+}
+
+export async function fetchInvestQuotePrice(params: {
+  source: "coingecko" | "moex";
+  id: string;
+  date?: string;
+}) {
+  const sp = new URLSearchParams({
+    source: params.source,
+    id: params.id,
+  });
+  if (params.date) sp.set("date", params.date);
+  return json<{
+    priceRub: number;
+    asOf: string | null;
+    note: string | null;
+  }>(`/api/v1/finance/investments/quote-price?${sp}`, { method: "GET" });
+}
+
 export async function fetchCategories(includeArchived = false) {
   const q = includeArchived ? "?includeArchived=1" : "";
   return json<{ categories: Category[] }>(`/api/v1/finance/categories${q}`);

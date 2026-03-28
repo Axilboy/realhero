@@ -8,6 +8,7 @@ import {
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { authPreHandler, getUserId } from "../authHook.js";
 import { prisma } from "../db.js";
+import { fetchQuotePriceRub, searchInvestQuotes } from "../lib/investQuotes.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
 
@@ -296,6 +297,79 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         note: "Доходность по дням/месяцам — после истории оценок портфеля",
       },
     };
+  });
+
+  app.get("/investments/quote-search", async (request, reply) => {
+    const q = String((request.query as { q?: string }).q ?? "").trim();
+    if (q.length < 2) {
+      return reply.status(400).send({
+        error: { message: "Введите минимум 2 символа" },
+      });
+    }
+    if (q.length > 64) {
+      return reply.status(400).send({
+        error: { message: "Запрос слишком длинный" },
+      });
+    }
+    try {
+      const results = await searchInvestQuotes(q);
+      return { results };
+    } catch (err) {
+      request.log.warn({ err }, "quote-search");
+      return reply.status(502).send({
+        error: {
+          message:
+            "Котировки сейчас недоступны. Попробуйте позже или введите цену вручную.",
+        },
+      });
+    }
+  });
+
+  app.get("/investments/quote-price", async (request, reply) => {
+    const q = request.query as { source?: string; id?: string; date?: string };
+    const source = q.source;
+    const id = String(q.id ?? "").trim();
+    if (source !== "coingecko" && source !== "moex") {
+      return reply.status(400).send({
+        error: { message: "Параметр source: coingecko или moex" },
+      });
+    }
+    if (!id) {
+      return reply.status(400).send({
+        error: { message: "Укажите id актива" },
+      });
+    }
+    let dateYmd: string | undefined;
+    if (q.date !== undefined && q.date !== "") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(q.date)) {
+        return reply.status(400).send({
+          error: { message: "Дата в формате YYYY-MM-DD" },
+        });
+      }
+      const d = new Date(`${q.date}T12:00:00.000Z`);
+      if (Number.isNaN(d.getTime()) || d > new Date()) {
+        return reply.status(400).send({
+          error: { message: "Некорректная или будущая дата" },
+        });
+      }
+      dateYmd = q.date;
+    }
+    try {
+      const r = await fetchQuotePriceRub(source, id, dateYmd);
+      return {
+        priceRub: Math.round(r.priceRub * 100) / 100,
+        asOf: r.asOf,
+        note: r.note ?? null,
+      };
+    } catch (err) {
+      request.log.warn({ err }, "quote-price");
+      return reply.status(502).send({
+        error: {
+          message:
+            "Не удалось получить цену. Другая дата или ручной ввод.",
+        },
+      });
+    }
   });
 
   app.post("/investments/holdings", async (request, reply) => {

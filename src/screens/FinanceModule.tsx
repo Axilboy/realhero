@@ -8,6 +8,7 @@ import {
   type TouchEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import InvestQuotePicker from "../components/InvestQuotePicker";
 
 function modalPortal(node: ReactNode) {
   return createPortal(node, document.body);
@@ -954,6 +955,14 @@ function FinanceMainPanel({
                       </div>
                       {invMode === "new" ? (
                         <>
+                          <InvestQuotePicker
+                            disabled={formBusy}
+                            onApply={(p) => {
+                              setInvName(p.displayName);
+                              setInvAssetKind(p.assetKind);
+                              setInvPriceStr(String(p.priceRub));
+                            }}
+                          />
                           <label className="finance__field">
                             Название
                             <input
@@ -1375,6 +1384,14 @@ function FinanceInvestPanel({ bump }: { bump: number }) {
               </button>
             </div>
             <form className="finance__form" onSubmit={(e) => void onAdd(e)}>
+              <InvestQuotePicker
+                disabled={busy}
+                onApply={(p) => {
+                  setName(p.displayName);
+                  setAssetKind(p.assetKind);
+                  setPriceStr(String(p.priceRub));
+                }}
+              />
               <input
                 className="finance__input"
                 placeholder="Название / тикер"

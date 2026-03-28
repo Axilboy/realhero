@@ -25,6 +25,15 @@ npm run dev
 | POST | `/api/v1/auth/logout` | Сброс cookie-сессии |
 | GET | `/api/v1/me` | Текущий пользователь (cookie `rh_session`) |
 
+### Котировки для портфеля (нужна сессия)
+
+| Метод | Путь | Описание |
+|--------|------|----------|
+| GET | `/api/v1/finance/investments/quote-search?q=` | Поиск: MOEX (акции РФ) + CoinGecko (крипто), от 2 символов |
+| GET | `/api/v1/finance/investments/quote-price` | Параметры: `source` = `coingecko` или `moex`, `id`, опционально `date` (`YYYY-MM-DD`) — цена в ₽ |
+
+Внешние API могут лимитировать частоту запросов; на сервере кеш ~45 с.
+
 ## Продакшен
 
 Полное обновление сайта на сервере (фронт + API + PM2) — из корня репозитория **`bash scripts/server-update.sh`**; если терминал уже в **`api/`** — **`bash update-all.sh`** (см. корневой **`README.md`**).

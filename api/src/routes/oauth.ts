@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync, FastifyReply } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import {
   Google,
   Yandex,
@@ -14,9 +14,10 @@ import {
   encodeOAuthCookie,
 } from "../lib/oauthCookie.js";
 import { findOrCreateUserFromOAuth } from "../lib/oauthUser.js";
+import { useSecureSessionCookie } from "../lib/cookieSecure.js";
 
-function cookieOpts() {
-  const secure = process.env.NODE_ENV === "production";
+function oauthStateCookieOpts(request: FastifyRequest) {
+  const secure = useSecureSessionCookie(request);
   return {
     path: "/",
     httpOnly: true,
@@ -26,8 +27,8 @@ function cookieOpts() {
   };
 }
 
-function sessionCookieOpts() {
-  const secure = process.env.NODE_ENV === "production";
+function sessionCookieOpts(request: FastifyRequest) {
+  const secure = useSecureSessionCookie(request);
   return {
     path: "/",
     httpOnly: true,
@@ -110,7 +111,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
   const secret = jwtSecret();
 
   /** ---------- Google ---------- */
-  app.get("/auth/google", async (request, reply) => {
+  app.get("/auth/google", async (request: FastifyRequest, reply) => {
     const id = process.env.GOOGLE_CLIENT_ID;
     const cs = process.env.GOOGLE_CLIENT_SECRET;
     const redirect = process.env.GOOGLE_REDIRECT_URI;
@@ -123,7 +124,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
       { state, codeVerifier, provider: "google" },
       secret
     );
-    reply.setCookie(OAUTH_COOKIE_NAME, payload, cookieOpts());
+    reply.setCookie(OAUTH_COOKIE_NAME, payload, oauthStateCookieOpts(request));
     const google = new Google(id, cs, redirect);
     const url = google.createAuthorizationURL(state, codeVerifier, [
       "openid",
@@ -158,7 +159,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
         displayName: p.displayName,
       });
       const token = await reply.jwtSign({ sub: user.id });
-      reply.setCookie("rh_session", token, sessionCookieOpts());
+      reply.setCookie("rh_session", token, sessionCookieOpts(request));
       return reply.redirect((process.env.FRONTEND_URL ?? "http://localhost:5173") + "/");
     } catch (e) {
       app.log.error(e);
@@ -176,7 +177,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     }
     const state = generateState();
     const payload = encodeOAuthCookie({ state, provider: "yandex" }, secret);
-    reply.setCookie(OAUTH_COOKIE_NAME, payload, cookieOpts());
+    reply.setCookie(OAUTH_COOKIE_NAME, payload, oauthStateCookieOpts(request));
     const yandex = new Yandex(id, cs, redirect);
     const url = yandex.createAuthorizationURL(state, ["login:email", "login:info"]);
     return reply.redirect(url.toString());
@@ -207,7 +208,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
         displayName: p.displayName,
       });
       const token = await reply.jwtSign({ sub: user.id });
-      reply.setCookie("rh_session", token, sessionCookieOpts());
+      reply.setCookie("rh_session", token, sessionCookieOpts(request));
       return reply.redirect((process.env.FRONTEND_URL ?? "http://localhost:5173") + "/");
     } catch (e) {
       app.log.error(e);
@@ -225,7 +226,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
     }
     const state = generateState();
     const payload = encodeOAuthCookie({ state, provider: "vk" }, secret);
-    reply.setCookie(OAUTH_COOKIE_NAME, payload, cookieOpts());
+    reply.setCookie(OAUTH_COOKIE_NAME, payload, oauthStateCookieOpts(request));
     const vk = new VK(id, cs, redirect);
     const url = vk.createAuthorizationURL(state, ["email"]);
     return reply.redirect(url.toString());
@@ -257,7 +258,7 @@ export const oauthRoutes: FastifyPluginAsync = async (app) => {
         displayName,
       });
       const token = await reply.jwtSign({ sub: user.id });
-      reply.setCookie("rh_session", token, sessionCookieOpts());
+      reply.setCookie("rh_session", token, sessionCookieOpts(request));
       return reply.redirect((process.env.FRONTEND_URL ?? "http://localhost:5173") + "/");
     } catch (e) {
       app.log.error(e);

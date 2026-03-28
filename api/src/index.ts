@@ -14,8 +14,31 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? "http://localhost:5173")
   .map((s: string) => s.trim())
   .filter(Boolean);
 
+const CORS_ALLOW_TRYCLOUDFLARE =
+  process.env.CORS_ALLOW_TRYCLOUDFLARE === "1" ||
+  process.env.CORS_ALLOW_TRYCLOUDFLARE === "true";
+
+function trycloudflareOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    return u.protocol === "https:" && u.hostname.endsWith(".trycloudflare.com");
+  } catch {
+    return false;
+  }
+}
+
+function corsAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (CORS_ORIGINS.includes(origin)) return true;
+  if (CORS_ALLOW_TRYCLOUDFLARE && trycloudflareOrigin(origin)) return true;
+  return false;
+}
+
 async function main() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: true,
+    trustProxy: true,
+  });
 
   await app.register(cookie);
   await app.register(jwt, {
@@ -30,8 +53,13 @@ async function main() {
   });
 
   await app.register(cors, {
-    origin: CORS_ORIGINS,
     credentials: true,
+    origin: (origin, cb) => {
+      if (corsAllowedOrigin(origin)) {
+        return cb(null, origin ?? true);
+      }
+      return cb(null, false);
+    },
   });
 
   await app.register(healthRoutes);

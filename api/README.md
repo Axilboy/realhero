@@ -31,6 +31,8 @@ npm run dev
 3. Эндпоинты: `GET /api/v1/auth/{google|yandex|vk}` → редирект на провайдера; callback выставляет httpOnly cookie `rh_session` (JWT) и редирект на `FRONTEND_URL/`.
 4. Сессия: `GET /api/v1/me`, выход: `POST /api/v1/auth/logout` (с `credentials: include` с фронта).
 
+**Если после Google всё равно «не вошло»:** cookie `rh_session` не при `Secure`, если запрос к API идёт по HTTP (или nginx не передаёт `X-Forwarded-Proto: https` при внешнем HTTPS). В `.env` можно задать `SESSION_COOKIE_SECURE=false` для отладки. Для Cloudflare Quick Tunnel удобно `CORS_ALLOW_TRYCLOUDFLARE=1`, чтобы не дописывать новый origin в `CORS_ORIGINS` при каждом URL.
+
 **Apple:** технически возможно (отдельный ключ `.p8` в Apple Developer); в коде пока не подключено.
 
 ## PostgreSQL (прод)

@@ -34,6 +34,7 @@ import {
   type AccountRow,
   type AccountType,
   type Category,
+  type DepositSavingsAccountRow,
   type InvestmentAssetKind,
   type InvestmentHoldingRow,
   type InvestAllocation,
@@ -52,8 +53,62 @@ const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   CARD: "Карта",
   CASH: "Наличные",
   BANK: "Счёт",
+  DEPOSIT: "Вклад",
+  SAVINGS: "Накопительный счёт",
   OTHER: "Другое",
 };
+
+function isDepositOrSavings(t: AccountType): boolean {
+  return t === "DEPOSIT" || t === "SAVINGS";
+}
+
+function DepositSavingsCarousel({
+  accounts,
+  title,
+}: {
+  accounts: (DepositSavingsAccountRow | AccountRow)[];
+  title: string;
+}) {
+  const list = accounts.filter(
+    (a) => a.type === "DEPOSIT" || a.type === "SAVINGS",
+  );
+  if (list.length === 0) return null;
+  return (
+    <div className="finance-dep-carousel-wrap">
+      <h3 className="finance__h3 finance-dep-carousel__title">{title}</h3>
+      <div className="finance-dep-carousel" role="list">
+        {list.map((a) => (
+          <div key={a.id} className="finance-dep-carousel__card" role="listitem">
+            <div className="finance-dep-carousel__type">
+              {ACCOUNT_TYPE_LABEL[a.type]}
+            </div>
+            <div className="finance-dep-carousel__name">{a.name}</div>
+            <div className="finance-dep-carousel__bal">
+              {formatRubFromMinor(a.balanceMinor)}
+            </div>
+            {a.annualInterestPercent != null && a.annualInterestPercent > 0 ? (
+              <div className="finance-dep-carousel__rate">
+                {a.annualInterestPercent.toLocaleString("ru-RU", {
+                  maximumFractionDigits: 2,
+                })}
+                % годовых
+              </div>
+            ) : (
+              <div className="finance-dep-carousel__rate finance-dep-carousel__rate--muted">
+                Ставка не задана
+              </div>
+            )}
+            <div className="finance-dep-carousel__inc">
+              ~{" "}
+              {formatRubFromMinor(a.interestIncomeMonthMinor)}
+              /мес
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const ASSET_LABEL: Record<InvestmentAssetKind, string> = {
   STOCK: "Акция",
@@ -222,6 +277,7 @@ function FinanceMainPanel({
   const [accModal, setAccModal] = useState(false);
   const [newAccName, setNewAccName] = useState("");
   const [newAccType, setNewAccType] = useState<AccountType>("CARD");
+  const [newAccInterestStr, setNewAccInterestStr] = useState("");
   const [accBusy, setAccBusy] = useState(false);
   const [accError, setAccError] = useState<string | null>(null);
 
@@ -513,14 +569,35 @@ function FinanceMainPanel({
   async function onAddAccount(ev: FormEvent) {
     ev.preventDefault();
     setAccError(null);
+    let annualInterestPercent: number | null | undefined;
+    if (isDepositOrSavings(newAccType)) {
+      const raw = newAccInterestStr.trim();
+      if (raw === "") {
+        annualInterestPercent = null;
+      } else {
+        const p = Number(raw.replace(",", "."));
+        if (!Number.isFinite(p) || p < 0 || p > 1000) {
+          setAccError("Ставка % — число от 0 до 1000 или пусто");
+          return;
+        }
+        annualInterestPercent = p;
+      }
+    }
     setAccBusy(true);
-    const res = await createAccount(newAccName.trim(), newAccType);
+    const res = await createAccount({
+      name: newAccName.trim(),
+      type: newAccType,
+      ...(isDepositOrSavings(newAccType)
+        ? { annualInterestPercent: annualInterestPercent ?? null }
+        : {}),
+    });
     setAccBusy(false);
     if (!res.ok) {
       setAccError(errorMessage(res.data));
       return;
     }
     setNewAccName("");
+    setNewAccInterestStr("");
     setAccModal(false);
     onRefresh();
     await refresh();
@@ -570,6 +647,7 @@ function FinanceMainPanel({
           className="finance__btn-secondary"
           onClick={() => {
             setAccError(null);
+            setNewAccInterestStr("");
             setAccModal(true);
           }}
         >
@@ -582,26 +660,39 @@ function FinanceMainPanel({
 
       {!pending && accounts.length > 0 ? (
         <div className="finance-main__accounts-wrap">
-          <div className="finance-main__accounts">
-            {accounts.map((a) => (
-              <div key={a.id} className="finance-main__acc-card">
-                <div className="finance-main__acc-type">
-                  {ACCOUNT_TYPE_LABEL[a.type]}
-                </div>
-                <div className="finance-main__acc-name">{a.name}</div>
-                <div className="finance-main__acc-bal">
-                  {formatRubFromMinor(a.balanceMinor)}
-                </div>
-                <button
-                  type="button"
-                  className="finance-main__acc-del"
-                  onClick={() => void onDeleteAccount(a)}
-                >
-                  Удалить
-                </button>
+          <DepositSavingsCarousel
+            accounts={accounts}
+            title="Вклады и накопительные"
+          />
+          {accounts.some((a) => !isDepositOrSavings(a.type)) ? (
+            <>
+              <h3 className="finance__h3 finance-main__acc-other-title">
+                Остальные счета
+              </h3>
+              <div className="finance-main__accounts">
+                {accounts
+                  .filter((a) => !isDepositOrSavings(a.type))
+                  .map((a) => (
+                    <div key={a.id} className="finance-main__acc-card">
+                      <div className="finance-main__acc-type">
+                        {ACCOUNT_TYPE_LABEL[a.type]}
+                      </div>
+                      <div className="finance-main__acc-name">{a.name}</div>
+                      <div className="finance-main__acc-bal">
+                        {formatRubFromMinor(a.balanceMinor)}
+                      </div>
+                      <button
+                        type="button"
+                        className="finance-main__acc-del"
+                        onClick={() => void onDeleteAccount(a)}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -1162,15 +1253,30 @@ function FinanceMainPanel({
               <select
                 className="finance__input"
                 value={newAccType}
-                onChange={(e) =>
-                  setNewAccType(e.target.value as AccountType)
-                }
+                onChange={(e) => {
+                  setNewAccType(e.target.value as AccountType);
+                  setNewAccInterestStr("");
+                }}
               >
                 <option value="CARD">Карта</option>
                 <option value="CASH">Наличные</option>
                 <option value="BANK">Счёт</option>
+                <option value="DEPOSIT">Вклад</option>
+                <option value="SAVINGS">Накопительный счёт</option>
                 <option value="OTHER">Другое</option>
               </select>
+              {isDepositOrSavings(newAccType) ? (
+                <label className="finance__field">
+                  Ставка, % годовых
+                  <input
+                    className="finance__input"
+                    inputMode="decimal"
+                    placeholder="например 16 (необязательно)"
+                    value={newAccInterestStr}
+                    onChange={(e) => setNewAccInterestStr(e.target.value)}
+                  />
+                </label>
+              ) : null}
               <button className="finance__submit" type="submit" disabled={accBusy}>
                 Создать
               </button>
@@ -1283,12 +1389,14 @@ function FinanceInvestPanel({
   const [data, setData] = useState<{
     totalValueMinor: number;
     holdings: InvestmentHoldingRow[];
+    depositSavingsAccounts: DepositSavingsAccountRow[];
     allocation: InvestAllocation;
     metrics: {
       incomePer1000YearMinor: number | null;
       couponDividendDayMinor: number | null;
       couponDividendMonthMinor: number | null;
       couponDividendYearMinor: number | null;
+      depositSavingsIncomeMonthMinor: number;
       note: string;
     };
   } | null>(null);
@@ -1299,6 +1407,7 @@ function FinanceInvestPanel({
   const [unitsStr, setUnitsStr] = useState("");
   const [priceStr, setPriceStr] = useState("");
   const [annualIncomeStr, setAnnualIncomeStr] = useState("");
+  const [incomePeriodYear, setIncomePeriodYear] = useState(true);
   const [invQuoteMeta, setInvQuoteMeta] = useState<{
     quoteSource: "coingecko" | "moex";
     quoteExternalId: string;
@@ -1310,6 +1419,7 @@ function FinanceInvestPanel({
     null,
   );
   const [incomeModalStr, setIncomeModalStr] = useState("");
+  const [incomeModalIsYear, setIncomeModalIsYear] = useState(true);
   const [incomeBusy, setIncomeBusy] = useState(false);
   const investEnteredRef = useRef(false);
 
@@ -1323,6 +1433,7 @@ function FinanceInvestPanel({
     setData({
       totalValueMinor: r.data.totalValueMinor,
       holdings: r.data.holdings,
+      depositSavingsAccounts: r.data.depositSavingsAccounts,
       allocation: r.data.allocation,
       metrics: r.data.metrics,
     });
@@ -1344,19 +1455,21 @@ function FinanceInvestPanel({
     const price = Number(String(priceStr).replace(",", "."));
     if (!Number.isFinite(units) || units <= 0) return;
     if (!Number.isFinite(price) || price <= 0) return;
-    let annualPerUnit: number | undefined;
+    let annualIncomePerUnitRub: number | undefined;
+    let monthlyIncomePerUnitRub: number | undefined;
     if (annualIncomeStr.trim()) {
       const a = Number(String(annualIncomeStr).replace(",", "."));
       if (!Number.isFinite(a) || a < 0) {
-        setErr("Доход с одной бумаги в год — неотрицательное число");
+        setErr("Сумма дохода с одной бумаги — неотрицательное число");
         return;
       }
-      annualPerUnit = a;
+      if (incomePeriodYear) annualIncomePerUnitRub = a;
+      else monthlyIncomePerUnitRub = a;
     } else if (
       invQuoteMeta?.annualIncomePerUnitRub != null &&
       invQuoteMeta.annualIncomePerUnitRub > 0
     ) {
-      annualPerUnit = invQuoteMeta.annualIncomePerUnitRub;
+      annualIncomePerUnitRub = invQuoteMeta.annualIncomePerUnitRub;
     }
     setBusy(true);
     const res = await createHolding({
@@ -1371,8 +1484,11 @@ function FinanceInvestPanel({
             quoteMoexMarket: invQuoteMeta.quoteMoexMarket,
           }
         : {}),
-      ...(annualPerUnit !== undefined
-        ? { annualIncomePerUnitRub: annualPerUnit }
+      ...(annualIncomePerUnitRub !== undefined
+        ? { annualIncomePerUnitRub }
+        : {}),
+      ...(monthlyIncomePerUnitRub !== undefined
+        ? { monthlyIncomePerUnitRub }
         : {}),
     });
     setBusy(false);
@@ -1384,6 +1500,7 @@ function FinanceInvestPanel({
     setUnitsStr("");
     setPriceStr("");
     setAnnualIncomeStr("");
+    setIncomePeriodYear(true);
     setInvQuoteMeta(null);
     setModal(false);
     void load(false);
@@ -1397,15 +1514,18 @@ function FinanceInvestPanel({
       raw === ""
         ? ({
             annualIncomePerUnitRub: null,
+            monthlyIncomePerUnitRub: null,
             annualCouponDividendRub: null,
           } as const)
         : (() => {
             const a = Number(raw.replace(",", "."));
             if (!Number.isFinite(a) || a < 0) {
-              setErr("Доход с одной бумаги в год — неотрицательное число");
+              setErr("Доход с одной бумаги — неотрицательное число");
               return null;
             }
-            return { annualIncomePerUnitRub: a } as const;
+            return incomeModalIsYear
+              ? ({ annualIncomePerUnitRub: a } as const)
+              : ({ monthlyIncomePerUnitRub: a } as const);
           })();
     if (!payload) return;
     setIncomeBusy(true);
@@ -1439,30 +1559,38 @@ function FinanceInvestPanel({
       ) : (
         <>
           <div className="finance-inv__hero">
-            <span className="finance-inv__hero-label">Оценка</span>
+            <span className="finance-inv__hero-label">Оценка бумаг</span>
             <span className="finance-inv__hero-val">
               {formatRubFromMinor(data.totalValueMinor)}
             </span>
+            <DepositSavingsCarousel
+              accounts={data.depositSavingsAccounts}
+              title="Вклады и накопительные"
+            />
             <div
               className="finance-inv__alloc"
-              aria-label="Структура: счета и инвестиции"
+              aria-label="Доли портфеля без карт"
             >
               <h3 className="finance__h3 finance-inv__alloc-title">
                 Структура портфеля
               </h3>
+              <p className="finance-inv__alloc-note">
+                Доли считаются по вкладам, накопительным счетам и инвестициям.
+                Карты, наличные и обычные счета в проценты не входят.
+              </p>
               <ul className="finance-inv__alloc-list">
                 <li>
-                  <span>Вклады и наличные</span>
+                  <span>Вклады</span>
                   <span>
-                    {formatRubFromMinor(data.allocation.onDepositsMinor)} ·{" "}
+                    {formatRubFromMinor(data.allocation.depositsMinor)} ·{" "}
                     {data.allocation.pctDeposits}%
                   </span>
                 </li>
                 <li>
-                  <span>Карты</span>
+                  <span>Накопительные счета</span>
                   <span>
-                    {formatRubFromMinor(data.allocation.onCardsMinor)} ·{" "}
-                    {data.allocation.pctCards}%
+                    {formatRubFromMinor(data.allocation.savingsMinor)} ·{" "}
+                    {data.allocation.pctSavings}%
                   </span>
                 </li>
                 <li>
@@ -1483,13 +1611,13 @@ function FinanceInvestPanel({
                   <span>Прочие инструменты</span>
                   <span>
                     {formatRubFromMinor(
-                      data.allocation.otherInvestmentsMinor,
+                      data.allocation.otherInstrumentsMinor,
                     )}{" "}
-                    · {data.allocation.pctOtherInvest}%
+                    · {data.allocation.pctOtherInstruments}%
                   </span>
                 </li>
                 <li className="finance-inv__alloc-total">
-                  <span>Всего (счета + инвестиции)</span>
+                  <span>Капитал всего (все счета + бумаги)</span>
                   <span>
                     {formatRubFromMinor(data.allocation.totalWealthMinor)}
                   </span>
@@ -1499,7 +1627,7 @@ function FinanceInvestPanel({
             <ul className="finance-inv__metrics" aria-label="Доходность по купонам и дивидендам">
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  На вложенные 1000 ₽ (в год, оценка)
+                  На вложенные 1000 ₽ в бумаги (в год, оценка)
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.incomePer1000YearMinor != null
@@ -1509,7 +1637,19 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Доход в день (купоны и дивиденды)
+                  Вклады и накопительные (в месяц, по ставке)
+                </span>
+                <span className="finance-inv__metric-val">
+                  {data.metrics.depositSavingsIncomeMonthMinor > 0
+                    ? formatRubFromMinor(
+                        data.metrics.depositSavingsIncomeMonthMinor,
+                      )
+                    : "—"}
+                </span>
+              </li>
+              <li className="finance-inv__metric">
+                <span className="finance-inv__metric-label">
+                  Бумаги: в день (купоны и дивиденды)
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.couponDividendDayMinor != null
@@ -1519,7 +1659,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Доход в месяц (купоны и дивиденды)
+                  Бумаги: в месяц
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.couponDividendMonthMinor != null
@@ -1529,7 +1669,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Доход в год (купоны и дивиденды)
+                  Бумаги: в год
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.couponDividendYearMinor != null
@@ -1547,11 +1687,15 @@ function FinanceInvestPanel({
               setErr(null);
               setInvQuoteMeta(null);
               setAnnualIncomeStr("");
+              setIncomePeriodYear(true);
               setModal(true);
             }}
           >
             Добавить позицию
           </button>
+          <h3 className="finance__h3 finance-inv__main-portfolio-title">
+            Основной портфель
+          </h3>
           <ul className="finance-inv__list">
             {data.holdings.length === 0 ? (
               <li className="screen__text">Позиций пока нет.</li>
@@ -1571,9 +1715,17 @@ function FinanceInvestPanel({
                           <>
                             С 1 шт:{" "}
                             {formatRubFromMinor(h.annualIncomePerUnitMinor)}
-                            /год · итого{" "}
+                            /год (~{" "}
+                            {formatRubFromMinor(
+                              Math.round(h.annualIncomePerUnitMinor / 12),
+                            )}
+                            /мес) · итого{" "}
                             {formatRubFromMinor(h.annualCashflowTotalMinor)}
-                            /год
+                            /год (~{" "}
+                            {formatRubFromMinor(
+                              Math.round(h.annualCashflowTotalMinor / 12),
+                            )}
+                            /мес)
                           </>
                         ) : (
                           <>
@@ -1593,6 +1745,7 @@ function FinanceInvestPanel({
                       onClick={() => {
                         setErr(null);
                         setIncomeModal(h);
+                        setIncomeModalIsYear(true);
                         setIncomeModalStr(
                           h.annualIncomePerUnitMinor != null &&
                             h.annualIncomePerUnitMinor > 0
@@ -1666,6 +1819,7 @@ function FinanceInvestPanel({
                     p.annualIncomePerUnitRub > 0
                   ) {
                     setAnnualIncomeStr(String(p.annualIncomePerUnitRub));
+                    setIncomePeriodYear(true);
                   }
                 }}
               />
@@ -1710,12 +1864,43 @@ function FinanceInvestPanel({
                   required
                 />
               </label>
+              <div
+                className="finance-addop__carousel finance-invquote__modes"
+                role="tablist"
+                aria-label="Период дохода с одной бумаги"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  className={
+                    incomePeriodYear
+                      ? "finance-addop__chip finance-addop__chip--on"
+                      : "finance-addop__chip"
+                  }
+                  onClick={() => setIncomePeriodYear(true)}
+                >
+                  В год
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className={
+                    !incomePeriodYear
+                      ? "finance-addop__chip finance-addop__chip--on"
+                      : "finance-addop__chip"
+                  }
+                  onClick={() => setIncomePeriodYear(false)}
+                >
+                  В месяц
+                </button>
+              </div>
               <label className="finance__field">
-                Ожидаемый купон + дивиденды в год, ₽
+                Ожидаемый купон/див с одной бумаги, ₽ (
+                {incomePeriodYear ? "в год" : "в месяц"})
                 <input
                   className="finance__input"
                   inputMode="decimal"
-                  placeholder="необязательно"
+                  placeholder="необязательно; из поиска — обычно в год"
                   value={annualIncomeStr}
                   onChange={(e) => setAnnualIncomeStr(e.target.value)}
                 />
@@ -1750,15 +1935,66 @@ function FinanceInvestPanel({
                 </div>
                 <p className="finance-inv__edit-name">{incomeModal.name}</p>
                 <p className="finance-inv__hint">
-                  Указывается доход с одной бумаги в год; итого по позиции =
-                  это значение × {incomeModal.units} шт.
+                  Итого по позиции = значение с одной бумаги ×{" "}
+                  {incomeModal.units} шт. (годовой эквивалент хранится в базе).
                 </p>
                 <form
                   className="finance__form"
                   onSubmit={(e) => void onSaveIncome(e)}
                 >
+                  <div
+                    className="finance-addop__carousel finance-invquote__modes"
+                    role="tablist"
+                    aria-label="Период дохода"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      className={
+                        incomeModalIsYear
+                          ? "finance-addop__chip finance-addop__chip--on"
+                          : "finance-addop__chip"
+                      }
+                      onClick={() => {
+                        if (!incomeModalIsYear) {
+                          const v = Number(incomeModalStr.replace(",", "."));
+                          if (Number.isFinite(v) && v >= 0) {
+                            setIncomeModalStr(
+                              String(Math.round(v * 12 * 10000) / 10000),
+                            );
+                          }
+                        }
+                        setIncomeModalIsYear(true);
+                      }}
+                    >
+                      В год
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      className={
+                        !incomeModalIsYear
+                          ? "finance-addop__chip finance-addop__chip--on"
+                          : "finance-addop__chip"
+                      }
+                      onClick={() => {
+                        if (incomeModalIsYear) {
+                          const v = Number(incomeModalStr.replace(",", "."));
+                          if (Number.isFinite(v) && v >= 0) {
+                            setIncomeModalStr(
+                              String(Math.round((v / 12) * 10000) / 10000),
+                            );
+                          }
+                        }
+                        setIncomeModalIsYear(false);
+                      }}
+                    >
+                      В месяц
+                    </button>
+                  </div>
                   <label className="finance__field">
-                    ₽/год с одной бумаги (купон или дивиденды)
+                    С одной бумаги, ₽ (
+                    {incomeModalIsYear ? "в год" : "в месяц"})
                     <input
                       className="finance__input"
                       inputMode="decimal"

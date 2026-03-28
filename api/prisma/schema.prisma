@@ -22,6 +22,8 @@ enum AccountType {
   CARD
   CASH
   BANK
+  DEPOSIT
+  SAVINGS
   OTHER
 }
 
@@ -51,6 +53,8 @@ model Account {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String
   type         AccountType
+  /// Годовая ставка, % (только вклады и накопительные счета).
+  annualInterestPercent Float?
   sortOrder    Int           @default(0)
   createdAt    DateTime      @default(now())
   transactions Transaction[]

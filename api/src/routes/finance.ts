@@ -68,6 +68,40 @@ function parseAnnualIncomePerUnitRub(
   return parseAnnualCouponDividendRub(raw);
 }
 
+/** Доход с одной бумаги в месяц, ₽ → коп/мес (храним как годовой ×12 в БД). */
+function parseMonthlyIncomePerUnitRub(
+  raw: unknown,
+):
+  | { ok: true; minor: number | null }
+  | { ok: false; message: string } {
+  return parseAnnualCouponDividendRub(raw);
+}
+
+function parseAnnualInterestPercent(
+  raw: unknown,
+): { ok: true; value: number | null } | { ok: false; message: string } {
+  if (raw === undefined || raw === null || raw === "") {
+    return { ok: true, value: null };
+  }
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
+    return { ok: false, message: "Ставка % — неотрицательное число" };
+  }
+  if (raw > 1000) {
+    return { ok: false, message: "Ставка % слишком велика" };
+  }
+  return { ok: true, value: raw };
+}
+
+/** Оценка дохода по ставке за месяц, коп. */
+function interestIncomeMonthMinor(
+  balanceMinor: number,
+  annualPercent: number | null | undefined,
+): number {
+  if (balanceMinor <= 0) return 0;
+  if (annualPercent == null || annualPercent <= 0) return 0;
+  return Math.round((balanceMinor * annualPercent) / 100 / 12);
+}
+
 function holdingValueMinor(units: number, pricePerUnitMinor: number): number {
   return Math.round(units * pricePerUnitMinor);
 }
@@ -201,10 +235,17 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const bal = await accountBalancesMap(userId);
     const inv = await investmentsTotalMinor(userId);
     return {
-      accounts: accounts.map((a) => ({
-        ...a,
-        balanceMinor: bal.get(a.id) ?? 0,
-      })),
+      accounts: accounts.map((a) => {
+        const balanceMinor = bal.get(a.id) ?? 0;
+        return {
+          ...a,
+          balanceMinor,
+          interestIncomeMonthMinor:
+            a.type === "DEPOSIT" || a.type === "SAVINGS"
+              ? interestIncomeMonthMinor(balanceMinor, a.annualInterestPercent)
+              : 0,
+        };
+      }),
       investmentsTotalMinor: inv,
     };
   });
@@ -212,7 +253,11 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
   app.post("/accounts", async (request, reply) => {
     const userId = getUserId(request);
     await ensureUserHasAccounts(prisma, userId);
-    const body = request.body as { name?: string; type?: AccountType };
+    const body = request.body as {
+      name?: string;
+      type?: AccountType;
+      annualInterestPercent?: number | null;
+    };
     const name = body.name?.trim() ?? "";
     if (!name || name.length > 80) {
       return reply.status(400).send({
@@ -220,10 +265,31 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       });
     }
     const t = body.type;
-    if (t !== "CARD" && t !== "CASH" && t !== "BANK" && t !== "OTHER") {
+    if (
+      t !== "CARD" &&
+      t !== "CASH" &&
+      t !== "BANK" &&
+      t !== "DEPOSIT" &&
+      t !== "SAVINGS" &&
+      t !== "OTHER"
+    ) {
       return reply.status(400).send({
-        error: { message: "Тип: CARD, CASH, BANK или OTHER" },
+        error: {
+          message:
+            "Тип: CARD, CASH, BANK, DEPOSIT (вклад), SAVINGS (накопительный), OTHER",
+        },
       });
+    }
+    let annualInterestPercent: number | null = null;
+    if (body.annualInterestPercent !== undefined) {
+      const p = parseAnnualInterestPercent(body.annualInterestPercent);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualInterestPercent = p.value;
+    }
+    if (t !== "DEPOSIT" && t !== "SAVINGS") {
+      annualInterestPercent = null;
     }
     const maxSort = await prisma.account.aggregate({
       where: { userId },
@@ -231,7 +297,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     });
     const sortOrder = (maxSort._max.sortOrder ?? -1) + 1;
     const acc = await prisma.account.create({
-      data: { userId, name, type: t, sortOrder },
+      data: { userId, name, type: t, sortOrder, annualInterestPercent },
     });
     return reply.status(201).send({ account: acc });
   });
@@ -239,7 +305,12 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
   app.patch("/accounts/:id", async (request, reply) => {
     const userId = getUserId(request);
     const id = (request.params as { id: string }).id;
-    const body = request.body as { name?: string; sortOrder?: number };
+    const body = request.body as {
+      name?: string;
+      sortOrder?: number;
+      type?: AccountType;
+      annualInterestPercent?: number | null;
+    };
     const existing = await prisma.account.findFirst({ where: { id, userId } });
     if (!existing) {
       return reply.status(404).send({ error: { message: "Счёт не найден" } });
@@ -252,11 +323,40 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         });
       }
     }
+    if (body.type !== undefined) {
+      const k = body.type;
+      if (
+        k !== "CARD" &&
+        k !== "CASH" &&
+        k !== "BANK" &&
+        k !== "DEPOSIT" &&
+        k !== "SAVINGS" &&
+        k !== "OTHER"
+      ) {
+        return reply.status(400).send({
+          error: { message: "Недопустимый тип счёта" },
+        });
+      }
+    }
+    const nextType = body.type ?? existing.type;
+    let annualInterestPercent = existing.annualInterestPercent;
+    if (body.annualInterestPercent !== undefined) {
+      const p = parseAnnualInterestPercent(body.annualInterestPercent);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualInterestPercent = p.value;
+    }
+    if (nextType !== "DEPOSIT" && nextType !== "SAVINGS") {
+      annualInterestPercent = null;
+    }
     const updated = await prisma.account.update({
       where: { id },
       data: {
         ...(body.name !== undefined ? { name: body.name.trim() } : {}),
         ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
+        ...(body.type !== undefined ? { type: body.type } : {}),
+        annualInterestPercent,
       },
     });
     return { account: updated };
@@ -399,20 +499,46 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       };
     });
 
-    let onDepositsMinor = 0;
+    let depositsMinor = 0;
+    let savingsMinor = 0;
+    let allAccountsMinor = 0;
     for (const a of accounts) {
       const b = bal.get(a.id) ?? 0;
-      if (a.type === "BANK" || a.type === "CASH") onDepositsMinor += b;
+      allAccountsMinor += b;
+      if (a.type === "DEPOSIT") depositsMinor += b;
+      else if (a.type === "SAVINGS") savingsMinor += b;
     }
-    let onCardsMinor = 0;
-    for (const a of accounts) {
-      const b = bal.get(a.id) ?? 0;
-      if (a.type === "CARD") onCardsMinor += b;
-    }
-    const accountsTotalMinor = onDepositsMinor + onCardsMinor;
-    const wealthMinor = accountsTotalMinor + total;
+    const wealthMinor = allAccountsMinor + total;
+    const portfolioSplitMinor =
+      depositsMinor + savingsMinor + stocksMinor + bondsMinor + otherInvMinor;
     const pct = (part: number) =>
-      wealthMinor > 0 ? Math.round((part * 1000) / wealthMinor) / 10 : 0;
+      portfolioSplitMinor > 0
+        ? Math.round((part * 1000) / portfolioSplitMinor) / 10
+        : 0;
+
+    const depositSavingsAccounts = accounts
+      .filter((a) => a.type === "DEPOSIT" || a.type === "SAVINGS")
+      .map((a) => {
+        const balanceMinor = bal.get(a.id) ?? 0;
+        const incMonth = interestIncomeMonthMinor(
+          balanceMinor,
+          a.annualInterestPercent,
+        );
+        return {
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          balanceMinor,
+          annualInterestPercent: a.annualInterestPercent,
+          interestIncomeMonthMinor: incMonth,
+        };
+      })
+      .sort((x, y) => x.name.localeCompare(y.name, "ru"));
+
+    let depositSavingsIncomeMonthMinor = 0;
+    for (const ds of depositSavingsAccounts) {
+      depositSavingsIncomeMonthMinor += ds.interestIncomeMonthMinor;
+    }
 
     const hasFlow = totalAnnualMinor > 0 && total > 0;
     const couponDividendYearMinor = hasFlow ? totalAnnualMinor : null;
@@ -429,11 +555,13 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     return {
       totalValueMinor: total,
       holdings: list,
+      depositSavingsAccounts,
       metrics: {
         incomePer1000YearMinor,
         couponDividendDayMinor,
         couponDividendMonthMinor,
         couponDividendYearMinor,
+        depositSavingsIncomeMonthMinor,
         note:
           total === 0
             ? "Добавьте позиции. Цены по бумагам из поиска обновляются при открытии вкладки."
@@ -443,16 +571,17 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       },
       allocation: {
         totalWealthMinor: wealthMinor,
-        onDepositsMinor,
-        onCardsMinor,
+        portfolioSplitMinor,
+        depositsMinor,
+        savingsMinor,
         stocksMinor,
         bondsMinor,
-        otherInvestmentsMinor: otherInvMinor,
-        pctDeposits: pct(onDepositsMinor),
-        pctCards: pct(onCardsMinor),
+        otherInstrumentsMinor: otherInvMinor,
+        pctDeposits: pct(depositsMinor),
+        pctSavings: pct(savingsMinor),
         pctStocks: pct(stocksMinor),
         pctBonds: pct(bondsMinor),
-        pctOtherInvest: pct(otherInvMinor),
+        pctOtherInstruments: pct(otherInvMinor),
       },
     };
   });
@@ -611,6 +740,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       note?: string;
       annualCouponDividendRub?: number | null;
       annualIncomePerUnitRub?: number | null;
+      monthlyIncomePerUnitRub?: number | null;
       quoteSource?: string | null;
       quoteExternalId?: string | null;
       quoteMoexMarket?: string | null;
@@ -647,8 +777,26 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     const note =
       typeof body.note === "string" ? body.note.trim().slice(0, 500) : undefined;
+    if (
+      typeof body.annualIncomePerUnitRub === "number" &&
+      typeof body.monthlyIncomePerUnitRub === "number"
+    ) {
+      return reply.status(400).send({
+        error: {
+          message:
+            "Укажите доход с одной бумаги за год или за месяц, не оба сразу",
+        },
+      });
+    }
     let annualIncomePerUnitMinor: number | null = null;
-    if (body.annualIncomePerUnitRub !== undefined) {
+    if (body.monthlyIncomePerUnitRub !== undefined) {
+      const p = parseMonthlyIncomePerUnitRub(body.monthlyIncomePerUnitRub);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualIncomePerUnitMinor =
+        p.minor != null ? Math.round(p.minor * 12) : null;
+    } else if (body.annualIncomePerUnitRub !== undefined) {
       const p = parseAnnualIncomePerUnitRub(body.annualIncomePerUnitRub);
       if (!p.ok) {
         return reply.status(400).send({ error: { message: p.message } });
@@ -721,12 +869,24 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       note?: string | null;
       annualCouponDividendRub?: number | null;
       annualIncomePerUnitRub?: number | null;
+      monthlyIncomePerUnitRub?: number | null;
     };
     const existing = await prisma.investmentPosition.findFirst({
       where: { id, userId },
     });
     if (!existing) {
       return reply.status(404).send({ error: { message: "Позиция не найдена" } });
+    }
+    if (
+      typeof body.annualIncomePerUnitRub === "number" &&
+      typeof body.monthlyIncomePerUnitRub === "number"
+    ) {
+      return reply.status(400).send({
+        error: {
+          message:
+            "Укажите доход с одной бумаги за год или за месяц, не оба сразу",
+        },
+      });
     }
     if (body.name !== undefined) {
       const name = body.name.trim();
@@ -776,7 +936,15 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     let annualIncomePerUnitMinor = existing.annualIncomePerUnitMinor;
     let annualCouponDividendMinor = existing.annualCouponDividendMinor;
-    if (body.annualIncomePerUnitRub !== undefined) {
+    if (body.monthlyIncomePerUnitRub !== undefined) {
+      const p = parseMonthlyIncomePerUnitRub(body.monthlyIncomePerUnitRub);
+      if (!p.ok) {
+        return reply.status(400).send({ error: { message: p.message } });
+      }
+      annualIncomePerUnitMinor =
+        p.minor != null ? Math.round(p.minor * 12) : null;
+      annualCouponDividendMinor = null;
+    } else if (body.annualIncomePerUnitRub !== undefined) {
       const p = parseAnnualIncomePerUnitRub(body.annualIncomePerUnitRub);
       if (!p.ok) {
         return reply.status(400).send({ error: { message: p.message } });
@@ -786,7 +954,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     if (
       body.annualCouponDividendRub !== undefined &&
-      body.annualIncomePerUnitRub === undefined
+      body.annualIncomePerUnitRub === undefined &&
+      body.monthlyIncomePerUnitRub === undefined
     ) {
       const p = parseAnnualCouponDividendRub(body.annualCouponDividendRub);
       if (!p.ok) {

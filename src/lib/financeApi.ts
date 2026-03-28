@@ -2,7 +2,13 @@ import { getRhAccessToken } from "./authToken";
 
 export type CategoryType = "EXPENSE" | "INCOME" | "BOTH";
 export type TransactionKind = "EXPENSE" | "INCOME";
-export type AccountType = "CARD" | "CASH" | "BANK" | "OTHER";
+export type AccountType =
+  | "CARD"
+  | "CASH"
+  | "BANK"
+  | "DEPOSIT"
+  | "SAVINGS"
+  | "OTHER";
 export type InvestmentAssetKind = "STOCK" | "BOND" | "FUND" | "CRYPTO" | "OTHER";
 
 export type Category = {
@@ -20,6 +26,9 @@ export type AccountRow = {
   type: AccountType;
   sortOrder: number;
   balanceMinor: number;
+  annualInterestPercent: number | null;
+  /** Оценка дохода по ставке за месяц, коп. (вклады/накопительные). */
+  interestIncomeMonthMinor: number;
 };
 
 export type TransactionAccount = {
@@ -60,16 +69,27 @@ export type InvestmentHoldingRow = {
 
 export type InvestAllocation = {
   totalWealthMinor: number;
-  onDepositsMinor: number;
-  onCardsMinor: number;
+  /** Сумма сегментов долей (без карт и прочих счётов вне разбиения). */
+  portfolioSplitMinor: number;
+  depositsMinor: number;
+  savingsMinor: number;
   stocksMinor: number;
   bondsMinor: number;
-  otherInvestmentsMinor: number;
+  otherInstrumentsMinor: number;
   pctDeposits: number;
-  pctCards: number;
+  pctSavings: number;
   pctStocks: number;
   pctBonds: number;
-  pctOtherInvest: number;
+  pctOtherInstruments: number;
+};
+
+export type DepositSavingsAccountRow = {
+  id: string;
+  name: string;
+  type: "DEPOSIT" | "SAVINGS";
+  balanceMinor: number;
+  annualInterestPercent: number | null;
+  interestIncomeMonthMinor: number;
 };
 
 /** Абсолютный URL к API (надёжнее для cookie при нестандартном base / PWA). */
@@ -148,12 +168,34 @@ export async function fetchAccounts() {
   }>("/api/v1/finance/accounts");
 }
 
-export async function createAccount(name: string, type: AccountType) {
-  return json<{ account: Omit<AccountRow, "balanceMinor"> }>(
+export async function createAccount(payload: {
+  name: string;
+  type: AccountType;
+  annualInterestPercent?: number | null;
+}) {
+  return json<{ account: Omit<AccountRow, "balanceMinor" | "interestIncomeMonthMinor"> }>(
     "/api/v1/finance/accounts",
     {
       method: "POST",
-      body: JSON.stringify({ name, type }),
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function patchAccount(
+  id: string,
+  body: Partial<{
+    name: string;
+    type: AccountType;
+    annualInterestPercent: number | null;
+    sortOrder: number;
+  }>,
+) {
+  return json<{ account: Omit<AccountRow, "balanceMinor" | "interestIncomeMonthMinor"> }>(
+    `/api/v1/finance/accounts/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
     },
   );
 }
@@ -170,11 +212,13 @@ export async function fetchInvestOverview(refreshQuotes?: boolean) {
   return json<{
     totalValueMinor: number;
     holdings: InvestmentHoldingRow[];
+    depositSavingsAccounts: DepositSavingsAccountRow[];
     metrics: {
       incomePer1000YearMinor: number | null;
       couponDividendDayMinor: number | null;
       couponDividendMonthMinor: number | null;
       couponDividendYearMinor: number | null;
+      depositSavingsIncomeMonthMinor: number;
       note: string;
     };
     allocation: InvestAllocation;
@@ -191,6 +235,8 @@ export async function createHolding(payload: {
   annualCouponDividendRub?: number | null;
   /** Купон/див с одной бумаги в год, ₽ */
   annualIncomePerUnitRub?: number | null;
+  /** С одной бумаги в месяц, ₽ (в БД хранится как годовой ×12) */
+  monthlyIncomePerUnitRub?: number | null;
   quoteSource?: string | null;
   quoteExternalId?: string | null;
   quoteMoexMarket?: string | null;
@@ -213,6 +259,7 @@ export async function patchHolding(
     note: string | null;
     annualCouponDividendRub: number | null;
     annualIncomePerUnitRub: number | null;
+    monthlyIncomePerUnitRub: number | null;
   }>,
 ) {
   return json<{ holding: InvestmentHoldingRow }>(

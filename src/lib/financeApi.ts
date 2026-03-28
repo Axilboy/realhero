@@ -66,11 +66,12 @@ async function financeFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const url = resolveApiUrl(path);
+  const hasBody = init?.body != null;
   const merged: RequestInit = {
     ...init,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(init?.headers ?? {}),
     },
   };

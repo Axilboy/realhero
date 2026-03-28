@@ -25,6 +25,13 @@ function cookieDomain(): string | undefined {
   return d || undefined;
 }
 
+function cookieSecureFlag(): boolean {
+  const v = process.env.COOKIE_SECURE?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
+  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
+  return process.env.NODE_ENV === "production";
+}
+
 function sessionCookieOptions() {
   const domain = cookieDomain();
   return {
@@ -32,7 +39,7 @@ function sessionCookieOptions() {
     httpOnly: true,
     sameSite: "lax" as const,
     maxAge: 60 * 60 * 24 * 30,
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecureFlag(),
     ...(domain ? { domain } : {}),
   };
 }

@@ -16,11 +16,15 @@ export type AuthUser = { id: string; email: string };
 type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  /** true, если /api/v1/me подтвердил сессию (cookie на месте). */
+  refresh: () => Promise<boolean>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
+
+const SESSION_COOKIE_HINT =
+  "Вход принят, но браузер не сохранил сессию. Откройте сайт по тому же адресу, что и раньше (с www или без), используйте HTTPS или в api/.env задайте COOKIE_SECURE=false для HTTP. Для разных поддоменов — COOKIE_DOMAIN=.ваш-домен.ru и CORS_ORIGINS.";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -41,16 +45,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     const res = await fetch(resolveApiUrl("/api/v1/me"), {
       credentials: "include",
     });
     if (!res.ok) {
       setUser(null);
-      return;
+      return false;
     }
     const data = (await res.json()) as { user: AuthUser };
     setUser(data.user);
+    return true;
   }, []);
 
   useEffect(() => {
@@ -61,29 +66,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     bindFinanceAuthRefresh(refresh);
   }, [refresh]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(resolveApiUrl("/api/v1/auth/login"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) throw new Error(await errorMessage(res));
-    const data = (await res.json()) as { user: AuthUser };
-    setUser(data.user);
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await fetch(resolveApiUrl("/api/v1/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res));
+      await res.json().catch(() => null);
+      const ok = await refresh();
+      if (!ok) throw new Error(SESSION_COOKIE_HINT);
+    },
+    [refresh],
+  );
 
-  const register = useCallback(async (email: string, password: string) => {
-    const res = await fetch(resolveApiUrl("/api/v1/auth/register"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) throw new Error(await errorMessage(res));
-    const data = (await res.json()) as { user: AuthUser };
-    setUser(data.user);
-  }, []);
+  const register = useCallback(
+    async (email: string, password: string) => {
+      const res = await fetch(resolveApiUrl("/api/v1/auth/register"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res));
+      await res.json().catch(() => null);
+      const ok = await refresh();
+      if (!ok) throw new Error(SESSION_COOKIE_HINT);
+    },
+    [refresh],
+  );
 
   const logout = useCallback(async () => {
     await fetch(resolveApiUrl("/api/v1/auth/logout"), {

@@ -2,12 +2,14 @@ import "dotenv/config";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import Fastify from "fastify";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { authPreHandler } from "./authHook.js";
+import { prisma } from "./db.js";
+import { seedUserCategories } from "./lib/seedUserCategories.js";
+import { financePlugin } from "./routes/finance.js";
 
-const prisma = new PrismaClient();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function parseCorsOrigins(): string[] {
@@ -25,14 +27,6 @@ function sessionCookieOptions() {
     maxAge: 60 * 60 * 24 * 30,
     secure: process.env.NODE_ENV === "production",
   };
-}
-
-async function authPreHandler(request: FastifyRequest, reply: FastifyReply) {
-  try {
-    await request.jwtVerify({ onlyCookie: true });
-  } catch {
-    return reply.status(401).send({ error: "Unauthorized" });
-  }
 }
 
 async function main() {
@@ -80,6 +74,8 @@ async function main() {
     const user = await prisma.user.create({
       data: { email, passwordHash },
     });
+
+    await seedUserCategories(prisma, user.id);
 
     const token = await reply.jwtSign(
       { sub: user.id },
@@ -138,6 +134,8 @@ async function main() {
       return { user: { id: user.id, email: user.email } };
     },
   );
+
+  await app.register(financePlugin, { prefix: "/api/v1/finance" });
 
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? "0.0.0.0";

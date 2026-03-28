@@ -7,9 +7,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum CategoryType {
+  EXPENSE
+  INCOME
+  BOTH
+}
+
+enum TransactionKind {
+  EXPENSE
+  INCOME
+}
+
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
+  id           String        @id @default(uuid())
+  email        String        @unique
   passwordHash String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime      @default(now())
+  categories   Category[]
+  transactions Transaction[]
+}
+
+model Category {
+  id          String          @id @default(uuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        CategoryType
+  isBuiltIn   Boolean         @default(false)
+  isArchived  Boolean         @default(false)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Transaction {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  kind        TransactionKind
+  amountMinor Int
+  note        String?
+  occurredAt  DateTime
+  createdAt   DateTime         @default(now())
+
+  @@index([userId, occurredAt])
 }

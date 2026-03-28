@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-В другом терминале поднимите API (`cd api && npm run dev`). Запросы с фронта на **`/api/...`** в dev проксируются на `http://127.0.0.1:3000` — так же должен быть настроен **redirect URI** OAuth (см. `api/.env.example`). Для отдельного origin API задайте **`VITE_API_URL`** (полный URL без слэша в конце).
+В другом терминале поднимите API (`cd api && npm run dev`). Запросы с фронта на **`/api/...`** в **dev** и **`npm run preview`** проксируются на `http://127.0.0.1:3000` — иначе по клику «Войти через …» браузер получит SPA вместо редиректа OAuth (раньше это выглядело как мгновенный возврат на главную). На проде в **nginx** сначала проксируйте **`location /api/`** на Node, затем `try_files` для SPA. **Redirect URI** OAuth см. `api/.env.example`. Для отдельного origin API задайте **`VITE_API_URL`** (полный URL без слэша в конце).
 
 Сборка: `npm run build`, предпросмотр: `npm run preview`.
 

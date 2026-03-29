@@ -90,6 +90,85 @@ function mergeAccountMovements(
   return items;
 }
 
+function MainRecentMovementRow({
+  item,
+  onOpenAccount,
+}: {
+  item: AccountDetailItem;
+  onOpenAccount: (id: string) => void;
+}) {
+  const openTarget =
+    item.kind === "tx"
+      ? item.tx.account?.id
+      : item.tr.fromAccountId;
+  const interactive = openTarget != null;
+  const inner =
+    item.kind === "tx" ? (
+      <>
+        <div className="finance__tx-main">
+          <span className="finance__tx-date">
+            {new Date(item.tx.occurredAt).toLocaleDateString("ru-RU")}
+          </span>
+          <span className="finance__tx-cat">
+            {item.tx.account ? `${item.tx.account.name} · ` : null}
+            {item.tx.category.excludeFromReporting
+              ? "Корректировка"
+              : item.tx.kind === "INCOME"
+                ? "Доход"
+                : "Расход"}{" "}
+            · {item.tx.category.name}
+          </span>
+          <span
+            className={
+              item.tx.category.excludeFromReporting
+                ? "finance__tx-sum finance__tx-sum--adj"
+                : item.tx.kind === "INCOME"
+                  ? "finance__tx-sum finance__tx-sum--in"
+                  : "finance__tx-sum finance__tx-sum--out"
+            }
+          >
+            {item.tx.kind === "INCOME" ? "+" : "−"}
+            {formatRubFromMinor(item.tx.amountMinor)}
+          </span>
+        </div>
+        {item.tx.note ? (
+          <p className="finance__tx-note">{item.tx.note}</p>
+        ) : null}
+      </>
+    ) : (
+      <>
+        <div className="finance__tx-main">
+          <span className="finance__tx-date">
+            {new Date(item.tr.occurredAt).toLocaleDateString("ru-RU")}
+          </span>
+          <span className="finance__tx-cat">
+            Перевод · {item.tr.fromAccount.name} → {item.tr.toAccount.name}
+          </span>
+          <span className="finance__tx-sum finance__tx-sum--transfer-glob">
+            {formatRubFromMinor(item.tr.amountMinor)}
+          </span>
+        </div>
+        {item.tr.note ? (
+          <p className="finance__tx-note">{item.tr.note}</p>
+        ) : null}
+      </>
+    );
+  if (interactive) {
+    return (
+      <li>
+        <button
+          type="button"
+          className="finance__tx finance-main__recent-tx-btn"
+          onClick={() => onOpenAccount(openTarget!)}
+        >
+          {inner}
+        </button>
+      </li>
+    );
+  }
+  return <li className="finance__tx">{inner}</li>;
+}
+
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   CARD: "Карта",
   DEBIT_CARD: "Дебетовая карта",
@@ -186,17 +265,19 @@ function accountDebtInterestExpense(a: AccountCardLike): boolean {
   );
 }
 
-/** Одна горизонтальная карусель: все счета одного размера + опционально карточка «+». */
+/** Счета: горизонтальная карусель или вертикальный список на всю ширину (`stack`). */
 function FinanceAccountsRow({
   accounts,
   title,
   onOpenAccount,
   onAddAccount,
+  variant = "carousel",
 }: {
   accounts: AccountRow[];
   title: string;
   onOpenAccount?: (id: string) => void;
   onAddAccount?: () => void;
+  variant?: "carousel" | "stack";
 }) {
   const sorted = [...accounts].sort((a, b) =>
     a.sortOrder !== b.sortOrder
@@ -272,7 +353,13 @@ function FinanceAccountsRow({
   };
 
   return (
-    <div className="finance-acc-row-wrap">
+    <div
+      className={
+        variant === "stack"
+          ? "finance-acc-row-wrap finance-acc-row-wrap--stack"
+          : "finance-acc-row-wrap"
+      }
+    >
       <h3 className="finance__h3 finance-acc-row__title">{title}</h3>
       <div className="finance-acc-row__scroll" role="list">
         {sorted.length === 0 && showAdd ? (
@@ -511,6 +598,9 @@ function FinanceMainPanel({
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
+  const [mainRecentItems, setMainRecentItems] = useState<AccountDetailItem[]>(
+    [],
+  );
 
   const [addOpOpen, setAddOpOpen] = useState(false);
   const [opTab, setOpTab] = useState<AddOpTab>("expense");
@@ -588,14 +678,27 @@ function FinanceMainPanel({
     }
 
     const budgetYm = currentMonthYm();
-    const [rep, c, a, ov, bs] = await Promise.all([
+    const [rep, c, a, ov, bs, rTx, rTr] = await Promise.all([
       fetchReportingSummary(summaryOpts),
       fetchCategories(false),
       fetchAccounts(),
       fetchInvestOverview(false),
       fetchBudgetSummary(budgetYm),
+      fetchTransactions(),
+      fetchTransfers(),
     ]);
     setPending(false);
+
+    if (rTx.ok && rTr.ok) {
+      setMainRecentItems(
+        mergeAccountMovements(
+          rTx.data.transactions,
+          rTr.data.transfers,
+        ).slice(0, 20),
+      );
+    } else {
+      setMainRecentItems([]);
+    }
 
     const errs: string[] = [];
     if (!st.ok) errs.push(errorMessage(st.data));
@@ -1215,6 +1318,7 @@ function FinanceMainPanel({
 
       {!pending ? (
         <FinanceAccountsRow
+          variant="stack"
           accounts={accounts}
           title="Счета"
           onOpenAccount={openAccountDetail}
@@ -1226,7 +1330,75 @@ function FinanceMainPanel({
         />
       ) : null}
 
+      {!pending && reporting ? (
+        <section
+          className="finance__summary finance-main__month"
+          aria-label="Отчётный период"
+        >
+          <p className="finance-main__period-label">
+            Отчёт (
+            {GRANULARITY_LABEL[reporting.financeReportingGranularity]}):{" "}
+            <strong>
+              {formatRuDateShort(reporting.periodStart)} —{" "}
+              {formatRuDateShort(`${reporting.periodLastDay}T12:00:00.000Z`)}
+            </strong>
+            .{" "}
+            <button
+              type="button"
+              className="finance-main__linkish"
+              onClick={() => onSettingsOpenChange(true)}
+            >
+              Изменить в настройках
+            </button>
+          </p>
+          <div className="finance__tiles finance__tiles--compact">
+            <div className="finance__tile finance__tile--in">
+              <span className="finance__tile-label">Доходы (период)</span>
+              <span className="finance__tile-val">
+                {formatRubFromMinor(reporting.incomeMinor)}
+              </span>
+            </div>
+            <div className="finance__tile finance__tile--out">
+              <span className="finance__tile-label">
+                Расходы и переводы (период)
+              </span>
+              <span className="finance__tile-val">
+                {formatRubFromMinor(reporting.outflowMinor)}
+              </span>
+              {reporting.expenseMinor > 0 && reporting.transferOutMinor > 0 ? (
+                <span className="finance__tile-sub">
+                  операции {formatRubFromMinor(reporting.expenseMinor)} ·
+                  переводы {formatRubFromMinor(reporting.transferOutMinor)}
+                </span>
+              ) : reporting.transferOutMinor > 0 &&
+                reporting.expenseMinor === 0 ? (
+                <span className="finance__tile-sub">
+                  только переводы между счетами
+                </span>
+              ) : null}
+            </div>
+            <div className="finance__tile finance__tile--bal">
+              <span className="finance__tile-label">Баланс (период)</span>
+              <span className="finance__tile-val">
+                {formatRubFromMinor(reporting.balanceMinor)}
+              </span>
+            </div>
+          </div>
+          {reporting.outflowMinor === 0 ? (
+            <p className="finance-main__period-hint">
+              В отчёт попадают только операции и переводы, у которых дата
+              попадает в указанный период. Если расходы или переводы были
+              раньше или позже — здесь будет 0 ₽.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       {!pending ? (
+        <section
+          className="finance-main__detail-block"
+          aria-label="Подробная сводка"
+        >
         <div className="finance-main__totals">
           <div className="finance-main__total-row">
             <span>На счетах</span>
@@ -1319,69 +1491,36 @@ function FinanceMainPanel({
             </div>
           ) : null}
         </div>
+        </section>
       ) : null}
 
-      {!pending && reporting ? (
+      {!pending ? (
         <section
-          className="finance__summary finance-main__month"
-          aria-label="Отчётный период"
+          className="finance-main__recent"
+          aria-label="Последние операции по всем счетам"
         >
-          <p className="finance-main__period-label">
-            Отчёт (
-            {GRANULARITY_LABEL[reporting.financeReportingGranularity]}):{" "}
-            <strong>
-              {formatRuDateShort(reporting.periodStart)} —{" "}
-              {formatRuDateShort(`${reporting.periodLastDay}T12:00:00.000Z`)}
-            </strong>
-            .{" "}
-            <button
-              type="button"
-              className="finance-main__linkish"
-              onClick={() => onSettingsOpenChange(true)}
-            >
-              Изменить в настройках
-            </button>
-          </p>
-          <div className="finance__tiles finance__tiles--compact">
-            <div className="finance__tile finance__tile--in">
-              <span className="finance__tile-label">Доходы (период)</span>
-              <span className="finance__tile-val">
-                {formatRubFromMinor(reporting.incomeMinor)}
-              </span>
-            </div>
-            <div className="finance__tile finance__tile--out">
-              <span className="finance__tile-label">
-                Расходы и переводы (период)
-              </span>
-              <span className="finance__tile-val">
-                {formatRubFromMinor(reporting.outflowMinor)}
-              </span>
-              {reporting.expenseMinor > 0 && reporting.transferOutMinor > 0 ? (
-                <span className="finance__tile-sub">
-                  операции {formatRubFromMinor(reporting.expenseMinor)} ·
-                  переводы {formatRubFromMinor(reporting.transferOutMinor)}
-                </span>
-              ) : reporting.transferOutMinor > 0 &&
-                reporting.expenseMinor === 0 ? (
-                <span className="finance__tile-sub">
-                  только переводы между счетами
-                </span>
-              ) : null}
-            </div>
-            <div className="finance__tile finance__tile--bal">
-              <span className="finance__tile-label">Баланс (период)</span>
-              <span className="finance__tile-val">
-                {formatRubFromMinor(reporting.balanceMinor)}
-              </span>
-            </div>
-          </div>
-          {reporting.outflowMinor === 0 ? (
-            <p className="finance-main__period-hint">
-              В отчёт попадают только операции и переводы, у которых дата
-              попадает в указанный период. Если расходы или переводы были
-              раньше или позже — здесь будет 0 ₽.
+          <h3 className="finance__h3 finance-main__recent-title">
+            Последние операции
+          </h3>
+          {mainRecentItems.length === 0 ? (
+            <p className="screen__text finance-main__recent-empty">
+              Операций и переводов за последнее время нет.
             </p>
-          ) : null}
+          ) : (
+            <ul className="finance__tx-list">
+              {mainRecentItems.map((item) => (
+                <MainRecentMovementRow
+                  key={
+                    item.kind === "tx"
+                      ? `tx-${item.tx.id}`
+                      : `tr-${item.tr.id}`
+                  }
+                  item={item}
+                  onOpenAccount={openAccountDetail}
+                />
+              ))}
+            </ul>
+          )}
         </section>
       ) : null}
 

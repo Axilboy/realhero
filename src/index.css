@@ -1176,6 +1176,79 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.finance-acc-row-wrap--stack .finance-acc-row__scroll {
+  flex-direction: column;
+  overflow-x: visible;
+  scroll-snap-type: none;
+  gap: 0.45rem;
+  padding-bottom: 0;
+}
+
+.finance-acc-row-wrap--stack .finance-acc-row__card {
+  flex: none;
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  scroll-snap-align: unset;
+  padding: 0.5rem 0.65rem;
+}
+
+.finance-acc-row-wrap--stack .finance-acc-row__type {
+  min-height: 0;
+  font-size: 0.62rem;
+}
+
+.finance-acc-row-wrap--stack .finance-acc-row__name {
+  min-height: 0;
+  margin: 0.1rem 0 0.25rem;
+  -webkit-line-clamp: 1;
+}
+
+.finance-acc-row-wrap--stack .finance-acc-row__bal {
+  min-height: 0;
+  font-size: 1rem;
+}
+
+.finance-acc-row-wrap--stack .finance-acc-row__rate,
+.finance-acc-row-wrap--stack .finance-acc-row__inc {
+  font-size: 0.65rem;
+  margin-top: 0.15rem;
+}
+
+.finance-main__detail-block {
+  margin-top: 0.35rem;
+}
+
+.finance-main__recent {
+  margin-top: 1rem;
+}
+
+.finance-main__recent-title {
+  margin-bottom: 0.5rem;
+}
+
+.finance-main__recent-empty {
+  margin: 0;
+}
+
+button.finance-main__recent-tx-btn {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button.finance-main__recent-tx-btn:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
+}
+
+.finance__tx-sum--transfer-glob {
+  color: #9aa0a6;
+  font-weight: 600;
+}
+
 .finance-acc-row__title {
   margin: 0 0 0.45rem;
 }

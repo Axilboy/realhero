@@ -887,6 +887,18 @@ body {
   background: linear-gradient(145deg, #1a1d24 0%, #14171c 100%);
 }
 
+.finance-main__acc-card--btn {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.finance-main__acc-card--btn:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
+}
+
 .finance-main__acc-type {
   font-size: 0.65rem;
   font-weight: 600;
@@ -994,6 +1006,45 @@ body {
   line-height: 1.4;
 }
 
+.finance-main__rep-expand {
+  margin-bottom: 0.65rem;
+}
+
+.finance-main__reporting-settings {
+  margin-bottom: 0.65rem;
+}
+
+.finance-main__gran-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+
+.finance-main__gran-chip {
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #3c424d;
+  background: #1a1d24;
+  color: #9aa0a6;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.finance-main__gran-chip--on {
+  border-color: #8ab4ff;
+  color: #e8eaed;
+  background: #252a38;
+}
+
+.finance-main__custom-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 .finance-main__reporting-day-form {
   display: flex;
   flex-wrap: wrap;
@@ -1015,9 +1066,99 @@ body {
   margin: 0 0 0.75rem;
 }
 
+.finance-main__del-warn--strong {
+  color: #f28b82;
+}
+
+.finance-main__del-mode {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.finance-main__del-mode-btn {
+  flex: 1;
+  padding: 0.4rem 0.35rem;
+  border-radius: 8px;
+  border: 1px solid #3c424d;
+  background: #1a1d24;
+  color: #9aa0a6;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.finance-main__del-mode-btn--on {
+  border-color: #8ab4ff;
+  color: #e8eaed;
+}
+
+.finance__submit--danger {
+  background: linear-gradient(180deg, #c5221f 0%, #9e1815 100%);
+}
+
+.finance-main__acc-detail-meta {
+  font-size: 0.82rem;
+  color: #9aa0a6;
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+
+.finance-main__acc-detail-h3 {
+  margin: 0.65rem 0 0.35rem;
+  font-size: 0.78rem;
+}
+
+.finance-main__acc-detail-tx {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.78rem;
+}
+
+.finance-main__acc-detail-tx li {
+  display: grid;
+  grid-template-columns: 4.2rem 1fr auto;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #252a33;
+  color: #c4c7cc;
+}
+
+.finance-main__acc-detail-tx-a {
+  color: #81c995;
+  font-weight: 600;
+  text-align: right;
+}
+
+.finance-main__acc-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.finance__modal--acc-detail {
+  max-width: 22rem;
+}
+
 .finance-dep-carousel__del {
   margin-top: 0.45rem;
   width: 100%;
+}
+
+button.finance-dep-carousel__card {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+button.finance-dep-carousel__card:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
 }
 
 .finance-an__forecast {

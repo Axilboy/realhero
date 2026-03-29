@@ -1,6 +1,7 @@
 import {
   type AccountType,
   type CategoryType,
+  type FinanceReportingGranularity,
   type InvestmentAssetKind,
   type Prisma,
   type TransactionKind,
@@ -17,7 +18,9 @@ import {
   clampReportingDay,
   daysElapsedInPeriod,
   daysRemainingInPeriod,
-  getReportingPeriodContaining,
+  getActiveReportingPeriod,
+  getCustomReportingPeriod,
+  parseISODateUTC,
 } from "../lib/reportingPeriod.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
@@ -98,14 +101,87 @@ function parseAnnualInterestPercent(
   return { ok: true, value: raw };
 }
 
+const FINANCE_REPORTING_GRANULARITIES: FinanceReportingGranularity[] = [
+  "DAY",
+  "WEEK",
+  "MONTH",
+  "YEAR",
+  "CUSTOM",
+];
+
+function parseFinanceReportingGranularity(
+  raw: unknown,
+): FinanceReportingGranularity | null {
+  if (typeof raw !== "string") return null;
+  return FINANCE_REPORTING_GRANULARITIES.includes(
+    raw as FinanceReportingGranularity,
+  )
+    ? (raw as FinanceReportingGranularity)
+    : null;
+}
+
+function coerceAnnualPercent(
+  annualPercent: number | null | undefined,
+): number | null {
+  if (annualPercent == null) return null;
+  const p = Number(annualPercent);
+  if (!Number.isFinite(p) || p <= 0) return null;
+  return p;
+}
+
+function accountUsesInterestRate(a: {
+  type: AccountType;
+  annualInterestPercent: number | null;
+}): boolean {
+  if (a.type === "DEPOSIT" || a.type === "SAVINGS") return true;
+  if (a.type === "BANK" && coerceAnnualPercent(a.annualInterestPercent) != null)
+    return true;
+  return false;
+}
+
 /** Оценка дохода по ставке за месяц, коп. */
 function interestIncomeMonthMinor(
   balanceMinor: number,
   annualPercent: number | null | undefined,
 ): number {
   if (balanceMinor <= 0) return 0;
-  if (annualPercent == null || annualPercent <= 0) return 0;
-  return Math.round((balanceMinor * annualPercent) / 100 / 12);
+  const p = coerceAnnualPercent(annualPercent);
+  if (p == null) return 0;
+  return Math.round((balanceMinor * p) / 100 / 12);
+}
+
+/** Оценка дохода по ставке за год, коп. */
+function interestIncomeYearMinor(
+  balanceMinor: number,
+  annualPercent: number | null | undefined,
+): number {
+  if (balanceMinor <= 0) return 0;
+  const p = coerceAnnualPercent(annualPercent);
+  if (p == null) return 0;
+  return Math.round((balanceMinor * p) / 100);
+}
+
+function reportingPeriodFromRequestQuery(
+  query: { from?: string; to?: string },
+  u: {
+    financeReportingDay: number | null;
+    financeReportingGranularity: FinanceReportingGranularity;
+  },
+  now: Date,
+) {
+  const fromQ = query.from ? parseISODateUTC(query.from) : null;
+  const toQ = query.to ? parseISODateUTC(query.to) : null;
+  if (fromQ && toQ) {
+    return getCustomReportingPeriod(fromQ, toQ);
+  }
+  const day = clampReportingDay(u.financeReportingDay ?? 1);
+  return getActiveReportingPeriod(
+    u.financeReportingGranularity ?? "MONTH",
+    day,
+    now,
+    null,
+    null,
+  );
 }
 
 function holdingValueMinor(units: number, pricePerUnitMinor: number): number {
@@ -243,13 +319,18 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     return {
       accounts: accounts.map((a) => {
         const balanceMinor = bal.get(a.id) ?? 0;
+        const useInt = accountUsesInterestRate(a);
+        const month = useInt
+          ? interestIncomeMonthMinor(balanceMinor, a.annualInterestPercent)
+          : 0;
+        const year = useInt
+          ? interestIncomeYearMinor(balanceMinor, a.annualInterestPercent)
+          : 0;
         return {
           ...a,
           balanceMinor,
-          interestIncomeMonthMinor:
-            a.type === "DEPOSIT" || a.type === "SAVINGS"
-              ? interestIncomeMonthMinor(balanceMinor, a.annualInterestPercent)
-              : 0,
+          interestIncomeMonthMinor: month,
+          interestIncomeYearMinor: year,
         };
       }),
       investmentsTotalMinor: inv,
@@ -294,7 +375,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       }
       annualInterestPercent = p.value;
     }
-    if (t !== "DEPOSIT" && t !== "SAVINGS") {
+    if (t !== "DEPOSIT" && t !== "SAVINGS" && t !== "BANK") {
       annualInterestPercent = null;
     }
     const maxSort = await prisma.account.aggregate({
@@ -353,7 +434,11 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       }
       annualInterestPercent = p.value;
     }
-    if (nextType !== "DEPOSIT" && nextType !== "SAVINGS") {
+    if (
+      nextType !== "DEPOSIT" &&
+      nextType !== "SAVINGS" &&
+      nextType !== "BANK"
+    ) {
       annualInterestPercent = null;
     }
     const updated = await prisma.account.update({
@@ -439,6 +524,30 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       await tx.transfer.deleteMany({
         where: { userId, fromAccountId: targetId, toAccountId: targetId },
       });
+      await tx.account.delete({ where: { id } });
+    });
+    return { ok: true };
+  });
+
+  /**
+   * Удалить счёт вместе со всеми операциями и переводами (баланс «обнуляется»).
+   * Денежные следы в других счетах от связанных переводов тоже исчезают.
+   */
+  app.post("/accounts/:id/purge", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const existing = await prisma.account.findFirst({ where: { id, userId } });
+    if (!existing) {
+      return reply.status(404).send({ error: { message: "Счёт не найден" } });
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.transfer.deleteMany({
+        where: {
+          userId,
+          OR: [{ fromAccountId: id }, { toAccountId: id }],
+        },
+      });
+      await tx.transaction.deleteMany({ where: { userId, accountId: id } });
       await tx.account.delete({ where: { id } });
     });
     return { ok: true };
@@ -568,10 +677,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         : 0;
 
     const depositSavingsAccounts = accounts
-      .filter((a) => a.type === "DEPOSIT" || a.type === "SAVINGS")
+      .filter((a) => accountUsesInterestRate(a))
       .map((a) => {
         const balanceMinor = bal.get(a.id) ?? 0;
         const incMonth = interestIncomeMonthMinor(
+          balanceMinor,
+          a.annualInterestPercent,
+        );
+        const incYear = interestIncomeYearMinor(
           balanceMinor,
           a.annualInterestPercent,
         );
@@ -582,6 +695,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           balanceMinor,
           annualInterestPercent: a.annualInterestPercent,
           interestIncomeMonthMinor: incMonth,
+          interestIncomeYearMinor: incYear,
         };
       })
       .sort((x, y) => x.name.localeCompare(y.name, "ru"));
@@ -1156,6 +1270,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       from?: string;
       to?: string;
       kind?: string;
+      accountId?: string;
     };
     let fromD: Date;
     let toD: Date;
@@ -1170,7 +1285,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     } else {
       toD = new Date();
       fromD = new Date(toD);
-      fromD.setUTCDate(fromD.getUTCDate() - 60);
+      const back = q.accountId ? 365 : 60;
+      fromD.setUTCDate(fromD.getUTCDate() - back);
     }
 
     const where: Prisma.TransactionWhereInput = {
@@ -1179,6 +1295,15 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     };
     if (q.kind === "INCOME" || q.kind === "EXPENSE") {
       where.kind = q.kind;
+    }
+    if (q.accountId) {
+      const acc = await prisma.account.findFirst({
+        where: { id: q.accountId, userId },
+      });
+      if (!acc) {
+        return reply.status(400).send({ error: { message: "Счёт не найден" } });
+      }
+      where.accountId = q.accountId;
     }
 
     const list = await prisma.transaction.findMany({
@@ -1480,28 +1605,64 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const userId = getUserId(request);
     const u = await prisma.user.findUnique({
       where: { id: userId },
-      select: { financeReportingDay: true },
+      select: { financeReportingDay: true, financeReportingGranularity: true },
     });
     return {
       financeReportingDay: clampReportingDay(u?.financeReportingDay ?? 1),
+      financeReportingGranularity:
+        u?.financeReportingGranularity ?? "MONTH",
     };
   });
 
   app.patch("/settings", async (request, reply) => {
     const userId = getUserId(request);
-    const body = request.body as { financeReportingDay?: number };
-    const raw = body.financeReportingDay;
-    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    const body = request.body as {
+      financeReportingDay?: number;
+      financeReportingGranularity?: string;
+    };
+    const data: {
+      financeReportingDay?: number;
+      financeReportingGranularity?: FinanceReportingGranularity;
+    } = {};
+    if (body.financeReportingDay !== undefined) {
+      const raw = body.financeReportingDay;
+      if (typeof raw !== "number" || !Number.isFinite(raw)) {
+        return reply.status(400).send({
+          error: { message: "financeReportingDay — число 1…28" },
+        });
+      }
+      data.financeReportingDay = clampReportingDay(raw);
+    }
+    if (body.financeReportingGranularity !== undefined) {
+      const g = parseFinanceReportingGranularity(body.financeReportingGranularity);
+      if (!g) {
+        return reply.status(400).send({
+          error: {
+            message:
+              "financeReportingGranularity: DAY, WEEK, MONTH, YEAR, CUSTOM",
+          },
+        });
+      }
+      data.financeReportingGranularity = g;
+    }
+    if (Object.keys(data).length === 0) {
       return reply.status(400).send({
-        error: { message: "financeReportingDay — число 1…28" },
+        error: {
+          message:
+            "Укажите financeReportingDay и/или financeReportingGranularity",
+        },
       });
     }
-    const day = clampReportingDay(raw);
-    await prisma.user.update({
+    await prisma.user.update({ where: { id: userId }, data });
+    const u = await prisma.user.findUnique({
       where: { id: userId },
-      data: { financeReportingDay: day },
+      select: { financeReportingDay: true, financeReportingGranularity: true },
     });
-    return { financeReportingDay: day };
+    return {
+      financeReportingDay: clampReportingDay(u?.financeReportingDay ?? 1),
+      financeReportingGranularity:
+        u?.financeReportingGranularity ?? "MONTH",
+    };
   });
 
   app.get("/summary/reporting", async (request) => {
@@ -1509,11 +1670,16 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     await ensureUserHasCategories(prisma, userId);
     const u = await prisma.user.findUnique({
       where: { id: userId },
-      select: { financeReportingDay: true },
+      select: { financeReportingDay: true, financeReportingGranularity: true },
     });
-    const day = clampReportingDay(u?.financeReportingDay ?? 1);
     const now = new Date();
-    const period = getReportingPeriodContaining(day, now);
+    const q = request.query as { from?: string; to?: string };
+    const period = reportingPeriodFromRequestQuery(q, {
+      financeReportingDay: u?.financeReportingDay ?? 1,
+      financeReportingGranularity:
+        u?.financeReportingGranularity ?? "MONTH",
+    }, now);
+    const day = clampReportingDay(u?.financeReportingDay ?? 1);
     const rows = await prisma.transaction.groupBy({
       by: ["kind"],
       where: {
@@ -1531,6 +1697,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     return {
       financeReportingDay: day,
+      financeReportingGranularity:
+        u?.financeReportingGranularity ?? "MONTH",
       periodStart: period.start.toISOString(),
       periodEndExclusive: period.endExclusive.toISOString(),
       periodLastDay: period.lastDayInclusive.toISOString().slice(0, 10),
@@ -1545,11 +1713,16 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     await ensureUserHasCategories(prisma, userId);
     const u = await prisma.user.findUnique({
       where: { id: userId },
-      select: { financeReportingDay: true },
+      select: { financeReportingDay: true, financeReportingGranularity: true },
     });
-    const day = clampReportingDay(u?.financeReportingDay ?? 1);
     const now = new Date();
-    const period = getReportingPeriodContaining(day, now);
+    const q = request.query as { from?: string; to?: string };
+    const period = reportingPeriodFromRequestQuery(q, {
+      financeReportingDay: u?.financeReportingDay ?? 1,
+      financeReportingGranularity:
+        u?.financeReportingGranularity ?? "MONTH",
+    }, now);
+    const day = clampReportingDay(u?.financeReportingDay ?? 1);
     const rows = await prisma.transaction.groupBy({
       by: ["kind"],
       where: {
@@ -1575,6 +1748,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const projectedNetEndMinor = realizedNet + projectedExtra;
     return {
       financeReportingDay: day,
+      financeReportingGranularity:
+        u?.financeReportingGranularity ?? "MONTH",
       periodStart: period.start.toISOString(),
       periodEndExclusive: period.endExclusive.toISOString(),
       periodLastDay: period.lastDayInclusive.toISOString().slice(0, 10),

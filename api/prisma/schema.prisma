@@ -35,12 +35,22 @@ enum InvestmentAssetKind {
   OTHER
 }
 
+/// Шаг отчётности для сводок и прогноза (см. API summary/reporting).
+enum FinanceReportingGranularity {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+  CUSTOM
+}
+
 model User {
   id           String               @id @default(uuid())
   email        String               @unique
   passwordHash String
-  /// С какого числа каждого месяца ведётся отчётный период (1–28).
+  /// С какого числа каждого месяца ведётся отчётный период (1–28), если гранулярность MONTH.
   financeReportingDay Int          @default(1)
+  financeReportingGranularity FinanceReportingGranularity @default(MONTH)
   createdAt    DateTime             @default(now())
   categories   Category[]
   transactions Transaction[]
@@ -55,7 +65,7 @@ model Account {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   name         String
   type         AccountType
-  /// Годовая ставка, % (только вклады и накопительные счета).
+  /// Годовая ставка, % (вклады, накопительные; опционально — счёт с процентом на остаток).
   annualInterestPercent Float?
   sortOrder    Int           @default(0)
   createdAt    DateTime      @default(now())

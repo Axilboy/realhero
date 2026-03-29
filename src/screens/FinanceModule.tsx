@@ -31,13 +31,16 @@ import {
   fetchSummaryByCategory,
   fetchTransactions,
   mergeAccountInto,
+  patchAccount,
   patchFinanceSettings,
+  purgeAccount,
   patchCategory,
   patchHolding,
   type AccountRow,
   type AccountType,
   type Category,
   type DepositSavingsAccountRow,
+  type FinanceReportingGranularity,
   type InvestmentAssetKind,
   type InvestmentHoldingRow,
   type InvestAllocation,
@@ -66,6 +69,44 @@ function isDepositOrSavings(t: AccountType): boolean {
   return t === "DEPOSIT" || t === "SAVINGS";
 }
 
+type AccountCardLike = Pick<
+  AccountRow,
+  | "id"
+  | "name"
+  | "type"
+  | "balanceMinor"
+  | "annualInterestPercent"
+  | "interestIncomeMonthMinor"
+  | "interestIncomeYearMinor"
+>;
+
+function inDepositCarousel(a: AccountCardLike): boolean {
+  if (a.type === "DEPOSIT" || a.type === "SAVINGS") return true;
+  if (
+    a.type === "BANK" &&
+    a.annualInterestPercent != null &&
+    Number(a.annualInterestPercent) > 0
+  )
+    return true;
+  return false;
+}
+
+function accountSupportsInterestField(t: AccountType): boolean {
+  return isDepositOrSavings(t) || t === "BANK";
+}
+
+const GRANULARITY_LABEL: Record<FinanceReportingGranularity, string> = {
+  DAY: "День",
+  WEEK: "Неделя",
+  MONTH: "Месяц",
+  YEAR: "Год",
+  CUSTOM: "Своя",
+};
+
+const REP_COLLAPSED_LS = "rh_fin_rep_settings_collapsed";
+const REP_CUSTOM_FROM_LS = "rh_fin_rep_custom_from";
+const REP_CUSTOM_TO_LS = "rh_fin_rep_custom_to";
+
 function formatRuDateShort(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -79,57 +120,64 @@ function formatRuDateShort(iso: string): string {
 function DepositSavingsCarousel({
   accounts,
   title,
-  onRequestDelete,
+  onOpenAccount,
 }: {
-  accounts: (DepositSavingsAccountRow | AccountRow)[];
+  accounts: AccountCardLike[];
   title: string;
-  onRequestDelete?: (accountId: string) => void;
+  /** Без колбэка карточка не кликабельна (например, вкладка «Инвестиции»). */
+  onOpenAccount?: (accountId: string) => void;
 }) {
-  const list = accounts.filter(
-    (a) => a.type === "DEPOSIT" || a.type === "SAVINGS",
-  );
+  const list = accounts.filter((a) => inDepositCarousel(a));
   if (list.length === 0) return null;
   return (
     <div className="finance-dep-carousel-wrap">
       <h3 className="finance__h3 finance-dep-carousel__title">{title}</h3>
       <div className="finance-dep-carousel" role="list">
-        {list.map((a) => (
-          <div key={a.id} className="finance-dep-carousel__card" role="listitem">
-            <div className="finance-dep-carousel__type">
-              {ACCOUNT_TYPE_LABEL[a.type]}
-            </div>
-            <div className="finance-dep-carousel__name">{a.name}</div>
-            <div className="finance-dep-carousel__bal">
-              {formatRubFromMinor(a.balanceMinor)}
-            </div>
-            {a.annualInterestPercent != null && a.annualInterestPercent > 0 ? (
-              <div className="finance-dep-carousel__rate">
-                {a.annualInterestPercent.toLocaleString("ru-RU", {
-                  maximumFractionDigits: 2,
-                })}
-                % годовых
+        {list.map((a) => {
+          const inner = (
+            <>
+              <div className="finance-dep-carousel__type">
+                {ACCOUNT_TYPE_LABEL[a.type]}
               </div>
-            ) : (
-              <div className="finance-dep-carousel__rate finance-dep-carousel__rate--muted">
-                Ставка не задана
+              <div className="finance-dep-carousel__name">{a.name}</div>
+              <div className="finance-dep-carousel__bal">
+                {formatRubFromMinor(a.balanceMinor)}
               </div>
-            )}
-            <div className="finance-dep-carousel__inc">
-              ~{" "}
-              {formatRubFromMinor(a.interestIncomeMonthMinor)}
-              /мес
+              {a.annualInterestPercent != null &&
+              Number(a.annualInterestPercent) > 0 ? (
+                <div className="finance-dep-carousel__rate">
+                  {Number(a.annualInterestPercent).toLocaleString("ru-RU", {
+                    maximumFractionDigits: 2,
+                  })}
+                  % годовых
+                </div>
+              ) : (
+                <div className="finance-dep-carousel__rate finance-dep-carousel__rate--muted">
+                  Ставка не задана
+                </div>
+              )}
+              <div className="finance-dep-carousel__inc">
+                ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
+                {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
+              </div>
+            </>
+          );
+          return onOpenAccount ? (
+            <button
+              key={a.id}
+              type="button"
+              className="finance-dep-carousel__card"
+              role="listitem"
+              onClick={() => onOpenAccount(a.id)}
+            >
+              {inner}
+            </button>
+          ) : (
+            <div key={a.id} className="finance-dep-carousel__card" role="listitem">
+              {inner}
             </div>
-            {onRequestDelete ? (
-              <button
-                type="button"
-                className="finance-main__acc-del finance-dep-carousel__del"
-                onClick={() => onRequestDelete(a.id)}
-              >
-                Удалить
-              </button>
-            ) : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -253,6 +301,7 @@ function FinanceMainPanel({
 }) {
   const [reporting, setReporting] = useState<{
     financeReportingDay: number;
+    financeReportingGranularity: FinanceReportingGranularity;
     periodStart: string;
     periodLastDay: string;
     incomeMinor: number;
@@ -262,10 +311,47 @@ function FinanceMainPanel({
   const [capAlloc, setCapAlloc] = useState<InvestAllocation | null>(null);
   const [monthlyPassiveMinor, setMonthlyPassiveMinor] = useState(0);
   const [reportingDayDraft, setReportingDayDraft] = useState("1");
+  const [granularityDraft, setGranularityDraft] =
+    useState<FinanceReportingGranularity>("MONTH");
+  const [repCustomFrom, setRepCustomFrom] = useState(() => {
+    try {
+      return localStorage.getItem(REP_CUSTOM_FROM_LS) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [repCustomTo, setRepCustomTo] = useState(() => {
+    try {
+      return localStorage.getItem(REP_CUSTOM_TO_LS) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [repSettingsCollapsed, setRepSettingsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(REP_COLLAPSED_LS) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [delModalAcc, setDelModalAcc] = useState<AccountRow | null>(null);
   const [delTargetId, setDelTargetId] = useState("");
   const [delBusy, setDelBusy] = useState(false);
+  const [delMode, setDelMode] = useState<"merge" | "purge">("merge");
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    null,
+  );
+  const [accountDetailTx, setAccountDetailTx] = useState<TransactionRow[]>(
+    [],
+  );
+  const [accountDetailPending, setAccountDetailPending] = useState(false);
+  const [accountEditOpen, setAccountEditOpen] = useState(false);
+  const [editAccName, setEditAccName] = useState("");
+  const [editAccInterestStr, setEditAccInterestStr] = useState("");
+  const [editBalanceAdjStr, setEditBalanceAdjStr] = useState("");
+  const [accDetailBusy, setAccDetailBusy] = useState(false);
+  const [accDetailErr, setAccDetailErr] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [investmentsTotal, setInvestmentsTotal] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -322,48 +408,76 @@ function FinanceMainPanel({
   const refresh = useCallback(async () => {
     setLoadError(null);
     setPending(true);
-    const [rep, c, t, a, ov, st] = await Promise.all([
-      fetchReportingSummary(),
+    const st = await fetchFinanceSettings();
+    let summaryOpts: { from?: string; to?: string } | undefined;
+    if (st.ok) {
+      try {
+        localStorage.setItem(
+          "rh_fin_rep_granularity",
+          st.data.financeReportingGranularity,
+        );
+      } catch {
+        /* ignore */
+      }
+      setGranularityDraft(st.data.financeReportingGranularity);
+      setReportingDayDraft(String(st.data.financeReportingDay));
+      if (st.data.financeReportingGranularity === "CUSTOM") {
+        let f = "";
+        let t = "";
+        try {
+          f = localStorage.getItem(REP_CUSTOM_FROM_LS) ?? "";
+          t = localStorage.getItem(REP_CUSTOM_TO_LS) ?? "";
+        } catch {
+          /* ignore */
+        }
+        if (f && t) summaryOpts = { from: f, to: t };
+      }
+    }
+
+    const [rep, c, t, a, ov] = await Promise.all([
+      fetchReportingSummary(summaryOpts),
       fetchCategories(false),
       fetchTransactions(),
       fetchAccounts(),
       fetchInvestOverview(false),
-      fetchFinanceSettings(),
     ]);
     setPending(false);
-    if (!rep.ok) {
-      setLoadError(errorMessage(rep.data));
-      return;
+
+    const errs: string[] = [];
+    if (!st.ok) errs.push(errorMessage(st.data));
+    if (rep.ok) {
+      setReporting({
+        financeReportingDay: rep.data.financeReportingDay,
+        financeReportingGranularity: rep.data.financeReportingGranularity,
+        periodStart: rep.data.periodStart,
+        periodLastDay: rep.data.periodLastDay,
+        incomeMinor: rep.data.incomeMinor,
+        expenseMinor: rep.data.expenseMinor,
+        balanceMinor: rep.data.balanceMinor,
+      });
+    } else {
+      errs.push(errorMessage(rep.data));
     }
-    if (!c.ok) {
-      setLoadError(errorMessage(c.data));
-      return;
-    }
-    if (!t.ok) {
-      setLoadError(errorMessage(t.data));
-      return;
-    }
-    if (!a.ok) {
-      setLoadError(errorMessage(a.data));
-      return;
-    }
-    if (!st.ok) {
-      setLoadError(errorMessage(st.data));
-      return;
-    }
-    setReporting({
-      financeReportingDay: rep.data.financeReportingDay,
-      periodStart: rep.data.periodStart,
-      periodLastDay: rep.data.periodLastDay,
-      incomeMinor: rep.data.incomeMinor,
-      expenseMinor: rep.data.expenseMinor,
-      balanceMinor: rep.data.balanceMinor,
-    });
-    setReportingDayDraft(String(st.data.financeReportingDay));
-    setCategories(c.data.categories);
-    setTransactions(t.data.transactions);
-    setAccounts(a.data.accounts);
-    setInvestmentsTotal(a.data.investmentsTotalMinor);
+    if (c.ok) setCategories(c.data.categories);
+    else errs.push(errorMessage(c.data));
+    if (t.ok) setTransactions(t.data.transactions);
+    else errs.push(errorMessage(t.data));
+    if (a.ok) {
+      setAccounts(a.data.accounts);
+      setInvestmentsTotal(a.data.investmentsTotalMinor);
+      const first = a.data.accounts[0]?.id ?? "";
+      const second = a.data.accounts[1]?.id ?? first;
+      setAccountId((prev) =>
+        a.data.accounts.some((x) => x.id === prev) ? prev : first,
+      );
+      setFromAccountId((prev) =>
+        a.data.accounts.some((x) => x.id === prev) ? prev : first,
+      );
+      setToAccountId((prev) =>
+        a.data.accounts.some((x) => x.id === prev) ? prev : second,
+      );
+    } else errs.push(errorMessage(a.data));
+
     if (ov.ok) {
       setCapAlloc(ov.data.allocation);
       const dep = ov.data.metrics.depositSavingsIncomeMonthMinor;
@@ -373,17 +487,8 @@ function FinanceMainPanel({
       setCapAlloc(null);
       setMonthlyPassiveMinor(0);
     }
-    const first = a.data.accounts[0]?.id ?? "";
-    const second = a.data.accounts[1]?.id ?? first;
-    setAccountId((prev) =>
-      a.data.accounts.some((x) => x.id === prev) ? prev : first,
-    );
-    setFromAccountId((prev) =>
-      a.data.accounts.some((x) => x.id === prev) ? prev : first,
-    );
-    setToAccountId((prev) =>
-      a.data.accounts.some((x) => x.id === prev) ? prev : second,
-    );
+
+    if (errs.length) setLoadError(errs[0]);
   }, []);
 
   useEffect(() => {
@@ -627,7 +732,7 @@ function FinanceMainPanel({
     ev.preventDefault();
     setAccError(null);
     let annualInterestPercent: number | null | undefined;
-    if (isDepositOrSavings(newAccType)) {
+    if (accountSupportsInterestField(newAccType)) {
       const raw = newAccInterestStr.trim();
       if (raw === "") {
         annualInterestPercent = null;
@@ -644,7 +749,7 @@ function FinanceMainPanel({
     const res = await createAccount({
       name: newAccName.trim(),
       type: newAccType,
-      ...(isDepositOrSavings(newAccType)
+      ...(accountSupportsInterestField(newAccType)
         ? { annualInterestPercent: annualInterestPercent ?? null }
         : {}),
     });
@@ -662,6 +767,7 @@ function FinanceMainPanel({
 
   function openDelModal(acc: AccountRow) {
     setLoadError(null);
+    setDelMode("merge");
     setDelModalAcc(acc);
     const others = accounts.filter((x) => x.id !== acc.id);
     setDelTargetId(others[0]?.id ?? "");
@@ -669,36 +775,194 @@ function FinanceMainPanel({
 
   async function confirmMergeDelete() {
     if (!delModalAcc || !delTargetId || delModalAcc.id === delTargetId) return;
+    const goneId = delModalAcc.id;
     setDelBusy(true);
     setLoadError(null);
-    const res = await mergeAccountInto(delModalAcc.id, delTargetId);
+    const res = await mergeAccountInto(goneId, delTargetId);
     setDelBusy(false);
     if (!res.ok) {
       setLoadError(errorMessage(res.data));
       return;
     }
     setDelModalAcc(null);
+    if (selectedAccountId === goneId) closeAccountDetail();
     onRefresh();
     await refresh();
   }
 
-  async function onSaveReportingDay(e: FormEvent) {
+  async function onSaveReportingSettings(e: FormEvent) {
     e.preventDefault();
     const n = Number(String(reportingDayDraft).replace(",", "."));
     if (!Number.isFinite(n) || n < 1 || n > 28) {
       setLoadError("Отчётное число — целое от 1 до 28");
       return;
     }
+    if (granularityDraft === "CUSTOM") {
+      if (!repCustomFrom || !repCustomTo) {
+        setLoadError("Укажите даты начала и конца для «Своя»");
+        return;
+      }
+      if (repCustomFrom > repCustomTo) {
+        setLoadError("Дата начала не позже даты конца");
+        return;
+      }
+    }
     setSettingsBusy(true);
     setLoadError(null);
     const r = await patchFinanceSettings({
       financeReportingDay: Math.floor(n),
+      financeReportingGranularity: granularityDraft,
     });
     setSettingsBusy(false);
     if (!r.ok) {
       setLoadError(errorMessage(r.data));
       return;
     }
+    if (granularityDraft === "CUSTOM") {
+      try {
+        localStorage.setItem(REP_CUSTOM_FROM_LS, repCustomFrom);
+        localStorage.setItem(REP_CUSTOM_TO_LS, repCustomTo);
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      localStorage.setItem(REP_COLLAPSED_LS, "1");
+    } catch {
+      /* ignore */
+    }
+    setRepSettingsCollapsed(true);
+    await refresh();
+  }
+
+  const selectedAccount = selectedAccountId
+    ? accounts.find((x) => x.id === selectedAccountId) ?? null
+    : null;
+
+  useEffect(() => {
+    if (!selectedAccountId) {
+      setAccountDetailTx([]);
+      return;
+    }
+    setAccountDetailPending(true);
+    void (async () => {
+      const r = await fetchTransactions({ accountId: selectedAccountId });
+      setAccountDetailPending(false);
+      if (r.ok) setAccountDetailTx(r.data.transactions);
+      else setAccountDetailTx([]);
+    })();
+  }, [selectedAccountId, bump]);
+
+  function openAccountDetail(id: string) {
+    setAccDetailErr(null);
+    setAccountEditOpen(false);
+    setSelectedAccountId(id);
+    const acc = accounts.find((x) => x.id === id);
+    if (acc) {
+      setEditAccName(acc.name);
+      setEditAccInterestStr(
+        acc.annualInterestPercent != null
+          ? String(acc.annualInterestPercent)
+          : "",
+      );
+      setEditBalanceAdjStr("");
+    }
+  }
+
+  function closeAccountDetail() {
+    setSelectedAccountId(null);
+    setAccountEditOpen(false);
+    setAccDetailErr(null);
+  }
+
+  async function onSaveAccountEdit() {
+    if (!selectedAccount) return;
+    const name = editAccName.trim();
+    if (!name || name.length > 80) {
+      setAccDetailErr("Название 1–80 символов");
+      return;
+    }
+    let annualInterestPercent: number | null | undefined;
+    if (accountSupportsInterestField(selectedAccount.type)) {
+      const s = editAccInterestStr.trim();
+      if (s === "") annualInterestPercent = null;
+      else {
+        const p = Number(s.replace(",", "."));
+        if (!Number.isFinite(p) || p < 0 || p > 1000) {
+          setAccDetailErr("Ставка % — от 0 до 1000 или пусто");
+          return;
+        }
+        annualInterestPercent = p;
+      }
+    }
+    setAccDetailBusy(true);
+    setAccDetailErr(null);
+    const pr = await patchAccount(selectedAccount.id, {
+      name,
+      ...(accountSupportsInterestField(selectedAccount.type)
+        ? { annualInterestPercent }
+        : {}),
+    });
+    if (!pr.ok) {
+      setAccDetailBusy(false);
+      setAccDetailErr(errorMessage(pr.data));
+      return;
+    }
+    const adjRaw = editBalanceAdjStr.trim().replace(",", ".");
+    if (adjRaw !== "" && adjRaw !== "0") {
+      const adj = Number(adjRaw);
+      if (!Number.isFinite(adj) || adj === 0) {
+        setAccDetailBusy(false);
+        setAccDetailErr("Корректировка баланса — число ₽ (можно с минусом)");
+        return;
+      }
+      const uni = categories.find(
+        (cat) => cat.name === "Универсальная" && cat.type === "BOTH",
+      );
+      if (!uni) {
+        setAccDetailBusy(false);
+        setAccDetailErr("Нет категории «Универсальная»");
+        return;
+      }
+      const kind = adj > 0 ? "INCOME" : "EXPENSE";
+      const tr = await createTransaction({
+        accountId: selectedAccount.id,
+        categoryId: uni.id,
+        kind,
+        amountRub: Math.abs(adj),
+        note: "Корректировка баланса счёта",
+        occurredAt: new Date().toISOString(),
+      });
+      if (!tr.ok) {
+        setAccDetailBusy(false);
+        setAccDetailErr(errorMessage(tr.data));
+        return;
+      }
+    }
+    setAccDetailBusy(false);
+    setAccountEditOpen(false);
+    setEditBalanceAdjStr("");
+    onRefresh();
+    await refresh();
+    void (async () => {
+      const r = await fetchTransactions({ accountId: selectedAccount.id });
+      if (r.ok) setAccountDetailTx(r.data.transactions);
+    })();
+  }
+
+  async function confirmPurgeDelete() {
+    if (!delModalAcc) return;
+    setDelBusy(true);
+    setLoadError(null);
+    const res = await purgeAccount(delModalAcc.id);
+    setDelBusy(false);
+    if (!res.ok) {
+      setLoadError(errorMessage(res.data));
+      return;
+    }
+    setDelModalAcc(null);
+    if (selectedAccountId === delModalAcc.id) closeAccountDetail();
+    onRefresh();
     await refresh();
   }
 
@@ -751,21 +1015,23 @@ function FinanceMainPanel({
           <DepositSavingsCarousel
             accounts={accounts}
             title="Вклады и накопительные"
-            onRequestDelete={(id) => {
-              const acc = accounts.find((x) => x.id === id);
-              if (acc) openDelModal(acc);
-            }}
+            onOpenAccount={openAccountDetail}
           />
-          {accounts.some((a) => !isDepositOrSavings(a.type)) ? (
+          {accounts.some((a) => !inDepositCarousel(a)) ? (
             <>
               <h3 className="finance__h3 finance-main__acc-other-title">
                 Остальные счета
               </h3>
               <div className="finance-main__accounts">
                 {accounts
-                  .filter((a) => !isDepositOrSavings(a.type))
+                  .filter((a) => !inDepositCarousel(a))
                   .map((a) => (
-                    <div key={a.id} className="finance-main__acc-card">
+                    <button
+                      key={a.id}
+                      type="button"
+                      className="finance-main__acc-card finance-main__acc-card--btn"
+                      onClick={() => openAccountDetail(a.id)}
+                    >
                       <div className="finance-main__acc-type">
                         {ACCOUNT_TYPE_LABEL[a.type]}
                       </div>
@@ -773,14 +1039,7 @@ function FinanceMainPanel({
                       <div className="finance-main__acc-bal">
                         {formatRubFromMinor(a.balanceMinor)}
                       </div>
-                      <button
-                        type="button"
-                        className="finance-main__acc-del"
-                        onClick={() => openDelModal(a)}
-                      >
-                        Удалить
-                      </button>
-                    </div>
+                    </button>
                   ))}
               </div>
             </>
@@ -859,35 +1118,105 @@ function FinanceMainPanel({
           aria-label="Отчётный период"
         >
           <p className="finance-main__period-label">
-            Текущий отчётный период:{" "}
+            Текущий отчётный период (
+            {GRANULARITY_LABEL[reporting.financeReportingGranularity]}):{" "}
             <strong>
               {formatRuDateShort(reporting.periodStart)} —{" "}
               {formatRuDateShort(`${reporting.periodLastDay}T12:00:00.000Z`)}
             </strong>
           </p>
-          <form
-            className="finance-main__reporting-day-form"
-            onSubmit={(e) => void onSaveReportingDay(e)}
-          >
-            <label className="finance__field finance-main__reporting-day-field">
-              Отчётное число месяца (1–28)
-              <input
-                className="finance__input"
-                type="number"
-                min={1}
-                max={28}
-                value={reportingDayDraft}
-                onChange={(e) => setReportingDayDraft(e.target.value)}
-              />
-            </label>
+          {repSettingsCollapsed ? (
             <button
-              type="submit"
-              className="finance__btn-secondary"
-              disabled={settingsBusy}
+              type="button"
+              className="finance__btn-secondary finance-main__rep-expand"
+              onClick={() => {
+                setRepSettingsCollapsed(false);
+                try {
+                  localStorage.removeItem(REP_COLLAPSED_LS);
+                } catch {
+                  /* ignore */
+                }
+              }}
             >
-              {settingsBusy ? "…" : "Сохранить"}
+              Настройка отчётного периода
             </button>
-          </form>
+          ) : (
+            <form
+              className="finance-main__reporting-settings"
+              onSubmit={(e) => void onSaveReportingSettings(e)}
+            >
+              <div
+                className="finance-main__gran-chips"
+                role="group"
+                aria-label="Шаг отчётности"
+              >
+                {(
+                  [
+                    "DAY",
+                    "WEEK",
+                    "MONTH",
+                    "YEAR",
+                    "CUSTOM",
+                  ] as FinanceReportingGranularity[]
+                ).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    className={
+                      granularityDraft === g
+                        ? "finance-main__gran-chip finance-main__gran-chip--on"
+                        : "finance-main__gran-chip"
+                    }
+                    onClick={() => setGranularityDraft(g)}
+                  >
+                    {GRANULARITY_LABEL[g]}
+                  </button>
+                ))}
+              </div>
+              {granularityDraft === "MONTH" ? (
+                <label className="finance__field finance-main__reporting-day-field">
+                  Отчётное число месяца (1–28)
+                  <input
+                    className="finance__input"
+                    type="number"
+                    min={1}
+                    max={28}
+                    value={reportingDayDraft}
+                    onChange={(e) => setReportingDayDraft(e.target.value)}
+                  />
+                </label>
+              ) : null}
+              {granularityDraft === "CUSTOM" ? (
+                <div className="finance-main__custom-range">
+                  <label className="finance__field">
+                    С даты
+                    <input
+                      className="finance__input"
+                      type="date"
+                      value={repCustomFrom}
+                      onChange={(e) => setRepCustomFrom(e.target.value)}
+                    />
+                  </label>
+                  <label className="finance__field">
+                    По дату
+                    <input
+                      className="finance__input"
+                      type="date"
+                      value={repCustomTo}
+                      onChange={(e) => setRepCustomTo(e.target.value)}
+                    />
+                  </label>
+                </div>
+              ) : null}
+              <button
+                type="submit"
+                className="finance__btn-secondary"
+                disabled={settingsBusy}
+              >
+                {settingsBusy ? "…" : "Сохранить настройки"}
+              </button>
+            </form>
+          )}
           <div className="finance__tiles finance__tiles--compact">
             <div className="finance__tile finance__tile--in">
               <span className="finance__tile-label">Доходы (период)</span>
@@ -1408,40 +1737,247 @@ function FinanceMainPanel({
                     Закрыть
                   </button>
                 </div>
-                <p className="finance-main__del-warn">
-                  Счёт «{delModalAcc.name}» будет удалён. Все операции и
-                  переводы с этим счётом будут перенесены на выбранный счёт.
-                  Действие необратимо.
-                </p>
-                <label className="finance__field">
-                  Перенести на счёт
-                  <select
-                    className="finance__input"
-                    value={delTargetId}
-                    onChange={(e) => setDelTargetId(e.target.value)}
+                <div className="finance-main__del-mode" role="tablist">
+                  <button
+                    type="button"
+                    className={
+                      delMode === "merge"
+                        ? "finance-main__del-mode-btn finance-main__del-mode-btn--on"
+                        : "finance-main__del-mode-btn"
+                    }
+                    onClick={() => setDelMode("merge")}
                   >
-                    {accounts
-                      .filter((x) => x.id !== delModalAcc.id)
-                      .map((x) => (
-                        <option key={x.id} value={x.id}>
-                          {x.name} ({ACCOUNT_TYPE_LABEL[x.type]})
-                        </option>
-                      ))}
-                  </select>
-                </label>
+                    Перенести на другой счёт
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      delMode === "purge"
+                        ? "finance-main__del-mode-btn finance-main__del-mode-btn--on"
+                        : "finance-main__del-mode-btn"
+                    }
+                    onClick={() => setDelMode("purge")}
+                  >
+                    Удалить полностью
+                  </button>
+                </div>
+                {delMode === "merge" ? (
+                  <>
+                    <p className="finance-main__del-warn">
+                      Счёт «{delModalAcc.name}» будет удалён. Операции и переводы
+                      перейдут на выбранный счёт.
+                    </p>
+                    <label className="finance__field">
+                      Перенести на счёт
+                      <select
+                        className="finance__input"
+                        value={delTargetId}
+                        onChange={(e) => setDelTargetId(e.target.value)}
+                      >
+                        {accounts
+                          .filter((x) => x.id !== delModalAcc.id)
+                          .map((x) => (
+                            <option key={x.id} value={x.id}>
+                              {x.name} ({ACCOUNT_TYPE_LABEL[x.type]})
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </>
+                ) : (
+                  <p className="finance-main__del-warn finance-main__del-warn--strong">
+                    Счёт «{delModalAcc.name}» и все связанные операции и переводы
+                    будут удалены без переноса. Остаток на счёту в учёте пропадёт
+                    (переводы на другие счета тоже исчезнут из истории).
+                  </p>
+                )}
                 {loadError ? <p className="finance__err">{loadError}</p> : null}
-                <button
-                  type="button"
-                  className="finance__submit"
-                  disabled={
-                    delBusy ||
-                    !delTargetId ||
-                    accounts.filter((x) => x.id !== delModalAcc.id).length === 0
-                  }
-                  onClick={() => void confirmMergeDelete()}
-                >
-                  {delBusy ? "…" : "Удалить"}
-                </button>
+                {delMode === "merge" ? (
+                  <button
+                    type="button"
+                    className="finance__submit"
+                    disabled={
+                      delBusy ||
+                      !delTargetId ||
+                      accounts.filter((x) => x.id !== delModalAcc.id)
+                        .length === 0
+                    }
+                    onClick={() => void confirmMergeDelete()}
+                  >
+                    {delBusy ? "…" : "Удалить с переносом"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="finance__submit finance__submit--danger"
+                    disabled={delBusy}
+                    onClick={() => void confirmPurgeDelete()}
+                  >
+                    {delBusy ? "…" : "Удалить навсегда"}
+                  </button>
+                )}
+              </div>
+            </div>,
+          )
+        : null}
+
+      {selectedAccount
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Счёт ${selectedAccount.name}`}
+            >
+              <div className="finance__modal finance__modal--acc-detail">
+                <div className="finance__modal-head">
+                  <h2 className="finance__h2">{selectedAccount.name}</h2>
+                  <button
+                    type="button"
+                    className="finance__modal-close"
+                    onClick={() => closeAccountDetail()}
+                  >
+                    Закрыть
+                  </button>
+                </div>
+                {!accountEditOpen ? (
+                  <>
+                    <p className="finance-main__acc-detail-meta">
+                      {ACCOUNT_TYPE_LABEL[selectedAccount.type]} · баланс{" "}
+                      {formatRubFromMinor(selectedAccount.balanceMinor)}
+                    </p>
+                    {accountSupportsInterestField(selectedAccount.type) ? (
+                      <p className="finance-main__acc-detail-meta">
+                        Ставка:{" "}
+                        {selectedAccount.annualInterestPercent != null
+                          ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
+                          : "не задана"}
+                        {" · "}
+                        ~{formatRubFromMinor(selectedAccount.interestIncomeMonthMinor)}
+                        /мес, ~
+                        {formatRubFromMinor(
+                          selectedAccount.interestIncomeYearMinor ?? 0,
+                        )}
+                        /год
+                      </p>
+                    ) : null}
+                    <h3 className="finance__h3 finance-main__acc-detail-h3">
+                      Доходы по счёту (за период загрузки)
+                    </h3>
+                    {accountDetailPending ? (
+                      <p className="screen__text">Загрузка…</p>
+                    ) : (
+                      <ul className="finance-main__acc-detail-tx">
+                        {accountDetailTx
+                          .filter((tx) => tx.kind === "INCOME")
+                          .map((tx) => (
+                            <li key={tx.id}>
+                              <span className="finance-main__acc-detail-tx-d">
+                                {new Date(tx.occurredAt).toLocaleDateString(
+                                  "ru-RU",
+                                )}
+                              </span>
+                              <span className="finance-main__acc-detail-tx-c">
+                                {tx.category.name}
+                              </span>
+                              <span className="finance-main__acc-detail-tx-a">
+                                +{formatRubFromMinor(tx.amountMinor)}
+                              </span>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                    {!accountDetailPending &&
+                    accountDetailTx.every((tx) => tx.kind !== "INCOME") ? (
+                      <p className="screen__text">Доходов по этому счёту нет.</p>
+                    ) : null}
+                    <div className="finance-main__acc-detail-actions">
+                      <button
+                        type="button"
+                        className="finance__btn-secondary"
+                        onClick={() => {
+                          setAccDetailErr(null);
+                          setAccountEditOpen(true);
+                        }}
+                      >
+                        Редактировать
+                      </button>
+                      <button
+                        type="button"
+                        className="finance-main__acc-del"
+                        onClick={() => {
+                          openDelModal(selectedAccount);
+                          closeAccountDetail();
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <form
+                    className="finance__form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void onSaveAccountEdit();
+                    }}
+                  >
+                    <label className="finance__field">
+                      Название
+                      <input
+                        className="finance__input"
+                        value={editAccName}
+                        onChange={(e) => setEditAccName(e.target.value)}
+                        maxLength={80}
+                        required
+                      />
+                    </label>
+                    {accountSupportsInterestField(selectedAccount.type) ? (
+                      <label className="finance__field">
+                        Ставка, % годовых (пусто — без ставки)
+                        <input
+                          className="finance__input"
+                          inputMode="decimal"
+                          value={editAccInterestStr}
+                          onChange={(e) => setEditAccInterestStr(e.target.value)}
+                          placeholder="например 9"
+                        />
+                      </label>
+                    ) : null}
+                    <label className="finance__field">
+                      Корректировка баланса, ₽ (+ доход / − расход)
+                      <input
+                        className="finance__input"
+                        inputMode="decimal"
+                        value={editBalanceAdjStr}
+                        onChange={(e) => setEditBalanceAdjStr(e.target.value)}
+                        placeholder="0 — не менять"
+                      />
+                    </label>
+                    {accDetailErr ? (
+                      <p className="finance__err">{accDetailErr}</p>
+                    ) : null}
+                    <div className="finance-main__acc-detail-actions">
+                      <button
+                        type="button"
+                        className="finance__btn-secondary"
+                        onClick={() => {
+                          setAccountEditOpen(false);
+                          setAccDetailErr(null);
+                        }}
+                      >
+                        Назад
+                      </button>
+                      <button
+                        type="submit"
+                        className="finance__submit"
+                        disabled={accDetailBusy}
+                      >
+                        {accDetailBusy ? "…" : "Сохранить"}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             </div>,
           )
@@ -1490,7 +2026,7 @@ function FinanceMainPanel({
                 <option value="SAVINGS">Накопительный счёт</option>
                 <option value="OTHER">Другое</option>
               </select>
-              {isDepositOrSavings(newAccType) ? (
+              {accountSupportsInterestField(newAccType) ? (
                 <label className="finance__field">
                   Ставка, % годовых
                   <input
@@ -2262,8 +2798,19 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
       setPending(true);
       setErr(null);
       setForecastErr(null);
+      const st = await fetchFinanceSettings();
+      let forecastOpts: { from?: string; to?: string } | undefined;
+      if (st.ok && st.data.financeReportingGranularity === "CUSTOM") {
+        try {
+          const f = localStorage.getItem(REP_CUSTOM_FROM_LS) ?? "";
+          const t = localStorage.getItem(REP_CUSTOM_TO_LS) ?? "";
+          if (f && t) forecastOpts = { from: f, to: t };
+        } catch {
+          /* ignore */
+        }
+      }
       const [fc, r] = await Promise.all([
-        fetchReportingForecast(),
+        fetchReportingForecast(forecastOpts),
         fetchSummaryByCategory(month),
       ]);
       setPending(false);

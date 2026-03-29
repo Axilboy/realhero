@@ -27,8 +27,10 @@ export type AccountRow = {
   sortOrder: number;
   balanceMinor: number;
   annualInterestPercent: number | null;
-  /** Оценка дохода по ставке за месяц, коп. (вклады/накопительные). */
+  /** Оценка дохода по ставке за месяц, коп. (вклады/накопительные / счёт с %). */
   interestIncomeMonthMinor: number;
+  /** Оценка дохода по ставке за год, коп. */
+  interestIncomeYearMinor: number;
 };
 
 export type TransactionAccount = {
@@ -86,10 +88,11 @@ export type InvestAllocation = {
 export type DepositSavingsAccountRow = {
   id: string;
   name: string;
-  type: "DEPOSIT" | "SAVINGS";
+  type: AccountType;
   balanceMinor: number;
   annualInterestPercent: number | null;
   interestIncomeMonthMinor: number;
+  interestIncomeYearMinor: number;
 };
 
 /** Абсолютный URL к API (надёжнее для cookie при нестандартном base / PWA). */
@@ -206,6 +209,14 @@ export async function deleteAccount(id: string) {
   });
 }
 
+/** Удалить счёт вместе со всеми операциями и переводами (без переноса). */
+export async function purgeAccount(id: string) {
+  return json<{ ok: boolean }>(`/api/v1/finance/accounts/${id}/purge`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 /** Перенести операции и переводы на другой счёт и удалить счёт. */
 export async function mergeAccountInto(id: string, targetAccountId: string) {
   return json<{ ok: boolean }>(`/api/v1/finance/accounts/${id}/merge-into`, {
@@ -214,33 +225,56 @@ export async function mergeAccountInto(id: string, targetAccountId: string) {
   });
 }
 
+export type FinanceReportingGranularity =
+  | "DAY"
+  | "WEEK"
+  | "MONTH"
+  | "YEAR"
+  | "CUSTOM";
+
 export async function fetchFinanceSettings() {
-  return json<{ financeReportingDay: number }>("/api/v1/finance/settings");
+  return json<{
+    financeReportingDay: number;
+    financeReportingGranularity: FinanceReportingGranularity;
+  }>("/api/v1/finance/settings");
 }
 
 export async function patchFinanceSettings(body: {
-  financeReportingDay: number;
+  financeReportingDay?: number;
+  financeReportingGranularity?: FinanceReportingGranularity;
 }) {
-  return json<{ financeReportingDay: number }>("/api/v1/finance/settings", {
+  return json<{
+    financeReportingDay: number;
+    financeReportingGranularity: FinanceReportingGranularity;
+  }>("/api/v1/finance/settings", {
     method: "PATCH",
     body: JSON.stringify(body),
   });
 }
 
-export async function fetchReportingSummary() {
+export async function fetchReportingSummary(opts?: {
+  from?: string;
+  to?: string;
+}) {
+  const sp = new URLSearchParams();
+  if (opts?.from) sp.set("from", opts.from);
+  if (opts?.to) sp.set("to", opts.to);
+  const q = sp.toString();
   return json<{
     financeReportingDay: number;
+    financeReportingGranularity: FinanceReportingGranularity;
     periodStart: string;
     periodEndExclusive: string;
     periodLastDay: string;
     incomeMinor: number;
     expenseMinor: number;
     balanceMinor: number;
-  }>("/api/v1/finance/summary/reporting");
+  }>(`/api/v1/finance/summary/reporting${q ? `?${q}` : ""}`);
 }
 
 export type ReportingForecast = {
   financeReportingDay: number;
+  financeReportingGranularity: FinanceReportingGranularity;
   periodStart: string;
   periodEndExclusive: string;
   periodLastDay: string;
@@ -445,13 +479,18 @@ export async function fetchSummaryByCategory(monthYm: string) {
   );
 }
 
-export async function fetchTransactions(from?: string, to?: string) {
-  const p =
-    from && to
-      ? `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-      : "";
+export async function fetchTransactions(opts?: {
+  from?: string;
+  to?: string;
+  accountId?: string;
+}) {
+  const sp = new URLSearchParams();
+  if (opts?.from) sp.set("from", opts.from);
+  if (opts?.to) sp.set("to", opts.to);
+  if (opts?.accountId) sp.set("accountId", opts.accountId);
+  const q = sp.toString();
   return json<{ transactions: TransactionRow[] }>(
-    `/api/v1/finance/transactions${p}`,
+    `/api/v1/finance/transactions${q ? `?${q}` : ""}`,
   );
 }
 

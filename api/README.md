@@ -40,20 +40,21 @@ npm run dev
 | PATCH | `/accounts/:id` | Изменить счёт |
 | DELETE | `/accounts/:id` | Удалить **пустой** счёт (без операций и переводов) |
 | POST | `/accounts/:id/merge-into` | Тело `{ "targetAccountId" }` — перенести все операции и переводы на другой счёт и удалить исходный (для счетов с историей) |
+| POST | `/accounts/:id/purge` | Удалить счёт и все связанные операции и переводы без переноса (остаток в учёте исчезает) |
 | POST | `/transfers` | Перевод между счетами |
 | GET | `/categories` | Категории (`?includeArchived=1` — с архивными) |
 | POST | `/categories` | Новая категория |
 | PATCH | `/categories/:id` | Изменить / архив |
-| GET | `/transactions` | Операции (`?from=&to=` ISO-даты) |
+| GET | `/transactions` | Операции (`?from=&to=` ISO; `?accountId=` — фильтр по счёту; без дат — последние 60 дней, с `accountId` — 365) |
 | POST | `/transactions` | Расход или доход |
 | PATCH | `/transactions/:id` | Правка операции |
 | DELETE | `/transactions/:id` | Удаление |
 | GET | `/summary` | Сводка за **календарный** месяц `?month=YYYY-MM` |
 | GET | `/summary/by-category` | Расходы/доходы по категориям за календарный месяц |
-| GET | `/summary/reporting` | Доходы, расходы и баланс за **текущий отчётный период** (см. настройку пользователя) |
-| GET | `/settings` | Настройки финансов: `financeReportingDay` (1–28) |
-| PATCH | `/settings` | Тело `{ "financeReportingDay": number }` |
-| GET | `/analytics/reporting-forecast` | Прогноз «ожидаемый бюджет к концу отчётного периода» (среднедневные доход/расход и экстраполяция) |
+| GET | `/settings` | `financeReportingDay` (1–28), `financeReportingGranularity`: `DAY` \| `WEEK` \| `MONTH` \| `YEAR` \| `CUSTOM` |
+| PATCH | `/settings` | Тело: `financeReportingDay` и/или `financeReportingGranularity` |
+| GET | `/summary/reporting` | Сводка за окно отчётности по настройке; опционально `?from=YYYY-MM-DD&to=YYYY-MM-DD` (свой диапазон, UTC-дни) |
+| GET | `/analytics/reporting-forecast` | Прогноз к концу периода; те же query `from`/`to`, что и у `summary/reporting` |
 | GET | `/investments/overview` | Портфель, метрики, **`allocation`** (структура счётов и инвестиций). **`?refresh=1`** — обновить цены по сохранённым котировкам |
 | GET | `/investments/quote-search` | Поиск: `?q=` (≥2 символа), MOEX + CoinGecko |
 | GET | `/investments/quote-price` | `source`, `id`, опционально `date`, `moexMarket` — цена в ₽ |

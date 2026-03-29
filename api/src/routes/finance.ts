@@ -1607,6 +1607,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       where: {
         userId,
         occurredAt: { gte: range.start, lt: range.end },
+        category: { excludeFromReporting: false },
       },
       _sum: { amountMinor: true },
     });
@@ -1645,6 +1646,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         userId,
         kind: "EXPENSE",
         occurredAt: { gte: range.start, lt: range.end },
+        category: { excludeFromReporting: false },
       },
       _sum: { amountMinor: true },
     });
@@ -1654,6 +1656,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         userId,
         kind: "INCOME",
         occurredAt: { gte: range.start, lt: range.end },
+        category: { excludeFromReporting: false },
       },
       _sum: { amountMinor: true },
     });
@@ -1855,11 +1858,21 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const occWhere = { gte: occGte, lte: occLte };
     const [incAgg, expAgg, trAgg] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { userId, kind: "INCOME", occurredAt: occWhere },
+        where: {
+          userId,
+          kind: "INCOME",
+          occurredAt: occWhere,
+          category: { excludeFromReporting: false },
+        },
         _sum: { amountMinor: true },
       }),
       prisma.transaction.aggregate({
-        where: { userId, kind: "EXPENSE", occurredAt: occWhere },
+        where: {
+          userId,
+          kind: "EXPENSE",
+          occurredAt: occWhere,
+          category: { excludeFromReporting: false },
+        },
         _sum: { amountMinor: true },
       }),
       prisma.transfer.aggregate({
@@ -1910,11 +1923,21 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const occWhere = { gte: occGte, lte: occLte };
     const [incAgg, expAgg] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { userId, kind: "INCOME", occurredAt: occWhere },
+        where: {
+          userId,
+          kind: "INCOME",
+          occurredAt: occWhere,
+          category: { excludeFromReporting: false },
+        },
         _sum: { amountMinor: true },
       }),
       prisma.transaction.aggregate({
-        where: { userId, kind: "EXPENSE", occurredAt: occWhere },
+        where: {
+          userId,
+          kind: "EXPENSE",
+          occurredAt: occWhere,
+          category: { excludeFromReporting: false },
+        },
         _sum: { amountMinor: true },
       }),
     ]);

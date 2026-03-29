@@ -1,5 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
-import { DEFAULT_CATEGORIES } from "./defaultCategories.js";
+import {
+  BALANCE_ADJUSTMENT_CATEGORY_NAME,
+  DEFAULT_CATEGORIES,
+} from "./defaultCategories.js";
 
 export async function seedUserCategories(
   prisma: PrismaClient,
@@ -13,7 +16,37 @@ export async function seedUserCategories(
       isBuiltIn: true,
       isArchived: false,
       sortOrder: c.sortOrder,
+      excludeFromReporting: c.excludeFromReporting ?? false,
     })),
+  });
+}
+
+async function ensureBalanceAdjustmentCategory(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<void> {
+  const exists = await prisma.category.findFirst({
+    where: { userId, name: BALANCE_ADJUSTMENT_CATEGORY_NAME },
+  });
+  if (exists) {
+    if (!exists.excludeFromReporting) {
+      await prisma.category.update({
+        where: { id: exists.id },
+        data: { excludeFromReporting: true },
+      });
+    }
+    return;
+  }
+  await prisma.category.create({
+    data: {
+      userId,
+      name: BALANCE_ADJUSTMENT_CATEGORY_NAME,
+      type: "BOTH",
+      isBuiltIn: true,
+      isArchived: false,
+      sortOrder: 1,
+      excludeFromReporting: true,
+    },
   });
 }
 
@@ -24,4 +57,5 @@ export async function ensureUserHasCategories(
 ): Promise<void> {
   const n = await prisma.category.count({ where: { userId } });
   if (n === 0) await seedUserCategories(prisma, userId);
+  await ensureBalanceAdjustmentCategory(prisma, userId);
 }

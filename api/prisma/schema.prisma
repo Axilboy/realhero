@@ -107,6 +107,8 @@ model Category {
   isBuiltIn   Boolean         @default(false)
   isArchived  Boolean         @default(false)
   sortOrder   Int             @default(0)
+  /// Не учитывать в доходах/расходах отчётного периода (корректировка баланса счёта).
+  excludeFromReporting Boolean @default(false)
   createdAt   DateTime        @default(now())
   transactions Transaction[]
 

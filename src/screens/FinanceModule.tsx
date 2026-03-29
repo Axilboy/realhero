@@ -290,7 +290,10 @@ type AddOpTab = (typeof ADD_OP_TABS)[number]["key"];
 
 function categoryOptionsForKind(cats: Category[], kind: TransactionKind) {
   return cats.filter(
-    (c) => !c.isArchived && (c.type === kind || c.type === "BOTH"),
+    (c) =>
+      !c.isArchived &&
+      !c.excludeFromReporting &&
+      (c.type === kind || c.type === "BOTH"),
   );
 }
 
@@ -779,8 +782,8 @@ function FinanceMainPanel({
     setAmountStr("");
     setNote("");
     setAddOpOpen(false);
-    onRefresh();
     await refresh();
+    onRefresh();
     if (catModal) {
       const r = await fetchCategories(catIncludeArchived);
       if (r.ok) setModalCategories(r.data.categories);
@@ -795,8 +798,8 @@ function FinanceMainPanel({
       setAccDetailErr(errorMessage(res.data));
       return;
     }
-    onRefresh();
     await refresh();
+    onRefresh();
     if (accId) {
       const [rTx, rTr] = await Promise.all([
         fetchTransactions({ accountId: accId }),
@@ -821,8 +824,8 @@ function FinanceMainPanel({
       return;
     }
     setNewCatName("");
-    onRefresh();
     await refresh();
+    onRefresh();
     const r = await fetchCategories(catIncludeArchived);
     if (r.ok) setModalCategories(r.data.categories);
   }
@@ -835,8 +838,8 @@ function FinanceMainPanel({
       setCatError(errorMessage(res.data));
       return;
     }
-    onRefresh();
     await refresh();
+    onRefresh();
     const r = await fetchCategories(catIncludeArchived);
     if (r.ok) setModalCategories(r.data.categories);
   }
@@ -874,8 +877,8 @@ function FinanceMainPanel({
     setNewAccName("");
     setNewAccInterestStr("");
     setAccModal(false);
-    onRefresh();
     await refresh();
+    onRefresh();
   }
 
   function openDelModal(acc: AccountRow) {
@@ -899,8 +902,8 @@ function FinanceMainPanel({
     }
     setDelModalAcc(null);
     if (selectedAccountId === goneId) closeAccountDetail();
-    onRefresh();
     await refresh();
+    onRefresh();
   }
 
   async function onSaveReportingSettings(e: FormEvent) {
@@ -949,6 +952,7 @@ function FinanceMainPanel({
       }
     }
     await refresh();
+    onRefresh();
   }
 
   const selectedAccount = selectedAccountId
@@ -1048,19 +1052,19 @@ function FinanceMainPanel({
       const targetMinor = Math.round(targetRub * 100);
       const deltaMinor = targetMinor - currentMinor;
       if (deltaMinor !== 0) {
-        const uni = categories.find(
-          (cat) => cat.name === "Универсальная" && cat.type === "BOTH",
-        );
-        if (!uni) {
+        const adjCat = categories.find((cat) => cat.excludeFromReporting === true);
+        if (!adjCat) {
           setAccDetailBusy(false);
-          setAccDetailErr("Нет категории «Универсальная»");
+          setAccDetailErr(
+            "Нет служебной категории корректировки. Обновите страницу.",
+          );
           return;
         }
         const kind = deltaMinor > 0 ? "INCOME" : "EXPENSE";
         const amountRub = Math.abs(deltaMinor) / 100;
         const tr = await createTransaction({
           accountId: selectedAccount.id,
-          categoryId: uni.id,
+          categoryId: adjCat.id,
           kind,
           amountRub,
           note: "Приведение баланса счёта к введённой сумме",
@@ -1076,8 +1080,8 @@ function FinanceMainPanel({
     setAccDetailBusy(false);
     setAccountEditOpen(false);
     setEditBalanceTargetStr("");
-    onRefresh();
     await refresh();
+    onRefresh();
     void (async () => {
       const [rTx, rTr] = await Promise.all([
         fetchTransactions({ accountId: selectedAccount.id }),
@@ -1104,8 +1108,8 @@ function FinanceMainPanel({
     }
     setDelModalAcc(null);
     if (selectedAccountId === goneId) closeAccountDetail();
-    onRefresh();
     await refresh();
+    onRefresh();
   }
 
   return (
@@ -2010,16 +2014,20 @@ function FinanceMainPanel({
                                     ).toLocaleDateString("ru-RU")}
                                   </span>
                                   <span className="finance__tx-cat">
-                                    {item.tx.kind === "INCOME"
-                                      ? "Доход"
-                                      : "Расход"}{" "}
+                                    {item.tx.category.excludeFromReporting
+                                      ? "Корректировка"
+                                      : item.tx.kind === "INCOME"
+                                        ? "Доход"
+                                        : "Расход"}{" "}
                                     · {item.tx.category.name}
                                   </span>
                                   <span
                                     className={
-                                      item.tx.kind === "INCOME"
-                                        ? "finance__tx-sum finance__tx-sum--in"
-                                        : "finance__tx-sum finance__tx-sum--out"
+                                      item.tx.category.excludeFromReporting
+                                        ? "finance__tx-sum finance__tx-sum--adj"
+                                        : item.tx.kind === "INCOME"
+                                          ? "finance__tx-sum finance__tx-sum--in"
+                                          : "finance__tx-sum finance__tx-sum--out"
                                     }
                                   >
                                     {item.tx.kind === "INCOME" ? "+" : "−"}

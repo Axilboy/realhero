@@ -580,6 +580,10 @@ body {
   color: #f28b82;
 }
 
+.finance__tx-sum--adj {
+  color: #9aa0a6;
+}
+
 .finance__tx-note {
   margin: 0.4rem 0 0;
   font-size: 0.8rem;

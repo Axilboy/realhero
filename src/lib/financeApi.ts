@@ -18,6 +18,8 @@ export type Category = {
   isBuiltIn: boolean;
   isArchived: boolean;
   sortOrder: number;
+  /** Служебные категории (корректировка баланса) не входят в отчётные доходы/расходы. */
+  excludeFromReporting?: boolean;
 };
 
 export type AccountRow = {

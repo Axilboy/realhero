@@ -5,6 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { TodoSubnavIcon, type TodoSubnavId } from "../components/AppNavIcons";
 import { useShellTabIndex } from "../context/ShellTabContext";
 import { useI18n } from "../i18n/I18nContext";
 import {
@@ -55,9 +56,9 @@ export default function TodoModule() {
   const tabsNav = useMemo(
     () =>
       [
-        { key: 0, label: t("todo.tabToday") },
-        { key: 1, label: t("todo.tabInbox") },
-        { key: 2, label: t("todo.tabAll") },
+        { key: 0, label: t("todo.tabToday"), icon: "today" as TodoSubnavId },
+        { key: 1, label: t("todo.tabInbox"), icon: "inbox" },
+        { key: 2, label: t("todo.tabAll"), icon: "all" },
       ] as const,
     [t],
   );
@@ -189,7 +190,10 @@ export default function TodoModule() {
             className={`todo-mod__subbtn${tab === tb.key ? " todo-mod__subbtn--on" : ""}`}
             onClick={() => setTab(tb.key)}
           >
-            {tb.label}
+            <span className="todo-mod__subbtn-ic" aria-hidden>
+              <TodoSubnavIcon id={tb.icon} />
+            </span>
+            <span className="todo-mod__subbtn-tx">{tb.label}</span>
           </button>
         ))}
       </div>

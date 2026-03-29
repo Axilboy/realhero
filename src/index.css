@@ -195,16 +195,35 @@ body {
 
 .shell__nav-btn {
   flex: 1;
-  min-height: 44px;
-  padding: 0.35rem 0.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 48px;
+  padding: 0.3rem 0.15rem;
   border: none;
   border-radius: 10px;
   background: transparent;
   color: #8b9099;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 600;
   cursor: pointer;
   line-height: 1.15;
+}
+
+.shell__nav-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.92;
+}
+
+.shell__nav-tx {
+  display: block;
+  max-width: 100%;
+  text-align: center;
+  word-break: break-word;
 }
 
 .shell__nav-btn:hover {
@@ -1448,6 +1467,89 @@ body {
   background: #24332e;
 }
 
+.body-home__cta--link {
+  width: auto;
+  min-height: unset;
+  margin: 0 auto;
+  display: block;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: #8ab4ff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.body-home__cta--link:hover {
+  background: transparent;
+  color: #a8c4ff;
+}
+
+.body-home__card--macro {
+  padding: 0.65rem 0.75rem;
+}
+
+.body-home__macro-head {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7c8088;
+  margin-bottom: 0.5rem;
+}
+
+.body-home__macro-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem 0.5rem;
+}
+
+.body-home__macro-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.body-home__macro-k {
+  font-size: 0.7rem;
+  color: #9aa0a6;
+}
+
+.body-home__macro-v {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #e8eaed;
+}
+
+.body-home__macro-goal {
+  font-weight: 500;
+  color: #7c8088;
+}
+
+.body-panel__meas-details {
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid #2a2f38;
+  background: #14171c;
+}
+
+.body-panel__meas-details-sum {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #9aa0a6;
+  list-style-position: inside;
+}
+
+.body-panel__meas-details[open] .body-panel__meas-details-sum {
+  color: #c4c7cc;
+  margin-bottom: 0.45rem;
+}
+
 .body-nut__search-wrap {
   position: relative;
 }
@@ -1638,15 +1740,34 @@ body {
 
 .body-mod__subbtn {
   flex: 1;
-  min-height: 40px;
-  padding: 0.35rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 44px;
+  padding: 0.3rem 0.2rem;
   border: 1px solid #2a2f38;
   border-radius: 10px;
   background: #14171c;
   color: #8b9099;
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 600;
   cursor: pointer;
+  line-height: 1.15;
+}
+
+.body-mod__subbtn-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.95;
+}
+
+.body-mod__subbtn-tx {
+  display: block;
+  text-align: center;
+  max-width: 100%;
 }
 
 .body-mod__subbtn--on {
@@ -3995,7 +4116,7 @@ button.finance-dep-carousel__card:focus-visible {
   background: linear-gradient(145deg, #1a1d24 0%, #14171c 100%);
   border: 1px solid #2a2f38;
   text-align: left;
-  min-height: 4.25rem;
+  min-height: 4.5rem;
 }
 
 .hero__mini--click {
@@ -4022,6 +4143,14 @@ button.finance-dep-carousel__card:focus-visible {
   line-height: 1.35;
   color: #c4c7cc;
   word-break: break-word;
+}
+
+.hero__mini-sub {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #7c8088;
 }
 
 .hero__quest-placeholder {
@@ -4253,15 +4382,34 @@ button.finance-dep-carousel__card:focus-visible {
 
 .todo-mod__subbtn {
   flex: 1;
-  min-height: 40px;
-  padding: 0.35rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 44px;
+  padding: 0.3rem 0.2rem;
   border: 1px solid #2a2f38;
   border-radius: 10px;
   background: #14171c;
   color: #8b9099;
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 600;
+  line-height: 1.15;
   cursor: pointer;
+}
+
+.todo-mod__subbtn-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.95;
+}
+
+.todo-mod__subbtn-tx {
+  display: block;
+  text-align: center;
+  max-width: 100%;
 }
 
 .todo-mod__subbtn--on {
@@ -4449,8 +4597,10 @@ button.finance-dep-carousel__card:focus-visible {
 .todo-mod__add {
   flex-shrink: 0;
   margin-top: 0.65rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid #252a33;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid #2a2f38;
+  background: linear-gradient(145deg, #1a1d24 0%, #14171c 100%);
   display: flex;
   flex-direction: column;
   gap: 0.45rem;

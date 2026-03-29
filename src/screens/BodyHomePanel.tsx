@@ -154,6 +154,9 @@ export default function BodyHomePanel({
   }, [weightDelta, waistInfo, workouts7d, workouts.length, measurements.length]);
 
   const goalK = settings?.bodyKcalGoal;
+  const pg = settings?.bodyProteinGoalG;
+  const fg = settings?.bodyFatGoalG;
+  const cg = settings?.bodyCarbGoalG;
 
   return (
     <div className="body-home">
@@ -272,14 +275,49 @@ export default function BodyHomePanel({
         </section>
       ) : null}
 
+      {!pending ? (
+        <section className="body-home__card body-home__card--macro" aria-label="БЖУ за сегодня">
+          <div className="body-home__macro-head">БЖУ сегодня</div>
+          <div className="body-home__macro-grid">
+            <div className="body-home__macro-cell">
+              <span className="body-home__macro-k">Белки</span>
+              <span className="body-home__macro-v">
+                {Math.round(todayTotals.proteinG)} г
+                {pg != null && pg > 0 ? (
+                  <span className="body-home__macro-goal"> / {pg} г</span>
+                ) : null}
+              </span>
+            </div>
+            <div className="body-home__macro-cell">
+              <span className="body-home__macro-k">Жиры</span>
+              <span className="body-home__macro-v">
+                {Math.round(todayTotals.fatG)} г
+                {fg != null && fg > 0 ? (
+                  <span className="body-home__macro-goal"> / {fg} г</span>
+                ) : null}
+              </span>
+            </div>
+            <div className="body-home__macro-cell">
+              <span className="body-home__macro-k">Углеводы</span>
+              <span className="body-home__macro-v">
+                {Math.round(todayTotals.carbG)} г
+                {cg != null && cg > 0 ? (
+                  <span className="body-home__macro-goal"> / {cg} г</span>
+                ) : null}
+              </span>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <p className="body-home__motivation">{motivation}</p>
 
       <button
         type="button"
-        className="body-home__cta"
+        className="body-home__cta body-home__cta--link"
         onClick={onOpenMeasurements}
       >
-        Замеры и история
+        История замеров
       </button>
     </div>
   );

@@ -14,6 +14,7 @@ import FinanceScreen from "../screens/FinanceScreen";
 import BodyScreen from "../screens/BodyScreen";
 import TodoScreen from "../screens/TodoScreen";
 import ActionsScreen from "../screens/ActionsScreen";
+import { ShellNavIcon, type ShellNavId } from "./AppNavIcons";
 
 export default function AppShell() {
   const { user, logout } = useAuth();
@@ -24,12 +25,33 @@ export default function AppShell() {
   const tabs = useMemo(
     () =>
       [
-        { id: "hub", label: t("shell.tabHub"), Screen: HubScreen },
-        { id: "finance", label: t("shell.tabFinance"), Screen: FinanceScreen },
-        { id: "body", label: t("shell.tabBody"), Screen: BodyScreen },
-        { id: "todo", label: t("shell.tabTodo"), Screen: TodoScreen },
+        {
+          id: "hub",
+          navIcon: "hub" as ShellNavId,
+          label: t("shell.tabHub"),
+          Screen: HubScreen,
+        },
+        {
+          id: "finance",
+          navIcon: "finance",
+          label: t("shell.tabFinance"),
+          Screen: FinanceScreen,
+        },
+        {
+          id: "body",
+          navIcon: "body",
+          label: t("shell.tabBody"),
+          Screen: BodyScreen,
+        },
+        {
+          id: "todo",
+          navIcon: "todo",
+          label: t("shell.tabTodo"),
+          Screen: TodoScreen,
+        },
         {
           id: "actions",
+          navIcon: "actions",
           label: t("shell.tabActions"),
           Screen: ActionsScreen,
         },
@@ -129,7 +151,10 @@ export default function AppShell() {
             onClick={() => scrollToIndex(index)}
             aria-current={active === index ? "page" : undefined}
           >
-            {tab.label}
+            <span className="shell__nav-ic">
+              <ShellNavIcon id={tab.navIcon} />
+            </span>
+            <span className="shell__nav-tx">{tab.label}</span>
           </button>
         ))}
       </nav>

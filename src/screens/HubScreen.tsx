@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchAccounts,
+  fetchInvestOverview,
   errorMessage as financeErrorMessage,
 } from "../lib/financeApi";
 import {
   fetchBodySettings,
-  fetchMeasurements,
   fetchNutritionDay,
-  fetchWorkouts,
   errorMessage as bodyErrorMessage,
 } from "../lib/bodyApi";
 import { formatRubFromMinor } from "../lib/money";
@@ -30,13 +29,7 @@ import {
   type QuestDefinitionRow,
   type QuestInstanceRow,
 } from "../lib/questApi";
-import {
-  consecutiveStreakFrom,
-  measurementDateSet,
-  workoutDatesFromCompleted,
-  ymdAddDays,
-  ymdToday,
-} from "../lib/heroStreaks";
+import { ymdToday } from "../lib/heroStreaks";
 import { useShellGoToTab } from "../context/ShellTabContext";
 import { SHELL_TAB } from "../lib/shellTabs";
 import { useI18n } from "../i18n/I18nContext";
@@ -54,9 +47,11 @@ export default function HubScreen() {
   );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [financeLine, setFinanceLine] = useState<string | null>(null);
+  const [financePassiveLine, setFinancePassiveLine] = useState<string | null>(
+    null,
+  );
   const [bodyKcalLine, setBodyKcalLine] = useState<string | null>(null);
-  const [workoutStreak, setWorkoutStreak] = useState<number | null>(null);
-  const [measStreak, setMeasStreak] = useState<number | null>(null);
+  const [bodyMacroLine, setBodyMacroLine] = useState<string | null>(null);
   const [questDefs, setQuestDefs] = useState<QuestDefinitionRow[]>([]);
   const [questInstances, setQuestInstances] = useState<QuestInstanceRow[]>([]);
   const [questStartBusy, setQuestStartBusy] = useState<string | null>(null);
@@ -115,14 +110,12 @@ export default function HubScreen() {
   const refreshHub = useCallback(async () => {
     setLoadError(null);
     const today = ymdToday();
-    const fromMeas = ymdAddDays(today, -120);
 
-    const [acc, nut, st, wo, meas, qDef, qInst, heroR] = await Promise.all([
+    const [acc, nut, st, ov, qDef, qInst, heroR] = await Promise.all([
       fetchAccounts(),
       fetchNutritionDay(today),
       fetchBodySettings(),
-      fetchWorkouts(150),
-      fetchMeasurements({ from: fromMeas }),
+      fetchInvestOverview(false),
       fetchQuestDefinitions(),
       fetchQuestInstances(),
       fetchHero(),
@@ -160,7 +153,36 @@ export default function HubScreen() {
       );
     } else {
       setFinanceLine(null);
+      setFinancePassiveLine(null);
       errs.push(financeErrorMessage(acc.data));
+    }
+
+    if (acc.ok && ov.ok) {
+      const dep = ov.data.metrics.depositSavingsIncomeMonthMinor;
+      const sec = ov.data.metrics.couponDividendMonthMinor ?? 0;
+      const passive = dep + sec;
+      setFinancePassiveLine(
+        passive > 0
+          ? t("hub.financePassive", {
+              amount: formatRubFromMinor(passive),
+            })
+          : null,
+      );
+    } else if (acc.ok) {
+      setFinancePassiveLine(null);
+    }
+
+    if (nut.ok) {
+      const k = nut.data.totals;
+      setBodyMacroLine(
+        t("hub.macroLine", {
+          p: Math.round(k.proteinG),
+          f: Math.round(k.fatG),
+          c: Math.round(k.carbG),
+        }),
+      );
+    } else {
+      setBodyMacroLine(null);
     }
 
     if (nut.ok && st.ok) {
@@ -181,25 +203,6 @@ export default function HubScreen() {
       setBodyKcalLine(null);
       if (!nut.ok) errs.push(bodyErrorMessage(nut.data));
       if (!st.ok) errs.push(bodyErrorMessage(st.data));
-    }
-
-    if (wo.ok) {
-      const completed = wo.data.workouts
-        .filter((w) => w.completedAt)
-        .map((w) => w.completedAt as string);
-      const wDates = workoutDatesFromCompleted(completed);
-      setWorkoutStreak(consecutiveStreakFrom(wDates, today));
-    } else {
-      setWorkoutStreak(null);
-      errs.push(bodyErrorMessage(wo.data));
-    }
-
-    if (meas.ok) {
-      const mDates = measurementDateSet(meas.data.measurements.map((m) => m.date));
-      setMeasStreak(consecutiveStreakFrom(mDates, today));
-    } else {
-      setMeasStreak(null);
-      errs.push(bodyErrorMessage(meas.data));
     }
 
     if (errs.length) setLoadError(errs[0] ?? null);
@@ -316,52 +319,6 @@ export default function HubScreen() {
         </div>
       </section>
 
-      <section className="hero__card" aria-labelledby="hero-focus-heading">
-        <h2 id="hero-focus-heading" className="hero__card-title">
-          {t("hub.today")}
-        </h2>
-        <p className="hero__card-text">{t("hub.todayText")}</p>
-        <div className="hero__card-actions">
-          <button
-            type="button"
-            className="hero__btn hero__btn--primary"
-            onClick={() => goToTab(SHELL_TAB.BODY)}
-          >
-            {t("hub.bodyBtn")}
-          </button>
-          <button
-            type="button"
-            className="hero__btn"
-            onClick={() => goToTab(SHELL_TAB.TODO)}
-          >
-            {t("hub.todoBtn")}
-          </button>
-        </div>
-      </section>
-
-      <section className="hero__streaks" aria-label={t("hub.streaksAria")}>
-        {(workoutStreak != null && workoutStreak > 0) ||
-        (measStreak != null && measStreak > 0) ? (
-          <div className="hero__streak-chips">
-            {workoutStreak != null && workoutStreak > 0 ? (
-              <span
-                className="hero__chip"
-                title={t("hub.workoutTitle")}
-              >
-                {t("hub.workoutChip", { n: workoutStreak })}
-              </span>
-            ) : null}
-            {measStreak != null && measStreak > 0 ? (
-              <span className="hero__chip" title={t("hub.measTitle")}>
-                {t("hub.measChip", { n: measStreak })}
-              </span>
-            ) : null}
-          </div>
-        ) : (
-          <p className="hero__streak-empty">{t("hub.streakEmpty")}</p>
-        )}
-      </section>
-
       <section className="hero__minigrid" aria-label={t("hub.minigridAria")}>
         <button
           type="button"
@@ -372,6 +329,9 @@ export default function HubScreen() {
           <span className="hero__mini-value">
             {bodyKcalLine ?? t("hub.kcalNoData")}
           </span>
+          {bodyMacroLine ? (
+            <span className="hero__mini-sub">{bodyMacroLine}</span>
+          ) : null}
         </button>
         <button
           type="button"
@@ -382,6 +342,9 @@ export default function HubScreen() {
           <span className="hero__mini-value">
             {financeLine ?? t("hub.financeLoadFail")}
           </span>
+          {financePassiveLine ? (
+            <span className="hero__mini-sub">{financePassiveLine}</span>
+          ) : null}
         </button>
       </section>
 

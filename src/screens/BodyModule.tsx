@@ -1,11 +1,13 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { BodySubnavIcon, type BodySubnavId } from "../components/AppNavIcons";
 import { useShellTabIndex } from "../context/ShellTabContext";
 import {
   addWorkoutLine,
@@ -68,13 +70,8 @@ const KIND_LABEL: Record<ExerciseKind, string> = {
   OTHER: "Другое",
 };
 
-const BODY_NAV = [
-  { id: "home" as const, label: "Главная" },
-  { id: "nutrition" as const, label: "Питание" },
-  { id: "training" as const, label: "Тренировки" },
-];
-
 export default function BodyModule() {
+  const { t } = useI18n();
   const shellTab = useShellTabIndex();
   const bodyActive = shellTab === SHELL_TAB_BODY;
   const [panel, setPanel] = useState<
@@ -153,14 +150,36 @@ export default function BodyModule() {
   const massU = settings?.bodyMassUnit ?? "KG";
   const lenU = settings?.bodyLengthUnit ?? "CM";
 
+  const bodyNav = useMemo(
+    () =>
+      [
+        {
+          id: "home" as const,
+          icon: "home" as BodySubnavId,
+          label: t("body.tabHome"),
+        },
+        {
+          id: "nutrition" as const,
+          icon: "nutrition",
+          label: t("body.tabNutrition"),
+        },
+        {
+          id: "training" as const,
+          icon: "training",
+          label: t("body.tabTraining"),
+        },
+      ] as const,
+    [t],
+  );
+
   return (
     <div className="body-mod">
       <div className="body-mod__head body-mod__head--row">
-        <h1 className="screen__title body-mod__title">Тело</h1>
+        <h1 className="screen__title body-mod__title">{t("body.title")}</h1>
         <button
           type="button"
           className="body-mod__gear"
-          aria-label="Настройки тела"
+          aria-label={t("body.settingsAria")}
           onClick={() => setSettingsOpen(true)}
         >
           ⚙
@@ -225,19 +244,22 @@ export default function BodyModule() {
         </div>
       </div>
 
-      <nav className="body-mod__subnav" aria-label="Разделы тела">
-        {BODY_NAV.map((t) => (
+      <nav className="body-mod__subnav" aria-label={t("body.subnavAria")}>
+        {bodyNav.map((item) => (
           <button
-            key={t.id}
+            key={item.id}
             type="button"
             className={
-              panel === t.id
+              panel === item.id
                 ? "body-mod__subbtn body-mod__subbtn--on"
                 : "body-mod__subbtn"
             }
-            onClick={() => setPanel(t.id)}
+            onClick={() => setPanel(item.id)}
           >
-            {t.label}
+            <span className="body-mod__subbtn-ic" aria-hidden>
+              <BodySubnavIcon id={item.icon} />
+            </span>
+            <span className="body-mod__subbtn-tx">{item.label}</span>
           </button>
         ))}
       </nav>
@@ -268,6 +290,7 @@ function BodySettingsModal({
   onClose: () => void;
   onSaved: (s: BodySettings) => void;
 }) {
+  const { t, locale, setLocale } = useI18n();
   const [mass, setMass] = useState(settings.bodyMassUnit);
   const [length, setLength] = useState(settings.bodyLengthUnit);
   const [kcal, setKcal] = useState(settings.bodyKcalGoal?.toString() ?? "");
@@ -462,6 +485,11 @@ function MeasurementsPanel({
     setBusy(true);
     setLocalErr(null);
     const wKg = parseMassInput(weight, massU);
+    if (wKg == null || wKg <= 0) {
+      setLocalErr("Укажите вес больше нуля.");
+      setBusy(false);
+      return;
+    }
     const hCm = parseLengthInput(height, lenU);
     const r = await createMeasurement({
       date,
@@ -513,54 +541,60 @@ function MeasurementsPanel({
           />
         </label>
         <label className="finance__field">
-          Вес ({massU === "KG" ? "кг" : "lb"})
+          Вес ({massU === "KG" ? "кг" : "lb"}) — обязательно
           <input
             className="finance__input"
             inputMode="decimal"
             placeholder="—"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
+            required
           />
         </label>
-        <label className="finance__field">
-          Рост ({lenU === "CM" ? "см" : "″"})
-          <input
-            className="finance__input"
-            inputMode="decimal"
-            placeholder="—"
-            value={height}
-            onChange={(e) => setHeight(e.target.value)}
-          />
-        </label>
-        <label className="finance__field">
-          % жира
-          <input
-            className="finance__input"
-            inputMode="decimal"
-            placeholder="—"
-            value={fat}
-            onChange={(e) => setFat(e.target.value)}
-          />
-        </label>
-        <label className="finance__field">
-          Талия ({lenU === "CM" ? "см" : "″"})
-          <input
-            className="finance__input"
-            inputMode="decimal"
-            placeholder="—"
-            value={waist}
-            onChange={(e) => setWaist(e.target.value)}
-          />
-        </label>
-        <label className="finance__field">
-          Заметка
-          <input
-            className="finance__input"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={500}
-          />
-        </label>
+        <details className="body-panel__meas-details">
+          <summary className="body-panel__meas-details-sum">
+            Дополнительные поля
+          </summary>
+          <label className="finance__field">
+            Рост ({lenU === "CM" ? "см" : "″"})
+            <input
+              className="finance__input"
+              inputMode="decimal"
+              placeholder="—"
+              value={height}
+              onChange={(e) => setHeight(e.target.value)}
+            />
+          </label>
+          <label className="finance__field">
+            % жира
+            <input
+              className="finance__input"
+              inputMode="decimal"
+              placeholder="—"
+              value={fat}
+              onChange={(e) => setFat(e.target.value)}
+            />
+          </label>
+          <label className="finance__field">
+            Талия ({lenU === "CM" ? "см" : "″"})
+            <input
+              className="finance__input"
+              inputMode="decimal"
+              placeholder="—"
+              value={waist}
+              onChange={(e) => setWaist(e.target.value)}
+            />
+          </label>
+          <label className="finance__field">
+            Заметка
+            <input
+              className="finance__input"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={500}
+            />
+          </label>
+        </details>
         <button className="finance__submit" type="submit" disabled={busy}>
           Сохранить замер
         </button>

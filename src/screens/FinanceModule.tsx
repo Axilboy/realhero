@@ -3059,14 +3059,14 @@ function FinanceMainPanel({
           <div className="finance__modal finance__modal--fullscreen">
             <div className="finance__modal-head">
               <h2 id="cat-modal-title" className="finance__h2">
-                Категории
+                {t("fin.categoriesTitle")}
               </h2>
               <button
                 type="button"
                 className="finance__modal-close"
                 onClick={() => setCatModal(false)}
               >
-                Закрыть
+                {t("fin.close")}
               </button>
             </div>
             <label className="finance__check">
@@ -3075,7 +3075,7 @@ function FinanceMainPanel({
                 checked={catIncludeArchived}
                 onChange={(e) => setCatIncludeArchived(e.target.checked)}
               />
-              Показывать архивные
+              {t("fin.showArchived")}
             </label>
             <CategoryTreePanel
               categories={modalCategories}
@@ -3107,6 +3107,7 @@ function FinanceInvestPanel({
   onPortfolioChange: () => void;
   cardYieldDisplay: FinanceCardYieldDisplay;
 }) {
+  const { t } = useI18n();
   const [data, setData] = useState<{
     totalValueMinor: number;
     holdings: InvestmentHoldingRow[];
@@ -3276,14 +3277,14 @@ function FinanceInvestPanel({
 
   return (
     <div className="finance-inv">
-      <h2 className="finance__h2">Портфель</h2>
+      <h2 className="finance__h2">{t("fin.portfolio")}</h2>
       {err ? <p className="finance__err">{err}</p> : null}
       {!data ? (
-        <p className="screen__text">Загрузка…</p>
+        <p className="screen__text">{t("fin.loading")}</p>
       ) : (
         <>
           <div className="finance-inv__hero">
-            <span className="finance-inv__hero-label">Оценка бумаг</span>
+            <span className="finance-inv__hero-label">{t("fin.holdingsEst")}</span>
             <span className="finance-inv__hero-val">
               {formatRubFromMinor(data.totalValueMinor)}
             </span>
@@ -3294,7 +3295,7 @@ function FinanceInvestPanel({
                 ...d,
                 sortOrder: i,
               })) as AccountRow[]}
-              title="Вклады, накопительные и счета с %"
+              title={t("fin.depositsTitle")}
             />
             {data.metrics.depositSavingsIncomeMonthMinor +
               (data.metrics.couponDividendMonthMinor ?? 0) >
@@ -3309,26 +3310,22 @@ function FinanceInvestPanel({
             ) : null}
             <div
               className="finance-inv__alloc"
-              aria-label="Доли портфеля без карт и кредитов"
+              aria-label={t("fin.allocAria")}
             >
               <h3 className="finance__h3 finance-inv__alloc-title">
-                Структура портфеля
+                {t("fin.allocTitle")}
               </h3>
-              <p className="finance-inv__alloc-note">
-                Доли считаются по вкладам, накопительным счетам и инвестициям.
-                Кредитные карты, долг по счетам, наличные и карты без %% сюда не
-                входят.
-              </p>
+              <p className="finance-inv__alloc-note">{t("fin.allocNote")}</p>
               <ul className="finance-inv__alloc-list">
                 <li>
-                  <span>Вклады</span>
+                  <span>{t("fin.capDeposits")}</span>
                   <span>
                     {formatRubFromMinor(data.allocation.depositsMinor)} ·{" "}
                     {data.allocation.pctDeposits}%
                   </span>
                 </li>
                 <li>
-                  <span>Накопительные счета</span>
+                  <span>{t("fin.capSavings")}</span>
                   <span>
                     {formatRubFromMinor(data.allocation.savingsMinor)} ·{" "}
                     {data.allocation.pctSavings}%
@@ -3342,14 +3339,14 @@ function FinanceInvestPanel({
                   </span>
                 </li>
                 <li>
-                  <span>Облигации</span>
+                  <span>{t("fin.capBonds")}</span>
                   <span>
                     {formatRubFromMinor(data.allocation.bondsMinor)} ·{" "}
                     {data.allocation.pctBonds}%
                   </span>
                 </li>
                 <li>
-                  <span>Прочие инструменты</span>
+                  <span>{t("fin.capOther")}</span>
                   <span>
                     {formatRubFromMinor(
                       data.allocation.otherInstrumentsMinor,
@@ -3359,10 +3356,10 @@ function FinanceInvestPanel({
                 </li>
               </ul>
             </div>
-            <ul className="finance-inv__metrics" aria-label="Доходность по купонам и дивидендам">
+            <ul className="finance-inv__metrics" aria-label={t("fin.metricsAria")}>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  На вложенные 1000 ₽ в бумаги (в год, оценка)
+                  {t("fin.metricPer1000")}
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.incomePer1000YearMinor != null
@@ -3372,7 +3369,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  %% по вкладам и счетам (в месяц, без кредиток и долга по счетам)
+                  {t("fin.metricDepositsMonth")}
                 </span>
                 <span
                   className={
@@ -3390,7 +3387,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Бумаги: в день (купоны и дивиденды)
+                  {t("fin.metricSecDay")}
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.couponDividendDayMinor != null
@@ -3400,7 +3397,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Бумаги: в месяц
+                  {t("fin.metricSecMonth")}
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.couponDividendMonthMinor != null
@@ -3410,7 +3407,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Бумаги: в год
+                  {t("fin.metricSecYear")}
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.couponDividendYearMinor != null
@@ -3432,14 +3429,14 @@ function FinanceInvestPanel({
               setModal(true);
             }}
           >
-            Добавить позицию
+            {t("fin.addPosition")}
           </button>
           <h3 className="finance__h3 finance-inv__main-portfolio-title">
-            Основной портфель
+            {t("fin.mainPortfolio")}
           </h3>
           <ul className="finance-inv__list">
             {data.holdings.length === 0 ? (
-              <li className="screen__text">Позиций пока нет.</li>
+              <li className="screen__text">{t("fin.noHoldings")}</li>
             ) : (
               data.holdings.map((h) => (
                 <li key={h.id} className="finance-inv__row">
@@ -3503,14 +3500,14 @@ function FinanceInvestPanel({
                         );
                       }}
                     >
-                      Доход
+                      {t("fin.incomeBtn")}
                     </button>
                     <button
                       type="button"
                       className="finance__tx-del"
                       onClick={() => void onDel(h.id)}
                     >
-                      Удалить
+                      {t("fin.delete")}
                     </button>
                   </div>
                 </li>
@@ -3529,13 +3526,13 @@ function FinanceInvestPanel({
             >
           <div className="finance__modal finance__modal--fullscreen">
             <div className="finance__modal-head">
-              <h2 className="finance__h2">Новая позиция</h2>
+              <h2 className="finance__h2">{t("fin.newPositionTitle")}</h2>
               <button
                 type="button"
                 className="finance__modal-close"
                 onClick={() => setModal(false)}
               >
-                Закрыть
+                {t("fin.close")}
               </button>
             </div>
             <form className="finance__form" onSubmit={(e) => void onAdd(e)}>
@@ -3770,6 +3767,7 @@ function FinanceBudgetPanel({
   budgetActive: boolean;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [periodYm, setPeriodYm] = useState(currentMonthYm);
   const [lines, setLines] = useState<BudgetLine[]>([]);
   const [totals, setTotals] = useState<BudgetTotals | null>(null);
@@ -3809,7 +3807,7 @@ function FinanceBudgetPanel({
       limitMinor !== null &&
       (!Number.isFinite(limitMinor) || limitMinor < 0)
     ) {
-      setErr("Лимит — неотрицательное число (₽)");
+      setErr(t("fin.errLimitNonNeg"));
       return;
     }
     setErr(null);
@@ -3824,14 +3822,13 @@ function FinanceBudgetPanel({
 
   return (
     <div className="finance-budget">
-      <h2 className="finance__h2">Бюджет</h2>
-      <p className="finance-budget__hint">
-        Лимиты по категориям расходов за{" "}
-        <strong>календарный месяц</strong> (не путать с отчётным периодом на
-        главной). Пустое поле лимита — без ограничения по категории.
-      </p>
+      <h2 className="finance__h2">{t("fin.budgetTitle")}</h2>
+      <p
+        className="finance-budget__hint"
+        dangerouslySetInnerHTML={{ __html: t("fin.budgetIntro") }}
+      />
       <label className="finance__field finance-budget__month">
-        <span>Месяц</span>
+        <span>{t("fin.month")}</span>
         <input
           className="finance__input"
           type="month"
@@ -3840,34 +3837,25 @@ function FinanceBudgetPanel({
         />
       </label>
       {err ? <p className="finance__err">{err}</p> : null}
-      {pending ? <p className="screen__text">Загрузка…</p> : null}
+      {pending ? <p className="screen__text">{t("fin.loading")}</p> : null}
       {!pending && totals ? (
         <div className="finance-budget__totals">
           <span>
-            По категориям с лимитом: потрачено{" "}
-            <strong>{formatRubFromMinor(totals.spentInBudgetMinor)}</strong> из{" "}
-            <strong>{formatRubFromMinor(totals.limitTotalMinor)}</strong>
-            {" · "}
-            осталось{" "}
-            <strong
-              className={
-                totals.remainingTotalMinor < 0
-                  ? "finance-budget__remain--bad"
-                  : undefined
-              }
-            >
-              {formatRubFromMinor(totals.remainingTotalMinor)}
-            </strong>
+            {t("fin.budgetSpentLine", {
+              spent: formatRubFromMinor(totals.spentInBudgetMinor),
+              lim: formatRubFromMinor(totals.limitTotalMinor),
+              rem: formatRubFromMinor(totals.remainingTotalMinor),
+            })}
           </span>
         </div>
       ) : null}
       {!pending && lines.length > 0 ? (
         <ul className="finance-budget__list">
           <li className="finance-budget__row finance-budget__row--head">
-            <span>Категория</span>
-            <span>Лимит</span>
-            <span className="finance-budget__h-num">Потрачено</span>
-            <span className="finance-budget__h-num">Осталось</span>
+            <span>{t("fin.catCol")}</span>
+            <span>{t("fin.limitCol")}</span>
+            <span className="finance-budget__h-num">{t("fin.spentCol")}</span>
+            <span className="finance-budget__h-num">{t("fin.remCol")}</span>
           </li>
           {lines.map((ln) => (
             <li key={ln.categoryId} className="finance-budget__row">
@@ -3875,7 +3863,9 @@ function FinanceBudgetPanel({
                 {categoryNameForUi(ln.name)}
               </span>
               <label className="finance-budget__limit">
-                <span className="finance-budget__limit-label">Лимит ₽</span>
+                <span className="finance-budget__limit-label">
+                  {t("fin.limitRub")}
+                </span>
                 <input
                   className="finance__input finance-budget__limit-input"
                   type="text"
@@ -3917,7 +3907,7 @@ function FinanceBudgetPanel({
 }
 
 function FinanceAnalyticsPanel({ bump }: { bump: number }) {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const [month, setMonth] = useState(currentMonthYm);
   const [expenses, setExpenses] = useState<
     { categoryName: string; amountMinor: number }[]
@@ -3967,23 +3957,18 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
 
   return (
     <div className="finance-an">
-      <h2 className="finance__h2">Аналитика</h2>
+      <h2 className="finance__h2">{t("fin.analyticsTitle")}</h2>
       <section
         className="finance-an__forecast"
-        aria-label="Ожидаемый баланс по отчётному периоду"
+        aria-label={t("fin.forecastAria")}
       >
-        <h3 className="finance__h3">Ожидаемый баланс</h3>
-        <p className="finance-an__forecast-hint">
-          Весь доход за отчётный период плюс оценка пассивного дохода до конца
-          периода минус прогноз расходов на весь период: средний дневной расход
-          (расходы с начала периода, делённые на число прошедших дней)
-          умножается на число календарных дней в периоде.
-        </p>
+        <h3 className="finance__h3">{t("fin.forecastTitle")}</h3>
+        <p className="finance-an__forecast-hint">{t("fin.forecastHint")}</p>
         {forecastErr ? <p className="finance__err">{forecastErr}</p> : null}
         {forecast ? (
           <div className="finance-an__forecast-body">
             <p className="finance-an__forecast-period">
-              До{" "}
+              {t("fin.forecastUntil")}{" "}
               <strong>
                 {formatFinanceDateShort(
                   `${forecast.periodLastDay}T12:00:00.000Z`,
@@ -3991,7 +3976,7 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
                 )}
               </strong>
               {" · "}
-              следующая отчётная дата:{" "}
+              {t("fin.nextReport")}{" "}
               <strong>
                 {formatFinanceDateShort(
                   `${forecast.nextReportingDay}T12:00:00.000Z`,
@@ -4001,46 +3986,46 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
             </p>
             <ul className="finance-an__forecast-stats">
               <li>
-                Среднедневной доход:{" "}
+                {t("fin.avgDailyIncome")}{" "}
                 {formatRubFromMinor(forecast.avgDailyIncomeMinor)}
               </li>
               <li>
-                Среднедневной расход:{" "}
+                {t("fin.avgDailyExpense")}{" "}
                 {formatRubFromMinor(forecast.avgDailyExpenseMinor)}
               </li>
               <li>
-                Среднедневной чистый поток:{" "}
+                {t("fin.avgDailyNet")}{" "}
                 {formatRubFromMinor(forecast.avgDailyNetMinor)}
               </li>
               <li>
-                Дней в периоде прошло: {forecast.daysElapsed}, осталось:{" "}
-                {forecast.daysRemaining}
+                {t("fin.daysPassed")} {forecast.daysElapsed},{" "}
+                {t("fin.daysLeft")} {forecast.daysRemaining}
               </li>
               <li>
-                Уже (доход − расход):{" "}
+                {t("fin.realizedNet")}{" "}
                 {formatRubFromMinor(forecast.realizedNetMinor)}
               </li>
               <li>
-                Пассивный доход до конца периода (оценка):{" "}
+                {t("fin.passiveToEnd")}{" "}
                 {formatRubFromMinor(forecast.passiveIncomeToEndMinor)}
               </li>
               <li>
-                Прогноз расходов на весь период (по среднему дневному):{" "}
+                {t("fin.expenseProjected")}{" "}
                 {formatRubFromMinor(forecast.expenseProjectedPeriodMinor)}
               </li>
               <li>
-                Дней в периоде (календарь): {forecast.totalDaysInPeriod}
+                {t("fin.daysInPeriod")} {forecast.totalDaysInPeriod}
               </li>
             </ul>
             <p className="finance-an__forecast-result">
-              Ожидаемый баланс (индикатор):{" "}
+              {t("fin.expectedResult")}{" "}
               <strong>
                 {formatRubFromMinor(forecast.expectedBalanceIndicatorMinor)}
               </strong>
               {forecast.expectedBalanceIndicatorMinor > 0
-                ? " — в плюсе"
+                ? t("fin.positive")
                 : forecast.expectedBalanceIndicatorMinor < 0
-                  ? " — в минусе"
+                  ? t("fin.negative")
                   : ""}
             </p>
           </div>
@@ -4048,7 +4033,7 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
       </section>
       <label className="finance__month">
         <span className="finance__month-label">
-          Календарный месяц (категории)
+          {t("fin.calendarMonthCats")}
         </span>
         <input
           type="month"
@@ -4057,13 +4042,13 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
         />
       </label>
       {err ? <p className="finance__err">{err}</p> : null}
-      {pending ? <p className="screen__text">Загрузка…</p> : null}
+      {pending ? <p className="screen__text">{t("fin.loading")}</p> : null}
       {!pending ? (
         <>
-          <h3 className="finance__h3">Расходы по категориям</h3>
+          <h3 className="finance__h3">{t("fin.expByCat")}</h3>
           <ul className="finance-an__bars">
             {expenses.length === 0 ? (
-              <li className="screen__text">Нет данных.</li>
+              <li className="screen__text">{t("fin.noData")}</li>
             ) : (
               expenses.map((e) => (
                 <li key={e.categoryName + e.amountMinor} className="finance-an__bar">
@@ -4083,10 +4068,10 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
               ))
             )}
           </ul>
-          <h3 className="finance__h3">Доходы по категориям</h3>
+          <h3 className="finance__h3">{t("fin.incByCat")}</h3>
           <ul className="finance-an__list">
             {incomes.length === 0 ? (
-              <li className="screen__text">Нет данных.</li>
+              <li className="screen__text">{t("fin.noData")}</li>
             ) : (
               incomes.map((i) => (
                 <li key={i.categoryName} className="finance-an__li">

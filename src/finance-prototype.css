@@ -121,9 +121,59 @@
 .finproto-cat__label {
   flex: 1;
   min-width: 0;
-  font-size: 0.92rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #e8eaed;
+}
+
+.finproto-cat__row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  margin-left: auto;
+}
+
+.finproto-cat__link {
+  border: none;
+  background: none;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #8ab4ff;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.finproto-cat__link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.finproto-cat__link--muted {
+  color: #7c8088;
+}
+
+.finproto-cat__details {
+  margin: 0.35rem 0 0.5rem;
+  border-radius: 10px;
+  border: 1px solid #2a2f38;
+  background: #14171c;
+  padding: 0.35rem 0.55rem;
+}
+
+.finproto-cat__details-sum {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #9aa0a6;
+  list-style-position: inside;
+}
+
+.finproto-cat__details[open] .finproto-cat__details-sum {
+  color: #c4c7cc;
+  margin-bottom: 0.45rem;
 }
 
 .finproto-cat__mini {

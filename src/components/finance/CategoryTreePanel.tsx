@@ -1,4 +1,5 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useI18n } from "../../i18n/I18nContext";
 import {
   type Category,
   type CategoryType,
@@ -44,6 +45,7 @@ export default function CategoryTreePanel({
   onCreate,
   onToggleArchive,
 }: Props) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<CatTab>("EXPENSE");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -52,10 +54,9 @@ export default function CategoryTreePanel({
   const [newName, setNewName] = useState("");
   const [newEmoji, setNewEmoji] = useState(CATEGORY_EMOJI_PRESETS[0]!);
   const [newColor, setNewColor] = useState(CATEGORY_COLOR_PRESETS[0]!);
+  const rootStyleDetailsRef = useRef<HTMLDetailsElement>(null);
 
   const [subName, setSubName] = useState("");
-  const [subEmoji, setSubEmoji] = useState(CATEGORY_EMOJI_PRESETS[1]!);
-  const [subColor, setSubColor] = useState(CATEGORY_COLOR_PRESETS[1]!);
 
   const archOk = (c: Category) => showArchived || !c.isArchived;
 
@@ -108,14 +109,19 @@ export default function CategoryTreePanel({
     const name = newName.trim();
     if (!name) return;
     const type: CategoryType = tab === "EXPENSE" ? "EXPENSE" : "INCOME";
+    const useCustomStyle = rootStyleDetailsRef.current?.open === true;
     await onCreate({
       name,
       type,
-      iconEmoji: newEmoji,
-      accentColor: newColor,
+      iconEmoji: useCustomStyle
+        ? newEmoji
+        : defaultEmojiForName(name) || CATEGORY_EMOJI_PRESETS[0]!,
+      accentColor: useCustomStyle
+        ? newColor
+        : defaultColorForIndex(categories.length),
     });
     setNewName("");
-    setNewEmoji(defaultEmojiForName(name));
+    setNewEmoji(defaultEmojiForName(name) || CATEGORY_EMOJI_PRESETS[0]!);
     setNewColor(defaultColorForIndex(categories.length));
   }
 
@@ -130,15 +136,13 @@ export default function CategoryTreePanel({
       name,
       type: parent.type === "BOTH" ? (tab === "EXPENSE" ? "EXPENSE" : "INCOME") : parent.type,
       parentId: subFormParentId,
-      iconEmoji: subEmoji,
-      accentColor: subColor,
+      iconEmoji: defaultEmojiForName(name) || CATEGORY_EMOJI_PRESETS[0]!,
+      accentColor: parent.accentColor || CATEGORY_COLOR_PRESETS[0]!,
     });
     setSubName("");
     setSubFormParentId(null);
     setExpanded((p) => new Set(p).add(subFormParentId));
   }
-
-  const typeLabel = tab === "EXPENSE" ? "расход" : "доход";
 
   return (
     <div className="finproto-cat">
@@ -154,7 +158,7 @@ export default function CategoryTreePanel({
           aria-selected={tab === "EXPENSE"}
           onClick={() => setTab("EXPENSE")}
         >
-          Расход
+          {t("fin.catTabExpense")}
         </button>
         <button
           type="button"
@@ -167,7 +171,7 @@ export default function CategoryTreePanel({
           aria-selected={tab === "INCOME"}
           onClick={() => setTab("INCOME")}
         >
-          Доход
+          {t("fin.catTabIncome")}
         </button>
       </div>
 
@@ -178,7 +182,7 @@ export default function CategoryTreePanel({
         <input
           className="finproto-cat__search"
           type="search"
-          placeholder="Поиск"
+          placeholder={t("fin.catSearch")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoComplete="off"
@@ -200,7 +204,7 @@ export default function CategoryTreePanel({
                   type="button"
                   className="finproto-cat__expand"
                   aria-expanded={open}
-                  aria-label={open ? "Свернуть" : "Развернуть"}
+                  aria-label={open ? t("fin.collapse") : t("fin.expand")}
                   onClick={() => toggleExpand(root.id)}
                 >
                   {ch.length > 0 ? (open ? "▼" : "▶") : "·"}
@@ -216,30 +220,24 @@ export default function CategoryTreePanel({
                 </span>
                 <span className="finproto-cat__label">{root.name}</span>
                 {!root.isBuiltIn ? (
-                  <button
-                    type="button"
-                    className="finproto-cat__mini"
-                    disabled={catBusy}
-                    title="Подкатегория"
-                    onClick={() => {
-                      setSubFormParentId(root.id);
-                      setSubEmoji(defaultEmojiForName(root.name));
-                      setSubColor(root.accentColor || CATEGORY_COLOR_PRESETS[2]!);
-                    }}
-                  >
-                    +
-                  </button>
-                ) : null}
-                {!root.isBuiltIn ? (
-                  <button
-                    type="button"
-                    className="finproto-cat__mini finproto-cat__mini--ghost"
-                    disabled={catBusy}
-                    title="В архив"
-                    onClick={() => onToggleArchive(root)}
-                  >
-                    ⏏
-                  </button>
+                  <span className="finproto-cat__row-actions">
+                    <button
+                      type="button"
+                      className="finproto-cat__link"
+                      disabled={catBusy}
+                      onClick={() => setSubFormParentId(root.id)}
+                    >
+                      {t("fin.subcategory")}
+                    </button>
+                    <button
+                      type="button"
+                      className="finproto-cat__link finproto-cat__link--muted"
+                      disabled={catBusy}
+                      onClick={() => onToggleArchive(root)}
+                    >
+                      {t("fin.archive")}
+                    </button>
+                  </span>
                 ) : null}
               </div>
               {subFormParentId === root.id ? (
@@ -248,70 +246,26 @@ export default function CategoryTreePanel({
                   onSubmit={(e) => void submitSub(e)}
                 >
                   <span className="finproto-cat__subhint">
-                    Новая подкатегория в «{root.name}»
+                    {t("fin.newSubIn", { name: root.name })}
                   </span>
-                  <div className="finproto-cat__pickers">
-                    <div className="finproto-cat__emoji-bar">
-                      {CATEGORY_EMOJI_PRESETS.map((e, ei) => {
-                        const tint = tintColorForEmojiIndex(ei);
-                        return (
-                          <button
-                            key={e}
-                            type="button"
-                            className={
-                              subEmoji === e
-                                ? "finproto-cat__emoji finproto-cat__emoji--on"
-                                : "finproto-cat__emoji"
-                            }
-                            style={{
-                              borderColor:
-                                subEmoji === e ? tint : `${tint}66`,
-                              background:
-                                subEmoji === e
-                                  ? `linear-gradient(145deg, ${tint}44, ${tint}22)`
-                                  : `linear-gradient(145deg, ${tint}22, #14171c)`,
-                            }}
-                            onClick={() => setSubEmoji(e)}
-                          >
-                            {e}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="finproto-cat__colors">
-                      {CATEGORY_COLOR_PRESETS.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          className={
-                            subColor === c
-                              ? "finproto-cat__dot finproto-cat__dot--on"
-                              : "finproto-cat__dot"
-                          }
-                          style={{ background: c }}
-                          onClick={() => setSubColor(c)}
-                          aria-label={c}
-                        />
-                      ))}
-                    </div>
-                  </div>
                   <input
                     className="finance__input finproto-cat__subinput"
-                    placeholder="Название подкатегории"
+                    placeholder={t("fin.subNamePh")}
                     value={subName}
                     onChange={(e) => setSubName(e.target.value)}
                     maxLength={80}
+                    autoFocus
                   />
                   <div className="finproto-cat__subactions">
                     <button type="submit" className="finance__submit" disabled={catBusy}>
-                      Добавить
+                      {t("fin.add")}
                     </button>
                     <button
                       type="button"
                       className="finance__btn-secondary"
                       onClick={() => setSubFormParentId(null)}
                     >
-                      Отмена
+                      {t("fin.cancel")}
                     </button>
                   </div>
                 </form>
@@ -336,11 +290,11 @@ export default function CategoryTreePanel({
                         {!s.isBuiltIn ? (
                           <button
                             type="button"
-                            className="finproto-cat__mini finproto-cat__mini--ghost"
+                            className="finproto-cat__link finproto-cat__link--muted"
                             disabled={catBusy}
                             onClick={() => onToggleArchive(s)}
                           >
-                            ⏏
+                            {t("fin.archive")}
                           </button>
                         ) : null}
                       </li>
@@ -355,61 +309,68 @@ export default function CategoryTreePanel({
 
       <form className="finproto-cat__new" onSubmit={(e) => void submitRoot(e)}>
         <h3 className="finance__h3 finproto-cat__new-title">
-          Новая категория {typeLabel}а
+          {tab === "EXPENSE"
+            ? t("fin.newCategoryExpense")
+            : t("fin.newCategoryIncome")}
         </h3>
-        <div className="finproto-cat__pickers">
-          <div className="finproto-cat__emoji-bar">
-            {CATEGORY_EMOJI_PRESETS.map((e, ei) => {
-              const tint = tintColorForEmojiIndex(ei);
-              return (
-                <button
-                  key={e}
-                  type="button"
-                  className={
-                    newEmoji === e
-                      ? "finproto-cat__emoji finproto-cat__emoji--on"
-                      : "finproto-cat__emoji"
-                  }
-                  style={{
-                    borderColor: newEmoji === e ? tint : `${tint}66`,
-                    background:
-                      newEmoji === e
-                        ? `linear-gradient(145deg, ${tint}44, ${tint}22)`
-                        : `linear-gradient(145deg, ${tint}22, #14171c)`,
-                  }}
-                  onClick={() => setNewEmoji(e)}
-                >
-                  {e}
-                </button>
-              );
-            })}
-          </div>
-          <div className="finproto-cat__colors">
-            {CATEGORY_COLOR_PRESETS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={
-                  newColor === c
-                    ? "finproto-cat__dot finproto-cat__dot--on"
-                    : "finproto-cat__dot"
-                }
-                style={{ background: c }}
-                onClick={() => setNewColor(c)}
-                aria-label={c}
-              />
-            ))}
-          </div>
-        </div>
         <input
           className="finance__input"
-          placeholder="Название категории"
+          placeholder={t("fin.categoryNamePh")}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           maxLength={80}
         />
+        <details ref={rootStyleDetailsRef} className="finproto-cat__details">
+          <summary className="finproto-cat__details-sum">
+            {t("fin.catIconColor")}
+          </summary>
+          <div className="finproto-cat__pickers">
+            <div className="finproto-cat__emoji-bar">
+              {CATEGORY_EMOJI_PRESETS.map((e, ei) => {
+                const tint = tintColorForEmojiIndex(ei);
+                return (
+                  <button
+                    key={e}
+                    type="button"
+                    className={
+                      newEmoji === e
+                        ? "finproto-cat__emoji finproto-cat__emoji--on"
+                        : "finproto-cat__emoji"
+                    }
+                    style={{
+                      borderColor: newEmoji === e ? tint : `${tint}66`,
+                      background:
+                        newEmoji === e
+                          ? `linear-gradient(145deg, ${tint}44, ${tint}22)`
+                          : `linear-gradient(145deg, ${tint}22, #14171c)`,
+                    }}
+                    onClick={() => setNewEmoji(e)}
+                  >
+                    {e}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="finproto-cat__colors">
+              {CATEGORY_COLOR_PRESETS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={
+                    newColor === c
+                      ? "finproto-cat__dot finproto-cat__dot--on"
+                      : "finproto-cat__dot"
+                  }
+                  style={{ background: c }}
+                  onClick={() => setNewColor(c)}
+                  aria-label={c}
+                />
+              ))}
+            </div>
+          </div>
+        </details>
         <button className="finance__submit" type="submit" disabled={catBusy}>
-          Создать категорию
+          {t("fin.create")}
         </button>
       </form>
     </div>

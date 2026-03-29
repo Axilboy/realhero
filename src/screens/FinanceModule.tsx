@@ -213,9 +213,18 @@ function FinanceAccountsRow({
               </div>
             )}
             <div className="finance-acc-row__inc">
-              ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
-              {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
-              {a.interestIncomeDayMinor > 0 ? (
+              {a.type === "CREDIT_CARD" && a.balanceMinor < 0 ? (
+                <>
+                  расход {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес ·{" "}
+                  {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
+                </>
+              ) : (
+                <>
+                  ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
+                  {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
+                </>
+              )}
+              {a.interestIncomeDayMinor !== 0 ? (
                 <>
                   {" "}
                   · ~{formatRubFromMinor(a.interestIncomeDayMinor)}/день
@@ -2074,20 +2083,30 @@ function FinanceMainPanel({
                     {accountSupportsInterestField(selectedAccount.type) ? (
                       <p className="finance-main__acc-detail-meta">
                         {selectedAccount.type === "CREDIT_CARD"
-                          ? "Процент на остаток"
+                          ? selectedAccount.balanceMinor < 0
+                            ? "Процент на задолженность"
+                            : "Процент на положительный остаток"
                           : "Ставка"}
                         :{" "}
                         {selectedAccount.annualInterestPercent != null
                           ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
                           : "не задана"}
                         {" · "}
-                        ~{formatRubFromMinor(selectedAccount.interestIncomeMonthMinor)}
-                        /мес, ~
+                        {selectedAccount.type === "CREDIT_CARD" &&
+                        selectedAccount.balanceMinor < 0
+                          ? "оценка расхода на проценты "
+                          : "~"}
+                        {formatRubFromMinor(selectedAccount.interestIncomeMonthMinor)}
+                        /мес
+                        {selectedAccount.type === "CREDIT_CARD" &&
+                        selectedAccount.balanceMinor < 0
+                          ? ", "
+                          : ", ~"}
                         {formatRubFromMinor(
                           selectedAccount.interestIncomeYearMinor ?? 0,
                         )}
                         /год
-                        {selectedAccount.interestIncomeDayMinor > 0 ? (
+                        {selectedAccount.interestIncomeDayMinor !== 0 ? (
                           <>
                             , ~
                             {formatRubFromMinor(

@@ -148,25 +148,55 @@ function accountUsesInterestRate(a: {
   return false;
 }
 
-/** Оценка дохода по ставке за месяц, коп. */
+/**
+ * Оценка по ставке за месяц, коп.
+ * Вклады/накопительные/счёт: доход при положительном балансе.
+ * Кредитка: при отрицательном балансе (долг) — отрицательное значение (оценка расхода на %%).
+ */
 function interestIncomeMonthMinor(
   balanceMinor: number,
   annualPercent: number | null | undefined,
+  accountType: AccountType,
 ): number {
-  if (balanceMinor <= 0) return 0;
   const p = coerceAnnualPercent(annualPercent);
   if (p == null) return 0;
+
+  if (accountType === "CREDIT_CARD") {
+    if (balanceMinor < 0) {
+      const debt = Math.abs(balanceMinor);
+      return -Math.round((debt * p) / 100 / 12);
+    }
+    if (balanceMinor > 0) {
+      return Math.round((balanceMinor * p) / 100 / 12);
+    }
+    return 0;
+  }
+
+  if (balanceMinor <= 0) return 0;
   return Math.round((balanceMinor * p) / 100 / 12);
 }
 
-/** Оценка дохода по ставке за год, коп. */
+/** Оценка по ставке за год, коп. (кредитка с долгом — отрицательная, расход). */
 function interestIncomeYearMinor(
   balanceMinor: number,
   annualPercent: number | null | undefined,
+  accountType: AccountType,
 ): number {
-  if (balanceMinor <= 0) return 0;
   const p = coerceAnnualPercent(annualPercent);
   if (p == null) return 0;
+
+  if (accountType === "CREDIT_CARD") {
+    if (balanceMinor < 0) {
+      const debt = Math.abs(balanceMinor);
+      return -Math.round((debt * p) / 100);
+    }
+    if (balanceMinor > 0) {
+      return Math.round((balanceMinor * p) / 100);
+    }
+    return 0;
+  }
+
+  if (balanceMinor <= 0) return 0;
   return Math.round((balanceMinor * p) / 100);
 }
 
@@ -320,7 +350,8 @@ async function monthlyPassiveIncomeMinor(userId: string): Promise<number> {
   for (const a of accounts) {
     if (!accountUsesInterestRate(a)) continue;
     const b = bal.get(a.id) ?? 0;
-    depMonth += interestIncomeMonthMinor(b, a.annualInterestPercent);
+    const inc = interestIncomeMonthMinor(b, a.annualInterestPercent, a.type);
+    if (inc > 0) depMonth += inc;
   }
   const hasFlow = totalAnnualMinor > 0 && invValueMinor > 0;
   const couponMonth = hasFlow ? Math.round(totalAnnualMinor / 12) : 0;
@@ -378,13 +409,13 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         const balanceMinor = bal.get(a.id) ?? 0;
         const useInt = accountUsesInterestRate(a);
         const month = useInt
-          ? interestIncomeMonthMinor(balanceMinor, a.annualInterestPercent)
+          ? interestIncomeMonthMinor(balanceMinor, a.annualInterestPercent, a.type)
           : 0;
         const year = useInt
-          ? interestIncomeYearMinor(balanceMinor, a.annualInterestPercent)
+          ? interestIncomeYearMinor(balanceMinor, a.annualInterestPercent, a.type)
           : 0;
         const day =
-          useInt && year > 0 ? Math.max(0, Math.round(year / 365)) : 0;
+          useInt && year !== 0 ? Math.round(year / 365) : 0;
         return {
           ...a,
           balanceMinor,
@@ -782,13 +813,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         const incMonth = interestIncomeMonthMinor(
           balanceMinor,
           a.annualInterestPercent,
+          a.type,
         );
         const incYear = interestIncomeYearMinor(
           balanceMinor,
           a.annualInterestPercent,
+          a.type,
         );
-        const incDay =
-          incYear > 0 ? Math.max(0, Math.round(incYear / 365)) : 0;
+        const incDay = incYear !== 0 ? Math.round(incYear / 365) : 0;
         return {
           id: a.id,
           name: a.name,
@@ -804,7 +836,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
 
     let depositSavingsIncomeMonthMinor = 0;
     for (const ds of depositSavingsAccounts) {
-      depositSavingsIncomeMonthMinor += ds.interestIncomeMonthMinor;
+      depositSavingsIncomeMonthMinor += Math.max(0, ds.interestIncomeMonthMinor);
     }
 
     const hasFlow = totalAnnualMinor > 0 && total > 0;

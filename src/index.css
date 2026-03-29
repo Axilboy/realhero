@@ -1916,6 +1916,10 @@ button.finance-acc-row__card:focus-visible {
   gap: 0.45rem;
 }
 
+.finance-motivation__card--single {
+  margin: 0;
+}
+
 @media (min-width: 420px) {
   .finance-motivation__cards {
     grid-template-columns: repeat(3, 1fr);

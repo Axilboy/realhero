@@ -722,11 +722,23 @@ export default function FinanceModule() {
   const shellTab = useShellTabIndex();
   const [tab, setTab] = useState<TabKey>(0);
   const [bump, setBump] = useState(0);
+  const [mainMotShuffle, setMainMotShuffle] = useState(0);
+  const [invMotShuffle, setInvMotShuffle] = useState(0);
   const [mainSettingsOpen, setMainSettingsOpen] = useState(false);
   const [cardYieldDisplay, setCardYieldDisplay] =
     useState<FinanceCardYieldDisplay>(DEFAULT_CARD_YIELD);
   const refreshAll = useCallback(() => setBump((x) => x + 1), []);
   const financeScreenActive = shellTab === SHELL_TAB_FINANCE;
+
+  useEffect(() => {
+    if (!financeScreenActive) return;
+    if (tab === 0) setMainMotShuffle((x) => x + 1);
+  }, [financeScreenActive, tab]);
+
+  useEffect(() => {
+    if (!financeScreenActive) return;
+    if (tab === 1) setInvMotShuffle((x) => x + 1);
+  }, [financeScreenActive, tab]);
 
   return (
     <div className="finance-mod">
@@ -754,6 +766,7 @@ export default function FinanceModule() {
           <div className="finance-mod__panel">
             <FinanceMainPanel
               bump={bump}
+              motivationShuffleKey={bump * 100_000 + mainMotShuffle}
               onRefresh={refreshAll}
               settingsOpen={mainSettingsOpen}
               onSettingsOpenChange={setMainSettingsOpen}
@@ -765,6 +778,7 @@ export default function FinanceModule() {
           <div className="finance-mod__panel">
             <FinanceInvestPanel
               bump={bump}
+              motivationShuffleKey={bump * 100_000 + invMotShuffle}
               investActive={tab === 1}
               onPortfolioChange={refreshAll}
               cardYieldDisplay={cardYieldDisplay}
@@ -829,6 +843,7 @@ function minorToEditableRubStr(minor: number): string {
 
 function FinanceMainPanel({
   bump,
+  motivationShuffleKey,
   onRefresh,
   settingsOpen,
   onSettingsOpenChange,
@@ -837,6 +852,7 @@ function FinanceMainPanel({
   setCardYieldDisplay,
 }: {
   bump: number;
+  motivationShuffleKey: number;
   onRefresh: () => void;
   settingsOpen: boolean;
   onSettingsOpenChange: (open: boolean) => void;
@@ -1804,7 +1820,10 @@ function FinanceMainPanel({
             </div>
           ) : null}
           {monthlyPassiveMinor > 0 ? (
-            <FinanceMotivationStrip monthlyPassiveMinor={monthlyPassiveMinor} />
+            <FinanceMotivationStrip
+              monthlyPassiveMinor={monthlyPassiveMinor}
+              shuffleKey={motivationShuffleKey}
+            />
           ) : null}
           {budgetSummary?.hasBudgets ? (
             <div
@@ -2966,11 +2985,13 @@ function FinanceMainPanel({
 
 function FinanceInvestPanel({
   bump,
+  motivationShuffleKey,
   investActive,
   onPortfolioChange,
   cardYieldDisplay,
 }: {
   bump: number;
+  motivationShuffleKey: number;
   investActive: boolean;
   onPortfolioChange: () => void;
   cardYieldDisplay: FinanceCardYieldDisplay;
@@ -3172,6 +3193,7 @@ function FinanceInvestPanel({
                   data.metrics.depositSavingsIncomeMonthMinor +
                   (data.metrics.couponDividendMonthMinor ?? 0)
                 }
+                shuffleKey={motivationShuffleKey}
               />
             ) : null}
             <div

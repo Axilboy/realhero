@@ -1,6 +1,6 @@
 # Real Hero — API
 
-Бэкенд приложения **Real Hero**: аутентификация по **email + паролю** (без подтверждения почты), персональный **финансовый** модуль (счета, операции, инвестиции, котировки).
+Бэкенд приложения **Real Hero**: аутентификация по **email + паролю** (без подтверждения почты), персональный **финансовый** модуль (счета, операции, инвестиции, бюджет, котировки) и модуль **«Тело»** (замеры, питание, тренировки).
 
 ## Локально
 
@@ -17,7 +17,7 @@ npm run dev
 
 ## Эндпоинты
 
-Префикс бизнес-логики финансов: **`/api/v1/finance/`** (ниже пути относительно этого префикса, если не указано иное).
+Префиксы API: **`/api/v1/finance/`**, **`/api/v1/body/`** (ниже пути относительно этого префикса, если не указано иное).
 
 ### Система и авторизация
 
@@ -51,8 +51,11 @@ npm run dev
 | DELETE | `/transactions/:id` | Удаление |
 | GET | `/summary` | Сводка за **календарный** месяц `?month=YYYY-MM` |
 | GET | `/summary/by-category` | Расходы/доходы по категориям за календарный месяц |
-| GET | `/settings` | `financeReportingDay` (1–28), `financeReportingGranularity`: `DAY` \| `WEEK` \| `MONTH` \| `YEAR` \| `CUSTOM` |
-| PATCH | `/settings` | Тело: `financeReportingDay` и/или `financeReportingGranularity` |
+| GET | `/settings` | Отчётность: `financeReportingDay` (1–28), `financeReportingGranularity`: `DAY` \| `WEEK` \| `MONTH` \| `YEAR` \| `CUSTOM`, опционально `financeReportingCustomFrom` / `financeReportingCustomTo` (YYYY-MM-DD); флаги доходности на карточках счёта: `financeCardShowYieldDay` … `financeCardShowYieldYear` |
+| PATCH | `/settings` | То же поля, что отдаёт GET (частичное обновление) |
+| GET | `/budget` | Лимиты по категориям за календарный месяц `?month=YYYY-MM`; факт расходов по категориям |
+| GET | `/budget/summary` | Сводка по бюджету за месяц (для главного экрана) |
+| PUT | `/budget` | Тело: `{ "month": "YYYY-MM", "limits": [ { "categoryId", "limitMinor" } ] }` — сохранить лимиты на месяц |
 | GET | `/summary/reporting` | Сводка за окно отчётности по настройке; опционально `?from=YYYY-MM-DD&to=YYYY-MM-DD` (свой диапазон, UTC-дни) |
 | GET | `/analytics/reporting-forecast` | Прогноз к концу периода; те же query `from`/`to`, что и у `summary/reporting` |
 | GET | `/investments/overview` | Портфель, метрики, **`allocation`** (структура счётов и инвестиций). **`?refresh=1`** — обновить цены по сохранённым котировкам |
@@ -64,6 +67,39 @@ npm run dev
 | DELETE | `/investments/holdings/:id` | Удаление позиции |
 
 Внешние API (MOEX, CoinGecko) могут лимитировать частоту запросов; на сервере кеш ~45 с.
+
+### Тело (нужна сессия)
+
+Все маршруты ниже — **`/api/v1/body/...`**. В БД масса и длина замеров хранятся в **кг и см**; единицы отображения задаются в настройках пользователя.
+
+| Метод | Путь | Описание |
+|--------|------|-----------|
+| GET | `/settings` | Единицы: `bodyMassUnit` (KG \| LB), `bodyLengthUnit` (CM \| IN); цели: `bodyKcalGoal`, `bodyProteinGoalG`, `bodyFatGoalG`, `bodyCarbGoalG` |
+| PATCH | `/settings` | Частичное обновление полей из GET |
+| GET | `/measurements` | Список замеров |
+| POST | `/measurements` | Новая запись (дата YYYY-MM-DD, вес/рост/% жира/обхваты в кг и см) |
+| PATCH | `/measurements/:id` | Правка |
+| DELETE | `/measurements/:id` | Удаление |
+| GET | `/nutrition/day/:date` | Питание за день `date` (YYYY-MM-DD) |
+| POST | `/nutrition/entries` | Строка питания (приём пищи, блюдо, ккал, БЖУ) |
+| PATCH | `/nutrition/entries/:id` | Правка |
+| DELETE | `/nutrition/entries/:id` | Удаление |
+| GET | `/programs` | Список программ тренировок |
+| POST | `/programs` | Новая программа |
+| GET | `/programs/:id` | Программа с днями и упражнениями |
+| PATCH | `/programs/:id` | Правка программы |
+| DELETE | `/programs/:id` | Удаление |
+| POST | `/programs/:id/days` | Добавить день в цикле |
+| PATCH | `/training-days/:id` | Правка дня |
+| DELETE | `/training-days/:id` | Удаление дня |
+| POST | `/training-days/:id/exercises` | Упражнение в дне |
+| PATCH | `/training-exercises/:id` | Правка упражнения |
+| DELETE | `/training-exercises/:id` | Удаление упражнения |
+| GET | `/workouts` | Журнал тренировок |
+| POST | `/workouts` | Начать запись тренировки |
+| PATCH | `/workouts/:id` | Правка журнала |
+| POST | `/workouts/:id/lines` | Строка результата (`resultJson` и пр.) |
+| GET | `/workouts/:id` | Одна тренировка с линиями |
 
 ## Продакшен
 

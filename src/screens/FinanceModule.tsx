@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import InvestQuotePicker from "../components/InvestQuotePicker";
+import FinanceMotivationStrip from "../components/finance/FinanceMotivationStrip";
 import AddTransactionPrototype from "../components/finance/AddTransactionPrototype";
 import CategoryTreePanel from "../components/finance/CategoryTreePanel";
 import { useShellTabIndex } from "../context/ShellTabContext";
@@ -1802,6 +1803,9 @@ function FinanceMainPanel({
               <strong>{formatRubFromMinor(monthlyPassiveMinor)}</strong>
             </div>
           ) : null}
+          {monthlyPassiveMinor > 0 ? (
+            <FinanceMotivationStrip monthlyPassiveMinor={monthlyPassiveMinor} />
+          ) : null}
           {budgetSummary?.hasBudgets ? (
             <div
               className={
@@ -3160,6 +3164,16 @@ function FinanceInvestPanel({
               })) as AccountRow[]}
               title="Вклады, накопительные и счета с %"
             />
+            {data.metrics.depositSavingsIncomeMonthMinor +
+              (data.metrics.couponDividendMonthMinor ?? 0) >
+            0 ? (
+              <FinanceMotivationStrip
+                monthlyPassiveMinor={
+                  data.metrics.depositSavingsIncomeMonthMinor +
+                  (data.metrics.couponDividendMonthMinor ?? 0)
+                }
+              />
+            ) : null}
             <div
               className="finance-inv__alloc"
               aria-label="Доли портфеля без карт и кредитов"

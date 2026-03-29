@@ -1603,6 +1603,80 @@ button.finance-acc-row__card:focus-visible {
   color: #f28b82;
 }
 
+.finance-motivation {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0 0.35rem;
+  border-top: 1px solid #2a3448;
+}
+
+.finance-inv .finance-motivation {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #2a3448;
+}
+
+.finance-motivation__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7c8088;
+}
+
+.finance-motivation__hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: #6d727b;
+}
+
+.finance-motivation__block {
+  margin-bottom: 0.65rem;
+}
+
+.finance-motivation__block:last-child {
+  margin-bottom: 0;
+}
+
+.finance-motivation__sub {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #81c995;
+  letter-spacing: 0.03em;
+}
+
+.finance-motivation__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+}
+
+@media (min-width: 420px) {
+  .finance-motivation__cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.finance-motivation__card {
+  margin: 0;
+  padding: 0.55rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid rgba(129, 201, 149, 0.35);
+  background: linear-gradient(
+    155deg,
+    rgba(46, 74, 60, 0.35) 0%,
+    rgba(20, 23, 28, 0.95) 100%
+  );
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #c8e6c9;
+}
+
 .finance-main__budget-strip {
   margin-top: 0.35rem;
   padding: 0.45rem 0.55rem;

@@ -1789,6 +1789,14 @@ function FinanceMainPanel({
         </section>
       ) : null}
 
+      {!pending && monthlyPassiveMinor > 0 ? (
+        <FinanceMotivationStrip
+          monthlyPassiveMinor={monthlyPassiveMinor}
+          shuffleKey={motivationShuffleKey}
+          layout="carousel"
+        />
+      ) : null}
+
       {!pending ? (
         <section
           className="finance-main__detail-block"
@@ -1818,12 +1826,6 @@ function FinanceMainPanel({
               <span>Оценка пассивного потока (~в месяц)</span>
               <strong>{formatRubFromMinor(monthlyPassiveMinor)}</strong>
             </div>
-          ) : null}
-          {monthlyPassiveMinor > 0 ? (
-            <FinanceMotivationStrip
-              monthlyPassiveMinor={monthlyPassiveMinor}
-              shuffleKey={motivationShuffleKey}
-            />
           ) : null}
           {budgetSummary?.hasBudgets ? (
             <div

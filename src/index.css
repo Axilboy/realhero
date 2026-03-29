@@ -1869,6 +1869,58 @@ button.finance-acc-row__card:focus-visible {
   border-top: 1px solid #2a3448;
 }
 
+/* Карусель день/неделя/мес на главной — между плитками отчёта и блоком «На счетах» */
+.finance-motivation--main-slot {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0 0.35rem;
+  border-top: none;
+}
+
+.finance-motivation__carousel-bleed {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.finance-motivation__carousel-shell--overlay {
+  display: block;
+  position: relative;
+}
+
+.finance-motivation__carousel-shell--overlay .finance-motivation__scroller {
+  width: 100%;
+  min-width: 0;
+}
+
+.finance-motivation__scroller {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.finance-motivation__slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 2.15rem;
+}
+
+@media (min-width: 420px) {
+  .finance-motivation__slide {
+    padding: 0 2.35rem;
+  }
+}
+
+.finance-motivation__slide .finance-motivation__sub {
+  margin-top: 0;
+}
+
 .finance-inv .finance-motivation {
   margin-top: 0.85rem;
   padding-top: 0.75rem;

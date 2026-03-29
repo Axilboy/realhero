@@ -43,6 +43,8 @@ export type AccountRow = {
   interestIncomeYearMinor: number;
   /** Оценка дохода по ставке за день (год/365), коп. */
   interestIncomeDayMinor: number;
+  /** Оценка за неделю (год/52), коп. */
+  interestIncomeWeekMinor: number;
 };
 
 export type TransactionAccount = {
@@ -116,6 +118,7 @@ export type DepositSavingsAccountRow = {
   annualInterestPercent: number | null;
   interestIncomeMonthMinor: number;
   interestIncomeYearMinor: number;
+  interestIncomeWeekMinor: number;
   interestIncomeDayMinor: number;
 };
 
@@ -256,12 +259,24 @@ export type FinanceReportingGranularity =
   | "YEAR"
   | "CUSTOM";
 
+/** Какие строки доходности (%%) показывать на карточке счёта. */
+export type FinanceCardYieldDisplay = {
+  day: boolean;
+  week: boolean;
+  month: boolean;
+  year: boolean;
+};
+
 export async function fetchFinanceSettings() {
   return json<{
     financeReportingDay: number;
     financeReportingGranularity: FinanceReportingGranularity;
     financeReportingCustomFrom: string | null;
     financeReportingCustomTo: string | null;
+    financeCardShowYieldDay: boolean;
+    financeCardShowYieldWeek: boolean;
+    financeCardShowYieldMonth: boolean;
+    financeCardShowYieldYear: boolean;
   }>("/api/v1/finance/settings");
 }
 
@@ -270,12 +285,20 @@ export async function patchFinanceSettings(body: {
   financeReportingGranularity?: FinanceReportingGranularity;
   financeReportingCustomFrom?: string | null;
   financeReportingCustomTo?: string | null;
+  financeCardShowYieldDay?: boolean;
+  financeCardShowYieldWeek?: boolean;
+  financeCardShowYieldMonth?: boolean;
+  financeCardShowYieldYear?: boolean;
 }) {
   return json<{
     financeReportingDay: number;
     financeReportingGranularity: FinanceReportingGranularity;
     financeReportingCustomFrom: string | null;
     financeReportingCustomTo: string | null;
+    financeCardShowYieldDay: boolean;
+    financeCardShowYieldWeek: boolean;
+    financeCardShowYieldMonth: boolean;
+    financeCardShowYieldYear: boolean;
   }>("/api/v1/finance/settings", {
     method: "PATCH",
     body: JSON.stringify(body),

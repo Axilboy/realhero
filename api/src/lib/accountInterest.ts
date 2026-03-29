@@ -74,6 +74,17 @@ export function interestIncomeYearMinor(
   return Math.round((balanceMinor * p) / 100);
 }
 
+/** Оценка за календарную неделю: годовой поток / 52, коп. (знак как у года). */
+export function interestIncomeWeekMinor(
+  balanceMinor: number,
+  annualPercent: number | null | undefined,
+  accountType: AccountType,
+): number {
+  const y = interestIncomeYearMinor(balanceMinor, annualPercent, accountType);
+  if (y === 0) return 0;
+  return Math.round(y / 52);
+}
+
 /** Одна календарная ночь Europe/London: годовой поток / 365, коп. (знак как у года). */
 export function dailyInterestAccrualMinor(
   balanceMinor: number,

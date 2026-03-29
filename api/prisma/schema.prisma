@@ -57,6 +57,11 @@ model User {
   financeReportingCustomFrom String?
   /// При гранулярности CUSTOM: конец диапазона YYYY-MM-DD включительно.
   financeReportingCustomTo   String?
+  /// Что показывать в карточке счёта: оценка дохода/расхода по %% за период.
+  financeCardShowYieldDay   Boolean @default(true)
+  financeCardShowYieldWeek  Boolean @default(true)
+  financeCardShowYieldMonth Boolean @default(true)
+  financeCardShowYieldYear  Boolean @default(true)
   createdAt    DateTime             @default(now())
   categories   Category[]
   transactions Transaction[]

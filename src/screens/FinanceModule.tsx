@@ -4,8 +4,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type FormEvent,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
 import InvestQuotePicker from "../components/InvestQuotePicker";
@@ -51,6 +53,7 @@ import {
   type Category,
   type CreateCategoryPayload,
   type DepositSavingsAccountRow,
+  type FinanceCardYieldDisplay,
   type FinanceReportingGranularity,
   type InvestmentAssetKind,
   type InvestmentHoldingRow,
@@ -270,6 +273,101 @@ function accountDebtInterestExpense(a: AccountCardLike): boolean {
   );
 }
 
+const DEFAULT_CARD_YIELD: FinanceCardYieldDisplay = {
+  day: true,
+  week: true,
+  month: true,
+  year: true,
+};
+
+/** Зелёные/красные строки доходности %% на карточке счёта (день → неделя → месяц → год). */
+function accountCardYieldLine(
+  a: AccountRow,
+  debt: boolean,
+  display: FinanceCardYieldDisplay,
+): ReactNode | null {
+  const parts: string[] = [];
+  if (display.day) {
+    parts.push(
+      debt
+        ? `${formatRubFromMinor(a.interestIncomeDayMinor)}/день`
+        : `~${formatRubFromMinor(a.interestIncomeDayMinor)}/день`,
+    );
+  }
+  if (display.week) {
+    parts.push(
+      debt
+        ? `${formatRubFromMinor(a.interestIncomeWeekMinor)}/нед`
+        : `~ ${formatRubFromMinor(a.interestIncomeWeekMinor)}/нед`,
+    );
+  }
+  if (display.month) {
+    parts.push(
+      debt
+        ? `расход ${formatRubFromMinor(a.interestIncomeMonthMinor)}/мес`
+        : `~ ${formatRubFromMinor(a.interestIncomeMonthMinor)}/мес`,
+    );
+  }
+  if (display.year) {
+    parts.push(
+      debt
+        ? `${formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год`
+        : `~ ${formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год`,
+    );
+  }
+  if (parts.length === 0) return null;
+  return (
+    <div
+      className={
+        debt
+          ? "finance-acc-row__inc finance-acc-row__inc--debt"
+          : "finance-acc-row__inc"
+      }
+    >
+      {parts.join(" · ")}
+    </div>
+  );
+}
+
+/** Текст оценки %% в деталях счёта. */
+function accountDetailYieldClause(
+  a: AccountRow,
+  debt: boolean,
+  display: FinanceCardYieldDisplay,
+): string | null {
+  const parts: string[] = [];
+  if (display.day) {
+    parts.push(
+      debt
+        ? `${formatRubFromMinor(a.interestIncomeDayMinor)}/день`
+        : `~${formatRubFromMinor(a.interestIncomeDayMinor)}/день`,
+    );
+  }
+  if (display.week) {
+    parts.push(
+      debt
+        ? `${formatRubFromMinor(a.interestIncomeWeekMinor)}/нед`
+        : `~ ${formatRubFromMinor(a.interestIncomeWeekMinor)}/нед`,
+    );
+  }
+  if (display.month) {
+    parts.push(
+      debt
+        ? `расход ${formatRubFromMinor(a.interestIncomeMonthMinor)}/мес`
+        : `~ ${formatRubFromMinor(a.interestIncomeMonthMinor)}/мес`,
+    );
+  }
+  if (display.year) {
+    parts.push(
+      debt
+        ? `${formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год`
+        : `~ ${formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год`,
+    );
+  }
+  if (parts.length === 0) return null;
+  return parts.join(", ");
+}
+
 /** Счета: карусель (узкие карточки или слайды на всю ширину), либо список `stack`. */
 function FinanceAccountsRow({
   accounts,
@@ -278,6 +376,7 @@ function FinanceAccountsRow({
   onAddAccount,
   variant = "carousel",
   carouselFullWidth = false,
+  cardYieldDisplay = DEFAULT_CARD_YIELD,
 }: {
   accounts: AccountRow[];
   title: string;
@@ -286,6 +385,7 @@ function FinanceAccountsRow({
   variant?: "carousel" | "stack";
   /** Одна карточка на ширину ленты (главная «Финансы»), с прокруткой влево–вправо */
   carouselFullWidth?: boolean;
+  cardYieldDisplay?: FinanceCardYieldDisplay;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sorted = [...accounts].sort((a, b) =>
@@ -382,28 +482,9 @@ function FinanceAccountsRow({
                 Ставка не задана
               </div>
             )}
-            {accountDebtInterestExpense(a) ? (
-              <div className="finance-acc-row__inc finance-acc-row__inc--debt">
-                расход {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес
-                {a.interestIncomeDayMinor !== 0 ? (
-                  <>
-                    {" "}
-                    · {formatRubFromMinor(a.interestIncomeDayMinor)}/день
-                  </>
-                ) : null}
-              </div>
-            ) : (
-              <div className="finance-acc-row__inc">
-                ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
-                {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
-                {a.interestIncomeDayMinor !== 0 ? (
-                  <>
-                    {" "}
-                    · ~{formatRubFromMinor(a.interestIncomeDayMinor)}/день
-                  </>
-                ) : null}
-              </div>
-            )}
+            {accountDebtInterestExpense(a)
+              ? accountCardYieldLine(a, true, cardYieldDisplay)
+              : accountCardYieldLine(a, false, cardYieldDisplay)}
           </>
         ) : null}
       </>
@@ -638,6 +719,8 @@ export default function FinanceModule() {
   const [tab, setTab] = useState<TabKey>(0);
   const [bump, setBump] = useState(0);
   const [mainSettingsOpen, setMainSettingsOpen] = useState(false);
+  const [cardYieldDisplay, setCardYieldDisplay] =
+    useState<FinanceCardYieldDisplay>(DEFAULT_CARD_YIELD);
   const refreshAll = useCallback(() => setBump((x) => x + 1), []);
   const financeScreenActive = shellTab === SHELL_TAB_FINANCE;
 
@@ -671,6 +754,8 @@ export default function FinanceModule() {
               settingsOpen={mainSettingsOpen}
               onSettingsOpenChange={setMainSettingsOpen}
               fabVisible={financeScreenActive && tab === 0}
+              cardYieldDisplay={cardYieldDisplay}
+              setCardYieldDisplay={setCardYieldDisplay}
             />
           </div>
           <div className="finance-mod__panel">
@@ -678,6 +763,7 @@ export default function FinanceModule() {
               bump={bump}
               investActive={tab === 1}
               onPortfolioChange={refreshAll}
+              cardYieldDisplay={cardYieldDisplay}
             />
           </div>
           <div className="finance-mod__panel">
@@ -743,12 +829,16 @@ function FinanceMainPanel({
   settingsOpen,
   onSettingsOpenChange,
   fabVisible,
+  cardYieldDisplay,
+  setCardYieldDisplay,
 }: {
   bump: number;
   onRefresh: () => void;
   settingsOpen: boolean;
   onSettingsOpenChange: (open: boolean) => void;
   fabVisible: boolean;
+  cardYieldDisplay: FinanceCardYieldDisplay;
+  setCardYieldDisplay: Dispatch<SetStateAction<FinanceCardYieldDisplay>>;
 }) {
   const [reporting, setReporting] = useState<{
     financeReportingDay: number;
@@ -784,6 +874,8 @@ function FinanceMainPanel({
     }
   });
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [cardYieldDraft, setCardYieldDraft] =
+    useState<FinanceCardYieldDisplay>(DEFAULT_CARD_YIELD);
   const [orderBusy, setOrderBusy] = useState(false);
   const [delModalAcc, setDelModalAcc] = useState<AccountRow | null>(null);
   const [delTargetId, setDelTargetId] = useState("");
@@ -870,6 +962,12 @@ function FinanceMainPanel({
       }
       setGranularityDraft(st.data.financeReportingGranularity);
       setReportingDayDraft(String(st.data.financeReportingDay));
+      setCardYieldDisplay({
+        day: st.data.financeCardShowYieldDay,
+        week: st.data.financeCardShowYieldWeek,
+        month: st.data.financeCardShowYieldMonth,
+        year: st.data.financeCardShowYieldYear,
+      });
       if (st.data.financeReportingGranularity === "CUSTOM") {
         let f = "";
         let t = "";
@@ -960,11 +1058,16 @@ function FinanceMainPanel({
     }
 
     if (errs.length) setLoadError(errs[0]);
-  }, []);
+  }, [setCardYieldDisplay]);
 
   useEffect(() => {
     void refresh();
   }, [refresh, bump]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    setCardYieldDraft(cardYieldDisplay);
+  }, [settingsOpen, cardYieldDisplay]);
 
   useEffect(() => {
     if (!catModal) return;
@@ -1357,6 +1460,10 @@ function FinanceMainPanel({
             financeReportingCustomFrom: null,
             financeReportingCustomTo: null,
           }),
+      financeCardShowYieldDay: cardYieldDraft.day,
+      financeCardShowYieldWeek: cardYieldDraft.week,
+      financeCardShowYieldMonth: cardYieldDraft.month,
+      financeCardShowYieldYear: cardYieldDraft.year,
     });
     setSettingsBusy(false);
     if (!r.ok) {
@@ -1583,6 +1690,7 @@ function FinanceMainPanel({
           carouselFullWidth
           accounts={accounts}
           title="Счета"
+          cardYieldDisplay={cardYieldDisplay}
           onOpenAccount={openAccountDetail}
           onAddAccount={() => {
             setAccError(null);
@@ -1878,12 +1986,77 @@ function FinanceMainPanel({
                         </label>
                       </div>
                     ) : null}
+                    <h3 className="finance__h3 finance-main__settings-h3">
+                      Доходность на карточках
+                    </h3>
+                    <p className="screen__text finance-main__yield-card-hint">
+                      Оценки по %% для активов и пассивов (зелёные и красные
+                      суммы):
+                    </p>
+                    <div
+                      className="finance-main__yield-card-checks"
+                      role="group"
+                      aria-label="Периоды доходности"
+                    >
+                      <label className="finance__check">
+                        <input
+                          type="checkbox"
+                          checked={cardYieldDraft.day}
+                          onChange={(e) =>
+                            setCardYieldDraft((d) => ({
+                              ...d,
+                              day: e.target.checked,
+                            }))
+                          }
+                        />
+                        За день
+                      </label>
+                      <label className="finance__check">
+                        <input
+                          type="checkbox"
+                          checked={cardYieldDraft.week}
+                          onChange={(e) =>
+                            setCardYieldDraft((d) => ({
+                              ...d,
+                              week: e.target.checked,
+                            }))
+                          }
+                        />
+                        За неделю
+                      </label>
+                      <label className="finance__check">
+                        <input
+                          type="checkbox"
+                          checked={cardYieldDraft.month}
+                          onChange={(e) =>
+                            setCardYieldDraft((d) => ({
+                              ...d,
+                              month: e.target.checked,
+                            }))
+                          }
+                        />
+                        За месяц
+                      </label>
+                      <label className="finance__check">
+                        <input
+                          type="checkbox"
+                          checked={cardYieldDraft.year}
+                          onChange={(e) =>
+                            setCardYieldDraft((d) => ({
+                              ...d,
+                              year: e.target.checked,
+                            }))
+                          }
+                        />
+                        За год
+                      </label>
+                    </div>
                     <button
                       type="submit"
                       className="finance__submit"
                       disabled={settingsBusy}
                     >
-                      {settingsBusy ? "…" : "Сохранить отчётность"}
+                      {settingsBusy ? "…" : "Сохранить настройки"}
                     </button>
                   </form>
                   <h3 className="finance__h3 finance-main__settings-h3">
@@ -2400,19 +2573,19 @@ function FinanceMainPanel({
                           {selectedAccount.annualInterestPercent != null
                             ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
                             : "не задана"}
-                          {" · "}
-                          оценка расхода на проценты{" "}
-                          {formatRubFromMinor(
-                            selectedAccount.interestIncomeMonthMinor,
-                          )}
-                          /мес
-                          {selectedAccount.interestIncomeDayMinor !== 0 ? (
+                          {accountDetailYieldClause(
+                            selectedAccount,
+                            true,
+                            cardYieldDisplay,
+                          ) ? (
                             <>
-                              ,{" "}
-                              {formatRubFromMinor(
-                                selectedAccount.interestIncomeDayMinor,
+                              {" · "}
+                              оценка расхода на проценты{" "}
+                              {accountDetailYieldClause(
+                                selectedAccount,
+                                true,
+                                cardYieldDisplay,
                               )}
-                              /день
                             </>
                           ) : null}
                         </p>
@@ -2425,20 +2598,18 @@ function FinanceMainPanel({
                           {selectedAccount.annualInterestPercent != null
                             ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
                             : "не задана"}
-                          {" · "}
-                          ~{formatRubFromMinor(selectedAccount.interestIncomeMonthMinor)}
-                          /мес, ~
-                          {formatRubFromMinor(
-                            selectedAccount.interestIncomeYearMinor ?? 0,
-                          )}
-                          /год
-                          {selectedAccount.interestIncomeDayMinor !== 0 ? (
+                          {accountDetailYieldClause(
+                            selectedAccount,
+                            false,
+                            cardYieldDisplay,
+                          ) ? (
                             <>
-                              , ~
-                              {formatRubFromMinor(
-                                selectedAccount.interestIncomeDayMinor,
+                              {" · "}
+                              {accountDetailYieldClause(
+                                selectedAccount,
+                                false,
+                                cardYieldDisplay,
                               )}
-                              /день
                             </>
                           ) : null}
                         </p>
@@ -2785,10 +2956,12 @@ function FinanceInvestPanel({
   bump,
   investActive,
   onPortfolioChange,
+  cardYieldDisplay,
 }: {
   bump: number;
   investActive: boolean;
   onPortfolioChange: () => void;
+  cardYieldDisplay: FinanceCardYieldDisplay;
 }) {
   const [data, setData] = useState<{
     totalValueMinor: number;
@@ -2971,6 +3144,8 @@ function FinanceInvestPanel({
               {formatRubFromMinor(data.totalValueMinor)}
             </span>
             <FinanceAccountsRow
+              carouselFullWidth
+              cardYieldDisplay={cardYieldDisplay}
               accounts={data.depositSavingsAccounts.map((d, i) => ({
                 ...d,
                 sortOrder: i,

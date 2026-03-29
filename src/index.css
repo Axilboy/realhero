@@ -1120,6 +1120,20 @@ body {
   line-height: 1.35;
 }
 
+.finance-main__yield-card-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  color: #7c8088;
+  line-height: 1.35;
+}
+
+.finance-main__yield-card-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+  margin-bottom: 0.35rem;
+}
+
 .finance-main__acc-order {
   list-style: none;
   margin: 0;
@@ -1200,15 +1214,23 @@ body {
   min-width: 0;
   box-sizing: border-box;
   min-height: 0;
-  padding: 0.45rem 0.65rem;
+  /* боковые отступы под круглые кнопки навигации (~2rem + inset) */
+  padding: 0.5rem 2.85rem;
+  text-align: center;
+  align-items: center;
   scroll-snap-align: start;
   scroll-snap-stop: always;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__card:not(.finance-acc-row__card--add) {
+  justify-content: center;
 }
 
 .finance-acc-row-wrap--slides-full .finance-acc-row__card--add {
   flex: 0 0 100%;
   width: 100%;
   min-height: 5.25rem;
+  justify-content: center;
 }
 
 .finance-acc-row-wrap--slides-full .finance-acc-row__type {
@@ -1342,15 +1364,6 @@ button.finance-main__recent-tx-btn:focus-visible {
   min-width: 0;
 }
 
-.finance-acc-row__scroll--hide-scrollbar {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.finance-acc-row__scroll--hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
 .finance-acc-row__nav {
   flex: 0 0 auto;
   align-self: center;
@@ -1447,6 +1460,18 @@ button.finance-main__recent-tx-btn:focus-visible {
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+}
+
+/* После базового .finance-acc-row__scroll — иначе thin перебивает none */
+.finance-acc-row__scroll.finance-acc-row__scroll--hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.finance-acc-row__scroll.finance-acc-row__scroll--hide-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .finance-acc-row__card {
@@ -2354,9 +2379,15 @@ button.finance-dep-carousel__card:focus-visible {
   color: #8ab4ff;
 }
 
+/* Карусель счетов на всю ширину контента вкладки (как на «Финансы»), без внутренних полей героя */
 .finance-inv__hero .finance-acc-row-wrap {
   margin-top: 0.65rem;
   margin-bottom: 0;
+  margin-left: -1.1rem;
+  margin-right: -1.1rem;
+  width: calc(100% + 2.2rem);
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .finance-inv__alloc {

@@ -32,6 +32,7 @@ import { accountBalancesMap } from "../lib/accountBalances.js";
 import {
   accountUsesInterestRate,
   interestIncomeMonthMinor,
+  interestIncomeWeekMinor,
   interestIncomeYearMinor,
 } from "../lib/accountInterest.js";
 import { applyDailyInterestAccruals } from "../lib/dailyInterestAccrual.js";
@@ -328,11 +329,19 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           : 0;
         const day =
           useInt && year !== 0 ? Math.round(year / 365) : 0;
+        const week = useInt
+          ? interestIncomeWeekMinor(
+              balanceMinor,
+              a.annualInterestPercent,
+              a.type,
+            )
+          : 0;
         return {
           ...a,
           balanceMinor,
           interestIncomeMonthMinor: month,
           interestIncomeYearMinor: year,
+          interestIncomeWeekMinor: week,
           interestIncomeDayMinor: day,
         };
       }),
@@ -735,6 +744,11 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           a.type,
         );
         const incDay = incYear !== 0 ? Math.round(incYear / 365) : 0;
+        const incWeek = interestIncomeWeekMinor(
+          balanceMinor,
+          a.annualInterestPercent,
+          a.type,
+        );
         return {
           id: a.id,
           name: a.name,
@@ -743,6 +757,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           annualInterestPercent: a.annualInterestPercent,
           interestIncomeMonthMinor: incMonth,
           interestIncomeYearMinor: incYear,
+          interestIncomeWeekMinor: incWeek,
           interestIncomeDayMinor: incDay,
         };
       });
@@ -2009,6 +2024,10 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         financeReportingGranularity: true,
         financeReportingCustomFrom: true,
         financeReportingCustomTo: true,
+        financeCardShowYieldDay: true,
+        financeCardShowYieldWeek: true,
+        financeCardShowYieldMonth: true,
+        financeCardShowYieldYear: true,
       },
     });
     return {
@@ -2017,6 +2036,10 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         u?.financeReportingGranularity ?? "MONTH",
       financeReportingCustomFrom: u?.financeReportingCustomFrom ?? null,
       financeReportingCustomTo: u?.financeReportingCustomTo ?? null,
+      financeCardShowYieldDay: u?.financeCardShowYieldDay ?? true,
+      financeCardShowYieldWeek: u?.financeCardShowYieldWeek ?? true,
+      financeCardShowYieldMonth: u?.financeCardShowYieldMonth ?? true,
+      financeCardShowYieldYear: u?.financeCardShowYieldYear ?? true,
     };
   });
 
@@ -2031,12 +2054,20 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       financeReportingGranularity?: string;
       financeReportingCustomFrom?: string | null;
       financeReportingCustomTo?: string | null;
+      financeCardShowYieldDay?: boolean;
+      financeCardShowYieldWeek?: boolean;
+      financeCardShowYieldMonth?: boolean;
+      financeCardShowYieldYear?: boolean;
     };
     const data: {
       financeReportingDay?: number;
       financeReportingGranularity?: FinanceReportingGranularity;
       financeReportingCustomFrom?: string | null;
       financeReportingCustomTo?: string | null;
+      financeCardShowYieldDay?: boolean;
+      financeCardShowYieldWeek?: boolean;
+      financeCardShowYieldMonth?: boolean;
+      financeCardShowYieldYear?: boolean;
     } = {};
     if (body.financeReportingDay !== undefined) {
       const raw = body.financeReportingDay;
@@ -2122,11 +2153,28 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       }
     }
 
+    const cardYieldKeys = [
+      "financeCardShowYieldDay",
+      "financeCardShowYieldWeek",
+      "financeCardShowYieldMonth",
+      "financeCardShowYieldYear",
+    ] as const;
+    for (const key of cardYieldKeys) {
+      if (body[key] !== undefined) {
+        if (typeof body[key] !== "boolean") {
+          return reply.status(400).send({
+            error: { message: `${key} — true или false` },
+          });
+        }
+        data[key] = body[key];
+      }
+    }
+
     if (Object.keys(data).length === 0) {
       return reply.status(400).send({
         error: {
           message:
-            "Укажите financeReportingDay и/или financeReportingGranularity и/или даты CUSTOM",
+            "Укажите поля отчётности и/или financeCardShowYield* (булевы)",
         },
       });
     }
@@ -2138,6 +2186,10 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         financeReportingGranularity: true,
         financeReportingCustomFrom: true,
         financeReportingCustomTo: true,
+        financeCardShowYieldDay: true,
+        financeCardShowYieldWeek: true,
+        financeCardShowYieldMonth: true,
+        financeCardShowYieldYear: true,
       },
     });
     return {
@@ -2146,6 +2198,10 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         u?.financeReportingGranularity ?? "MONTH",
       financeReportingCustomFrom: u?.financeReportingCustomFrom ?? null,
       financeReportingCustomTo: u?.financeReportingCustomTo ?? null,
+      financeCardShowYieldDay: u?.financeCardShowYieldDay ?? true,
+      financeCardShowYieldWeek: u?.financeCardShowYieldWeek ?? true,
+      financeCardShowYieldMonth: u?.financeCardShowYieldMonth ?? true,
+      financeCardShowYieldYear: u?.financeCardShowYieldYear ?? true,
     };
   });
 

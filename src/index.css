@@ -419,6 +419,16 @@ body {
   line-height: 1.3;
 }
 
+.finance__tile-sub--muted {
+  font-weight: 500;
+  color: #6d727b;
+}
+
+.finance__tx--transfer {
+  border-style: dashed;
+  border-color: #3d4a5c;
+}
+
 .finance__h2 {
   margin: 0 0 0.75rem;
   font-size: 1.05rem;

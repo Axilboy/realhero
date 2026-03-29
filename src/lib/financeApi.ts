@@ -49,6 +49,17 @@ export type TransactionRow = {
   account: TransactionAccount;
 };
 
+export type TransferRow = {
+  id: string;
+  amountMinor: number;
+  note: string | null;
+  occurredAt: string;
+  fromAccountId: string;
+  toAccountId: string;
+  fromAccount: { id: string; name: string; type: AccountType };
+  toAccount: { id: string; name: string; type: AccountType };
+};
+
 export type InvestmentHoldingRow = {
   id: string;
   name: string;
@@ -271,6 +282,8 @@ export async function fetchReportingSummary(opts?: {
     expenseMinor: number;
     /** Сумма исходящих переводов за период (не входит в balanceMinor). */
     transferOutMinor: number;
+    /** Расходы по категориям + переводы (отток денег за период). */
+    outflowMinor: number;
     balanceMinor: number;
   }>(`/api/v1/finance/summary/reporting${q ? `?${q}` : ""}`);
 }
@@ -511,6 +524,15 @@ export async function fetchTransactions(opts?: {
   const q = sp.toString();
   return json<{ transactions: TransactionRow[] }>(
     `/api/v1/finance/transactions${q ? `?${q}` : ""}`,
+  );
+}
+
+export async function fetchTransfers(opts?: { accountId?: string }) {
+  const sp = new URLSearchParams();
+  if (opts?.accountId) sp.set("accountId", opts.accountId);
+  const q = sp.toString();
+  return json<{ transfers: TransferRow[] }>(
+    `/api/v1/finance/transfers${q ? `?${q}` : ""}`,
   );
 }
 

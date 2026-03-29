@@ -30,6 +30,7 @@ import {
   fetchReportingSummary,
   fetchSummaryByCategory,
   fetchTransactions,
+  fetchTransfers,
   mergeAccountInto,
   patchAccount,
   patchFinanceSettings,
@@ -47,6 +48,7 @@ import {
   type ReportingForecast,
   type TransactionKind,
   type TransactionRow,
+  type TransferRow,
 } from "../lib/financeApi";
 import { currentMonthYm, formatRubFromMinor } from "../lib/money";
 
@@ -55,6 +57,32 @@ const TYPE_LABEL: Record<string, string> = {
   INCOME: "Доход",
   BOTH: "Оба",
 };
+
+type AccountDetailItem =
+  | { kind: "tx"; at: string; tx: TransactionRow }
+  | { kind: "transfer"; at: string; tr: TransferRow };
+
+function mergeAccountMovements(
+  transactions: TransactionRow[],
+  transfers: TransferRow[],
+): AccountDetailItem[] {
+  const items: AccountDetailItem[] = [
+    ...transactions.map((tx) => ({
+      kind: "tx" as const,
+      at: tx.occurredAt,
+      tx,
+    })),
+    ...transfers.map((tr) => ({
+      kind: "transfer" as const,
+      at: tr.occurredAt,
+      tr,
+    })),
+  ];
+  items.sort(
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
+  );
+  return items;
+}
 
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   CARD: "Карта",
@@ -355,6 +383,7 @@ function FinanceMainPanel({
     incomeMinor: number;
     expenseMinor: number;
     transferOutMinor: number;
+    outflowMinor: number;
     balanceMinor: number;
   } | null>(null);
   const [capAlloc, setCapAlloc] = useState<InvestAllocation | null>(null);
@@ -384,9 +413,9 @@ function FinanceMainPanel({
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
     null,
   );
-  const [accountDetailTx, setAccountDetailTx] = useState<TransactionRow[]>(
-    [],
-  );
+  const [accountDetailItems, setAccountDetailItems] = useState<
+    AccountDetailItem[]
+  >([]);
   const [accountDetailPending, setAccountDetailPending] = useState(false);
   const [accountEditOpen, setAccountEditOpen] = useState(false);
   const [editAccName, setEditAccName] = useState("");
@@ -494,6 +523,9 @@ function FinanceMainPanel({
         incomeMinor: rep.data.incomeMinor,
         expenseMinor: rep.data.expenseMinor,
         transferOutMinor: rep.data.transferOutMinor ?? 0,
+        outflowMinor:
+          rep.data.outflowMinor ??
+          rep.data.expenseMinor + (rep.data.transferOutMinor ?? 0),
         balanceMinor: rep.data.balanceMinor,
       });
     } else {
@@ -736,8 +768,15 @@ function FinanceMainPanel({
     onRefresh();
     await refresh();
     if (accId) {
-      const r = await fetchTransactions({ accountId: accId });
-      if (r.ok) setAccountDetailTx(r.data.transactions);
+      const [rTx, rTr] = await Promise.all([
+        fetchTransactions({ accountId: accId }),
+        fetchTransfers({ accountId: accId }),
+      ]);
+      if (rTx.ok && rTr.ok) {
+        setAccountDetailItems(
+          mergeAccountMovements(rTx.data.transactions, rTr.data.transfers),
+        );
+      }
     }
   }
 
@@ -879,15 +918,23 @@ function FinanceMainPanel({
 
   useEffect(() => {
     if (!selectedAccountId) {
-      setAccountDetailTx([]);
+      setAccountDetailItems([]);
       return;
     }
     setAccountDetailPending(true);
     void (async () => {
-      const r = await fetchTransactions({ accountId: selectedAccountId });
+      const [rTx, rTr] = await Promise.all([
+        fetchTransactions({ accountId: selectedAccountId }),
+        fetchTransfers({ accountId: selectedAccountId }),
+      ]);
       setAccountDetailPending(false);
-      if (r.ok) setAccountDetailTx(r.data.transactions);
-      else setAccountDetailTx([]);
+      if (rTx.ok && rTr.ok) {
+        setAccountDetailItems(
+          mergeAccountMovements(rTx.data.transactions, rTr.data.transfers),
+        );
+      } else {
+        setAccountDetailItems([]);
+      }
     })();
   }, [selectedAccountId, bump]);
 
@@ -984,8 +1031,15 @@ function FinanceMainPanel({
     onRefresh();
     await refresh();
     void (async () => {
-      const r = await fetchTransactions({ accountId: selectedAccount.id });
-      if (r.ok) setAccountDetailTx(r.data.transactions);
+      const [rTx, rTr] = await Promise.all([
+        fetchTransactions({ accountId: selectedAccount.id }),
+        fetchTransfers({ accountId: selectedAccount.id }),
+      ]);
+      if (rTx.ok && rTr.ok) {
+        setAccountDetailItems(
+          mergeAccountMovements(rTx.data.transactions, rTr.data.transfers),
+        );
+      }
     })();
   }
 
@@ -1133,13 +1187,21 @@ function FinanceMainPanel({
               </span>
             </div>
             <div className="finance__tile finance__tile--out">
-              <span className="finance__tile-label">Расходы (период)</span>
-              <span className="finance__tile-val">
-                {formatRubFromMinor(reporting.expenseMinor)}
+              <span className="finance__tile-label">
+                Расходы и переводы (период)
               </span>
-              {reporting.transferOutMinor > 0 ? (
+              <span className="finance__tile-val">
+                {formatRubFromMinor(reporting.outflowMinor)}
+              </span>
+              {reporting.expenseMinor > 0 && reporting.transferOutMinor > 0 ? (
                 <span className="finance__tile-sub">
-                  Переводы: {formatRubFromMinor(reporting.transferOutMinor)}
+                  операции {formatRubFromMinor(reporting.expenseMinor)} ·
+                  переводы {formatRubFromMinor(reporting.transferOutMinor)}
+                </span>
+              ) : reporting.transferOutMinor > 0 &&
+                reporting.expenseMinor === 0 ? (
+                <span className="finance__tile-sub">
+                  только переводы между счетами
                 </span>
               ) : null}
             </div>
@@ -1147,6 +1209,10 @@ function FinanceMainPanel({
               <span className="finance__tile-label">Баланс (период)</span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.balanceMinor)}
+              </span>
+              <span className="finance__tile-sub finance__tile-sub--muted">
+                доход минус расходы по категориям; переводы между своими
+                счетами общий капитал не меняют
               </span>
             </div>
           </div>
@@ -1873,52 +1939,94 @@ function FinanceMainPanel({
                       </p>
                     ) : null}
                     <h3 className="finance__h3 finance-main__acc-detail-h3">
-                      Операции по счёту
+                      Операции и переводы
                     </h3>
                     {accountDetailPending ? (
                       <p className="screen__text">Загрузка…</p>
-                    ) : accountDetailTx.length === 0 ? (
-                      <p className="screen__text">Операций нет.</p>
+                    ) : accountDetailItems.length === 0 ? (
+                      <p className="screen__text">Операций и переводов нет.</p>
                     ) : (
                       <div className="finance-main__acc-tx-scroll">
                         <ul className="finance__tx-list finance-main__acc-tx-list">
-                          {accountDetailTx.map((tx) => (
-                            <li key={tx.id} className="finance__tx">
-                              <div className="finance__tx-main">
-                                <span className="finance__tx-date">
-                                  {new Date(tx.occurredAt).toLocaleDateString(
-                                    "ru-RU",
-                                  )}
-                                </span>
-                                <span className="finance__tx-cat">
-                                  {tx.kind === "INCOME" ? "Доход" : "Расход"} ·{" "}
-                                  {tx.category.name}
-                                </span>
-                                <span
-                                  className={
-                                    tx.kind === "INCOME"
-                                      ? "finance__tx-sum finance__tx-sum--in"
-                                      : "finance__tx-sum finance__tx-sum--out"
+                          {accountDetailItems.map((item) =>
+                            item.kind === "tx" ? (
+                              <li key={item.tx.id} className="finance__tx">
+                                <div className="finance__tx-main">
+                                  <span className="finance__tx-date">
+                                    {new Date(
+                                      item.tx.occurredAt,
+                                    ).toLocaleDateString("ru-RU")}
+                                  </span>
+                                  <span className="finance__tx-cat">
+                                    {item.tx.kind === "INCOME"
+                                      ? "Доход"
+                                      : "Расход"}{" "}
+                                    · {item.tx.category.name}
+                                  </span>
+                                  <span
+                                    className={
+                                      item.tx.kind === "INCOME"
+                                        ? "finance__tx-sum finance__tx-sum--in"
+                                        : "finance__tx-sum finance__tx-sum--out"
+                                    }
+                                  >
+                                    {item.tx.kind === "INCOME" ? "+" : "−"}
+                                    {formatRubFromMinor(item.tx.amountMinor)}
+                                  </span>
+                                </div>
+                                {item.tx.note ? (
+                                  <p className="finance__tx-note">
+                                    {item.tx.note}
+                                  </p>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="finance__tx-del"
+                                  onClick={() =>
+                                    void onDeleteAccountDetailTx(item.tx.id)
                                   }
                                 >
-                                  {tx.kind === "INCOME" ? "+" : "−"}
-                                  {formatRubFromMinor(tx.amountMinor)}
-                                </span>
-                              </div>
-                              {tx.note ? (
-                                <p className="finance__tx-note">{tx.note}</p>
-                              ) : null}
-                              <button
-                                type="button"
-                                className="finance__tx-del"
-                                onClick={() =>
-                                  void onDeleteAccountDetailTx(tx.id)
-                                }
+                                  Удалить операцию
+                                </button>
+                              </li>
+                            ) : (
+                              <li
+                                key={item.tr.id}
+                                className="finance__tx finance__tx--transfer"
                               >
-                                Удалить операцию
-                              </button>
-                            </li>
-                          ))}
+                                <div className="finance__tx-main">
+                                  <span className="finance__tx-date">
+                                    {new Date(
+                                      item.tr.occurredAt,
+                                    ).toLocaleDateString("ru-RU")}
+                                  </span>
+                                  <span className="finance__tx-cat">
+                                    Перевод · {item.tr.fromAccount.name} →{" "}
+                                    {item.tr.toAccount.name}
+                                  </span>
+                                  <span
+                                    className={
+                                      item.tr.fromAccountId ===
+                                      selectedAccount.id
+                                        ? "finance__tx-sum finance__tx-sum--out"
+                                        : "finance__tx-sum finance__tx-sum--in"
+                                    }
+                                  >
+                                    {item.tr.fromAccountId ===
+                                    selectedAccount.id
+                                      ? "−"
+                                      : "+"}
+                                    {formatRubFromMinor(item.tr.amountMinor)}
+                                  </span>
+                                </div>
+                                {item.tr.note ? (
+                                  <p className="finance__tx-note">
+                                    {item.tr.note}
+                                  </p>
+                                ) : null}
+                              </li>
+                            ),
+                          )}
                         </ul>
                       </div>
                     )}

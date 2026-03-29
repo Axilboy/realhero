@@ -666,6 +666,37 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ transfer: row });
   });
 
+  app.get("/transfers", async (request, reply) => {
+    const userId = getUserId(request);
+    await ensureUserHasAccounts(prisma, userId);
+    const q = request.query as { accountId?: string };
+    const where: Prisma.TransferWhereInput = { userId };
+    if (q.accountId) {
+      const acc = await prisma.account.findFirst({
+        where: { id: q.accountId, userId },
+      });
+      if (!acc) {
+        return reply.status(400).send({
+          error: { message: "Счёт не найден" },
+        });
+      }
+      where.OR = [
+        { fromAccountId: q.accountId },
+        { toAccountId: q.accountId },
+      ];
+    }
+    const list = await prisma.transfer.findMany({
+      where,
+      include: {
+        fromAccount: { select: { id: true, name: true, type: true } },
+        toAccount: { select: { id: true, name: true, type: true } },
+      },
+      orderBy: { occurredAt: "desc" },
+      take: 200,
+    });
+    return { transfers: list };
+  });
+
   app.get("/investments/overview", async (request) => {
     const userId = getUserId(request);
     const qr = request.query as { refresh?: string };
@@ -1754,6 +1785,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const incomeMinor = incAgg._sum.amountMinor ?? 0;
     const expenseMinor = expAgg._sum.amountMinor ?? 0;
     const transferOutMinor = trAgg._sum.amountMinor ?? 0;
+    const outflowMinor = expenseMinor + transferOutMinor;
     return {
       financeReportingDay: day,
       financeReportingGranularity:
@@ -1764,6 +1796,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       incomeMinor,
       expenseMinor,
       transferOutMinor,
+      /** Расходы по категориям + сумма переводов за период (наглядный «отток»). */
+      outflowMinor,
       balanceMinor: incomeMinor - expenseMinor,
     };
   });

@@ -39,6 +39,8 @@ model User {
   id           String               @id @default(uuid())
   email        String               @unique
   passwordHash String
+  /// С какого числа каждого месяца ведётся отчётный период (1–28).
+  financeReportingDay Int          @default(1)
   createdAt    DateTime             @default(now())
   categories   Category[]
   transactions Transaction[]

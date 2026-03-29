@@ -38,7 +38,8 @@ npm run dev
 | GET | `/accounts` | Счета и балансы, сумма по инвестициям |
 | POST | `/accounts` | Создать счёт |
 | PATCH | `/accounts/:id` | Изменить счёт |
-| DELETE | `/accounts/:id` | Удалить счёт |
+| DELETE | `/accounts/:id` | Удалить **пустой** счёт (без операций и переводов) |
+| POST | `/accounts/:id/merge-into` | Тело `{ "targetAccountId" }` — перенести все операции и переводы на другой счёт и удалить исходный (для счетов с историей) |
 | POST | `/transfers` | Перевод между счетами |
 | GET | `/categories` | Категории (`?includeArchived=1` — с архивными) |
 | POST | `/categories` | Новая категория |
@@ -47,8 +48,12 @@ npm run dev
 | POST | `/transactions` | Расход или доход |
 | PATCH | `/transactions/:id` | Правка операции |
 | DELETE | `/transactions/:id` | Удаление |
-| GET | `/summary` | Сводка за месяц `?month=YYYY-MM` |
-| GET | `/summary/by-category` | Расходы/доходы по категориям за месяц |
+| GET | `/summary` | Сводка за **календарный** месяц `?month=YYYY-MM` |
+| GET | `/summary/by-category` | Расходы/доходы по категориям за календарный месяц |
+| GET | `/summary/reporting` | Доходы, расходы и баланс за **текущий отчётный период** (см. настройку пользователя) |
+| GET | `/settings` | Настройки финансов: `financeReportingDay` (1–28) |
+| PATCH | `/settings` | Тело `{ "financeReportingDay": number }` |
+| GET | `/analytics/reporting-forecast` | Прогноз «ожидаемый бюджет к концу отчётного периода» (среднедневные доход/расход и экстраполяция) |
 | GET | `/investments/overview` | Портфель, метрики, **`allocation`** (структура счётов и инвестиций). **`?refresh=1`** — обновить цены по сохранённым котировкам |
 | GET | `/investments/quote-search` | Поиск: `?q=` (≥2 символа), MOEX + CoinGecko |
 | GET | `/investments/quote-price` | `source`, `id`, опционально `date`, `moexMarket` — цена в ₽ |

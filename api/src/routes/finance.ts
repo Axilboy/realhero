@@ -13,6 +13,12 @@ import {
   fetchQuotePriceRub,
   searchInvestQuotes,
 } from "../lib/investQuotes.js";
+import {
+  clampReportingDay,
+  daysElapsedInPeriod,
+  daysRemainingInPeriod,
+  getReportingPeriodContaining,
+} from "../lib/reportingPeriod.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
 
@@ -390,6 +396,51 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       });
     }
     await prisma.account.delete({ where: { id } });
+    return { ok: true };
+  });
+
+  /** Перенести все операции и переводы на другой счёт и удалить счёт. */
+  app.post("/accounts/:id/merge-into", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const body = request.body as { targetAccountId?: string };
+    const targetId = body.targetAccountId?.trim();
+    if (!targetId || targetId === id) {
+      return reply.status(400).send({
+        error: { message: "Укажите другой счёт для переноса операций" },
+      });
+    }
+    const src = await prisma.account.findFirst({ where: { id, userId } });
+    const tgt = await prisma.account.findFirst({
+      where: { id: targetId, userId },
+    });
+    if (!src || !tgt) {
+      return reply.status(404).send({ error: { message: "Счёт не найден" } });
+    }
+    const totalAcc = await prisma.account.count({ where: { userId } });
+    if (totalAcc < 2) {
+      return reply.status(400).send({
+        error: { message: "Нельзя удалить единственный счёт" },
+      });
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.transfer.updateMany({
+        where: { userId, fromAccountId: id },
+        data: { fromAccountId: targetId },
+      });
+      await tx.transfer.updateMany({
+        where: { userId, toAccountId: id },
+        data: { toAccountId: targetId },
+      });
+      await tx.transaction.updateMany({
+        where: { userId, accountId: id },
+        data: { accountId: targetId },
+      });
+      await tx.transfer.deleteMany({
+        where: { userId, fromAccountId: targetId, toAccountId: targetId },
+      });
+      await tx.account.delete({ where: { id } });
+    });
     return { ok: true };
   });
 
@@ -1422,6 +1473,121 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         categoryName: nameById.get(r.categoryId) ?? "—",
         amountMinor: r._sum.amountMinor ?? 0,
       })),
+    };
+  });
+
+  app.get("/settings", async (request) => {
+    const userId = getUserId(request);
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { financeReportingDay: true },
+    });
+    return {
+      financeReportingDay: clampReportingDay(u?.financeReportingDay ?? 1),
+    };
+  });
+
+  app.patch("/settings", async (request, reply) => {
+    const userId = getUserId(request);
+    const body = request.body as { financeReportingDay?: number };
+    const raw = body.financeReportingDay;
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      return reply.status(400).send({
+        error: { message: "financeReportingDay — число 1…28" },
+      });
+    }
+    const day = clampReportingDay(raw);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { financeReportingDay: day },
+    });
+    return { financeReportingDay: day };
+  });
+
+  app.get("/summary/reporting", async (request) => {
+    const userId = getUserId(request);
+    await ensureUserHasCategories(prisma, userId);
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { financeReportingDay: true },
+    });
+    const day = clampReportingDay(u?.financeReportingDay ?? 1);
+    const now = new Date();
+    const period = getReportingPeriodContaining(day, now);
+    const rows = await prisma.transaction.groupBy({
+      by: ["kind"],
+      where: {
+        userId,
+        occurredAt: { gte: period.start, lte: now },
+      },
+      _sum: { amountMinor: true },
+    });
+    let incomeMinor = 0;
+    let expenseMinor = 0;
+    for (const r of rows) {
+      const s = r._sum.amountMinor ?? 0;
+      if (r.kind === "INCOME") incomeMinor = s;
+      if (r.kind === "EXPENSE") expenseMinor = s;
+    }
+    return {
+      financeReportingDay: day,
+      periodStart: period.start.toISOString(),
+      periodEndExclusive: period.endExclusive.toISOString(),
+      periodLastDay: period.lastDayInclusive.toISOString().slice(0, 10),
+      incomeMinor,
+      expenseMinor,
+      balanceMinor: incomeMinor - expenseMinor,
+    };
+  });
+
+  app.get("/analytics/reporting-forecast", async (request) => {
+    const userId = getUserId(request);
+    await ensureUserHasCategories(prisma, userId);
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { financeReportingDay: true },
+    });
+    const day = clampReportingDay(u?.financeReportingDay ?? 1);
+    const now = new Date();
+    const period = getReportingPeriodContaining(day, now);
+    const rows = await prisma.transaction.groupBy({
+      by: ["kind"],
+      where: {
+        userId,
+        occurredAt: { gte: period.start, lte: now },
+      },
+      _sum: { amountMinor: true },
+    });
+    let incomeMinor = 0;
+    let expenseMinor = 0;
+    for (const r of rows) {
+      const s = r._sum.amountMinor ?? 0;
+      if (r.kind === "INCOME") incomeMinor = s;
+      if (r.kind === "EXPENSE") expenseMinor = s;
+    }
+    const elapsed = daysElapsedInPeriod(period, now);
+    const remaining = daysRemainingInPeriod(period, now);
+    const avgIncome = Math.round(incomeMinor / elapsed);
+    const avgExpense = Math.round(expenseMinor / elapsed);
+    const avgNet = avgIncome - avgExpense;
+    const realizedNet = incomeMinor - expenseMinor;
+    const projectedExtra = Math.round(avgNet * remaining);
+    const projectedNetEndMinor = realizedNet + projectedExtra;
+    return {
+      financeReportingDay: day,
+      periodStart: period.start.toISOString(),
+      periodEndExclusive: period.endExclusive.toISOString(),
+      periodLastDay: period.lastDayInclusive.toISOString().slice(0, 10),
+      nextReportingDay: period.endExclusive.toISOString().slice(0, 10),
+      daysElapsed: elapsed,
+      daysRemaining: remaining,
+      incomeMinor,
+      expenseMinor,
+      realizedNetMinor: realizedNet,
+      avgDailyIncomeMinor: avgIncome,
+      avgDailyExpenseMinor: avgExpense,
+      avgDailyNetMinor: avgNet,
+      projectedNetEndMinor,
     };
   });
 };

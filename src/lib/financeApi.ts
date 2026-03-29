@@ -206,6 +206,62 @@ export async function deleteAccount(id: string) {
   });
 }
 
+/** Перенести операции и переводы на другой счёт и удалить счёт. */
+export async function mergeAccountInto(id: string, targetAccountId: string) {
+  return json<{ ok: boolean }>(`/api/v1/finance/accounts/${id}/merge-into`, {
+    method: "POST",
+    body: JSON.stringify({ targetAccountId }),
+  });
+}
+
+export async function fetchFinanceSettings() {
+  return json<{ financeReportingDay: number }>("/api/v1/finance/settings");
+}
+
+export async function patchFinanceSettings(body: {
+  financeReportingDay: number;
+}) {
+  return json<{ financeReportingDay: number }>("/api/v1/finance/settings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchReportingSummary() {
+  return json<{
+    financeReportingDay: number;
+    periodStart: string;
+    periodEndExclusive: string;
+    periodLastDay: string;
+    incomeMinor: number;
+    expenseMinor: number;
+    balanceMinor: number;
+  }>("/api/v1/finance/summary/reporting");
+}
+
+export type ReportingForecast = {
+  financeReportingDay: number;
+  periodStart: string;
+  periodEndExclusive: string;
+  periodLastDay: string;
+  nextReportingDay: string;
+  daysElapsed: number;
+  daysRemaining: number;
+  incomeMinor: number;
+  expenseMinor: number;
+  realizedNetMinor: number;
+  avgDailyIncomeMinor: number;
+  avgDailyExpenseMinor: number;
+  avgDailyNetMinor: number;
+  projectedNetEndMinor: number;
+};
+
+export async function fetchReportingForecast() {
+  return json<ReportingForecast>(
+    "/api/v1/finance/analytics/reporting-forecast",
+  );
+}
+
 export async function fetchInvestOverview(refreshQuotes?: boolean) {
   const q =
     refreshQuotes === true ? "?refresh=1" : "";

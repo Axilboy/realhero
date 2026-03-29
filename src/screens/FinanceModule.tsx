@@ -19,16 +19,19 @@ import {
   createHolding,
   createTransaction,
   createTransfer,
-  deleteAccount,
   deleteHolding,
   deleteTransaction,
   errorMessage,
   fetchAccounts,
   fetchCategories,
+  fetchFinanceSettings,
   fetchInvestOverview,
-  fetchSummary,
+  fetchReportingForecast,
+  fetchReportingSummary,
   fetchSummaryByCategory,
   fetchTransactions,
+  mergeAccountInto,
+  patchFinanceSettings,
   patchCategory,
   patchHolding,
   type AccountRow,
@@ -38,6 +41,7 @@ import {
   type InvestmentAssetKind,
   type InvestmentHoldingRow,
   type InvestAllocation,
+  type ReportingForecast,
   type TransactionKind,
   type TransactionRow,
 } from "../lib/financeApi";
@@ -62,12 +66,24 @@ function isDepositOrSavings(t: AccountType): boolean {
   return t === "DEPOSIT" || t === "SAVINGS";
 }
 
+function formatRuDateShort(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function DepositSavingsCarousel({
   accounts,
   title,
+  onRequestDelete,
 }: {
   accounts: (DepositSavingsAccountRow | AccountRow)[];
   title: string;
+  onRequestDelete?: (accountId: string) => void;
 }) {
   const list = accounts.filter(
     (a) => a.type === "DEPOSIT" || a.type === "SAVINGS",
@@ -103,6 +119,15 @@ function DepositSavingsCarousel({
               {formatRubFromMinor(a.interestIncomeMonthMinor)}
               /мес
             </div>
+            {onRequestDelete ? (
+              <button
+                type="button"
+                className="finance-main__acc-del finance-dep-carousel__del"
+                onClick={() => onRequestDelete(a.id)}
+              >
+                Удалить
+              </button>
+            ) : null}
           </div>
         ))}
       </div>
@@ -181,7 +206,11 @@ export default function FinanceModule() {
             <FinanceMainPanel bump={bump} onRefresh={refreshAll} />
           </div>
           <div className="finance-mod__panel">
-            <FinanceInvestPanel bump={bump} investActive={tab === 1} />
+            <FinanceInvestPanel
+              bump={bump}
+              investActive={tab === 1}
+              onPortfolioChange={refreshAll}
+            />
           </div>
           <div className="finance-mod__panel">
             <FinanceAnalyticsPanel bump={bump} />
@@ -222,12 +251,21 @@ function FinanceMainPanel({
   bump: number;
   onRefresh: () => void;
 }) {
-  const [month, setMonth] = useState(currentMonthYm);
-  const [summary, setSummary] = useState<{
+  const [reporting, setReporting] = useState<{
+    financeReportingDay: number;
+    periodStart: string;
+    periodLastDay: string;
     incomeMinor: number;
     expenseMinor: number;
     balanceMinor: number;
   } | null>(null);
+  const [capAlloc, setCapAlloc] = useState<InvestAllocation | null>(null);
+  const [monthlyPassiveMinor, setMonthlyPassiveMinor] = useState(0);
+  const [reportingDayDraft, setReportingDayDraft] = useState("1");
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [delModalAcc, setDelModalAcc] = useState<AccountRow | null>(null);
+  const [delTargetId, setDelTargetId] = useState("");
+  const [delBusy, setDelBusy] = useState(false);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [investmentsTotal, setInvestmentsTotal] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -284,15 +322,17 @@ function FinanceMainPanel({
   const refresh = useCallback(async () => {
     setLoadError(null);
     setPending(true);
-    const [s, c, t, a] = await Promise.all([
-      fetchSummary(month),
+    const [rep, c, t, a, ov, st] = await Promise.all([
+      fetchReportingSummary(),
       fetchCategories(false),
       fetchTransactions(),
       fetchAccounts(),
+      fetchInvestOverview(false),
+      fetchFinanceSettings(),
     ]);
     setPending(false);
-    if (!s.ok) {
-      setLoadError(errorMessage(s.data));
+    if (!rep.ok) {
+      setLoadError(errorMessage(rep.data));
       return;
     }
     if (!c.ok) {
@@ -307,15 +347,32 @@ function FinanceMainPanel({
       setLoadError(errorMessage(a.data));
       return;
     }
-    setSummary({
-      incomeMinor: s.data.incomeMinor,
-      expenseMinor: s.data.expenseMinor,
-      balanceMinor: s.data.balanceMinor,
+    if (!st.ok) {
+      setLoadError(errorMessage(st.data));
+      return;
+    }
+    setReporting({
+      financeReportingDay: rep.data.financeReportingDay,
+      periodStart: rep.data.periodStart,
+      periodLastDay: rep.data.periodLastDay,
+      incomeMinor: rep.data.incomeMinor,
+      expenseMinor: rep.data.expenseMinor,
+      balanceMinor: rep.data.balanceMinor,
     });
+    setReportingDayDraft(String(st.data.financeReportingDay));
     setCategories(c.data.categories);
     setTransactions(t.data.transactions);
     setAccounts(a.data.accounts);
     setInvestmentsTotal(a.data.investmentsTotalMinor);
+    if (ov.ok) {
+      setCapAlloc(ov.data.allocation);
+      const dep = ov.data.metrics.depositSavingsIncomeMonthMinor;
+      const sec = ov.data.metrics.couponDividendMonthMinor ?? 0;
+      setMonthlyPassiveMinor(dep + sec);
+    } else {
+      setCapAlloc(null);
+      setMonthlyPassiveMinor(0);
+    }
     const first = a.data.accounts[0]?.id ?? "";
     const second = a.data.accounts[1]?.id ?? first;
     setAccountId((prev) =>
@@ -327,7 +384,7 @@ function FinanceMainPanel({
     setToAccountId((prev) =>
       a.data.accounts.some((x) => x.id === prev) ? prev : second,
     );
-  }, [month]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -603,14 +660,45 @@ function FinanceMainPanel({
     await refresh();
   }
 
-  async function onDeleteAccount(acc: AccountRow) {
-    if (!confirm(`Удалить счёт «${acc.name}»?`)) return;
-    const res = await deleteAccount(acc.id);
+  function openDelModal(acc: AccountRow) {
+    setLoadError(null);
+    setDelModalAcc(acc);
+    const others = accounts.filter((x) => x.id !== acc.id);
+    setDelTargetId(others[0]?.id ?? "");
+  }
+
+  async function confirmMergeDelete() {
+    if (!delModalAcc || !delTargetId || delModalAcc.id === delTargetId) return;
+    setDelBusy(true);
+    setLoadError(null);
+    const res = await mergeAccountInto(delModalAcc.id, delTargetId);
+    setDelBusy(false);
     if (!res.ok) {
       setLoadError(errorMessage(res.data));
       return;
     }
+    setDelModalAcc(null);
     onRefresh();
+    await refresh();
+  }
+
+  async function onSaveReportingDay(e: FormEvent) {
+    e.preventDefault();
+    const n = Number(String(reportingDayDraft).replace(",", "."));
+    if (!Number.isFinite(n) || n < 1 || n > 28) {
+      setLoadError("Отчётное число — целое от 1 до 28");
+      return;
+    }
+    setSettingsBusy(true);
+    setLoadError(null);
+    const r = await patchFinanceSettings({
+      financeReportingDay: Math.floor(n),
+    });
+    setSettingsBusy(false);
+    if (!r.ok) {
+      setLoadError(errorMessage(r.data));
+      return;
+    }
     await refresh();
   }
 
@@ -663,6 +751,10 @@ function FinanceMainPanel({
           <DepositSavingsCarousel
             accounts={accounts}
             title="Вклады и накопительные"
+            onRequestDelete={(id) => {
+              const acc = accounts.find((x) => x.id === id);
+              if (acc) openDelModal(acc);
+            }}
           />
           {accounts.some((a) => !isDepositOrSavings(a.type)) ? (
             <>
@@ -684,7 +776,7 @@ function FinanceMainPanel({
                       <button
                         type="button"
                         className="finance-main__acc-del"
-                        onClick={() => void onDeleteAccount(a)}
+                        onClick={() => openDelModal(a)}
                       >
                         Удалить
                       </button>
@@ -703,43 +795,116 @@ function FinanceMainPanel({
             <strong>{formatRubFromMinor(accountsTotalMinor)}</strong>
           </div>
           <div className="finance-main__total-row">
-            <span>Инвестиции</span>
+            <span>Инвестиции (оценка)</span>
             <strong>{formatRubFromMinor(investmentsTotal)}</strong>
           </div>
           <div className="finance-main__total-row finance-main__total-row--all">
             <span>Всего</span>
             <strong>{formatRubFromMinor(grandTotalMinor)}</strong>
           </div>
+          {monthlyPassiveMinor > 0 ? (
+            <div className="finance-main__total-row finance-main__total-row--passive">
+              <span>Оценка пассивного дохода (~в месяц)</span>
+              <strong>{formatRubFromMinor(monthlyPassiveMinor)}</strong>
+            </div>
+          ) : null}
+          {capAlloc ? (
+            <div className="finance-main__cap-split">
+              <h3 className="finance__h3 finance-main__cap-split-title">
+                Разбивка капитала
+              </h3>
+              <ul className="finance-main__cap-split-list">
+                <li>
+                  <span>Вклады</span>
+                  <span>{formatRubFromMinor(capAlloc.depositsMinor)}</span>
+                </li>
+                <li>
+                  <span>Накопительные счета</span>
+                  <span>{formatRubFromMinor(capAlloc.savingsMinor)}</span>
+                </li>
+                <li>
+                  <span>Акции</span>
+                  <span>{formatRubFromMinor(capAlloc.stocksMinor)}</span>
+                </li>
+                <li>
+                  <span>Облигации</span>
+                  <span>{formatRubFromMinor(capAlloc.bondsMinor)}</span>
+                </li>
+                <li>
+                  <span>Прочие инструменты</span>
+                  <span>
+                    {formatRubFromMinor(capAlloc.otherInstrumentsMinor)}
+                  </span>
+                </li>
+                <li className="finance-main__cap-split-muted">
+                  <span>Карты, наличные, счета вне структуры</span>
+                  <span>
+                    {formatRubFromMinor(
+                      Math.max(
+                        0,
+                        capAlloc.totalWealthMinor - capAlloc.portfolioSplitMinor,
+                      ),
+                    )}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      {!pending && summary ? (
-        <section className="finance__summary finance-main__month" aria-label="Месяц">
-          <label className="finance__month">
-            <span className="finance__month-label">Месяц</span>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            />
-          </label>
+      {!pending && reporting ? (
+        <section
+          className="finance__summary finance-main__month"
+          aria-label="Отчётный период"
+        >
+          <p className="finance-main__period-label">
+            Текущий отчётный период:{" "}
+            <strong>
+              {formatRuDateShort(reporting.periodStart)} —{" "}
+              {formatRuDateShort(`${reporting.periodLastDay}T12:00:00.000Z`)}
+            </strong>
+          </p>
+          <form
+            className="finance-main__reporting-day-form"
+            onSubmit={(e) => void onSaveReportingDay(e)}
+          >
+            <label className="finance__field finance-main__reporting-day-field">
+              Отчётное число месяца (1–28)
+              <input
+                className="finance__input"
+                type="number"
+                min={1}
+                max={28}
+                value={reportingDayDraft}
+                onChange={(e) => setReportingDayDraft(e.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              className="finance__btn-secondary"
+              disabled={settingsBusy}
+            >
+              {settingsBusy ? "…" : "Сохранить"}
+            </button>
+          </form>
           <div className="finance__tiles finance__tiles--compact">
             <div className="finance__tile finance__tile--in">
-              <span className="finance__tile-label">Доходы</span>
+              <span className="finance__tile-label">Доходы (период)</span>
               <span className="finance__tile-val">
-                {formatRubFromMinor(summary.incomeMinor)}
+                {formatRubFromMinor(reporting.incomeMinor)}
               </span>
             </div>
             <div className="finance__tile finance__tile--out">
-              <span className="finance__tile-label">Расходы</span>
+              <span className="finance__tile-label">Расходы (период)</span>
               <span className="finance__tile-val">
-                {formatRubFromMinor(summary.expenseMinor)}
+                {formatRubFromMinor(reporting.expenseMinor)}
               </span>
             </div>
             <div className="finance__tile finance__tile--bal">
-              <span className="finance__tile-label">Баланс</span>
+              <span className="finance__tile-label">Баланс (период)</span>
               <span className="finance__tile-val">
-                {formatRubFromMinor(summary.balanceMinor)}
+                {formatRubFromMinor(reporting.balanceMinor)}
               </span>
             </div>
           </div>
@@ -1222,6 +1387,66 @@ function FinanceMainPanel({
           )
         : null}
 
+      {delModalAcc
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="del-acc-title"
+            >
+              <div className="finance__modal">
+                <div className="finance__modal-head">
+                  <h2 id="del-acc-title" className="finance__h2">
+                    Удалить счёт
+                  </h2>
+                  <button
+                    type="button"
+                    className="finance__modal-close"
+                    onClick={() => setDelModalAcc(null)}
+                  >
+                    Закрыть
+                  </button>
+                </div>
+                <p className="finance-main__del-warn">
+                  Счёт «{delModalAcc.name}» будет удалён. Все операции и
+                  переводы с этим счётом будут перенесены на выбранный счёт.
+                  Действие необратимо.
+                </p>
+                <label className="finance__field">
+                  Перенести на счёт
+                  <select
+                    className="finance__input"
+                    value={delTargetId}
+                    onChange={(e) => setDelTargetId(e.target.value)}
+                  >
+                    {accounts
+                      .filter((x) => x.id !== delModalAcc.id)
+                      .map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name} ({ACCOUNT_TYPE_LABEL[x.type]})
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                {loadError ? <p className="finance__err">{loadError}</p> : null}
+                <button
+                  type="button"
+                  className="finance__submit"
+                  disabled={
+                    delBusy ||
+                    !delTargetId ||
+                    accounts.filter((x) => x.id !== delModalAcc.id).length === 0
+                  }
+                  onClick={() => void confirmMergeDelete()}
+                >
+                  {delBusy ? "…" : "Удалить"}
+                </button>
+              </div>
+            </div>,
+          )
+        : null}
+
       {accModal
         ? modalPortal(
             <div
@@ -1382,9 +1607,11 @@ function FinanceMainPanel({
 function FinanceInvestPanel({
   bump,
   investActive,
+  onPortfolioChange,
 }: {
   bump: number;
   investActive: boolean;
+  onPortfolioChange: () => void;
 }) {
   const [data, setData] = useState<{
     totalValueMinor: number;
@@ -1504,6 +1731,7 @@ function FinanceInvestPanel({
     setInvQuoteMeta(null);
     setModal(false);
     void load(false);
+    onPortfolioChange();
   }
 
   async function onSaveIncome(e: FormEvent) {
@@ -1538,6 +1766,7 @@ function FinanceInvestPanel({
     }
     setIncomeModal(null);
     void load(false);
+    onPortfolioChange();
   }
 
   async function onDel(id: string) {
@@ -1547,7 +1776,8 @@ function FinanceInvestPanel({
       setErr(errorMessage(r.data));
       return;
     }
-    void load();
+    void load(false);
+    onPortfolioChange();
   }
 
   return (
@@ -1614,12 +1844,6 @@ function FinanceInvestPanel({
                       data.allocation.otherInstrumentsMinor,
                     )}{" "}
                     · {data.allocation.pctOtherInstruments}%
-                  </span>
-                </li>
-                <li className="finance-inv__alloc-total">
-                  <span>Капитал всего (все счета + бумаги)</span>
-                  <span>
-                    {formatRubFromMinor(data.allocation.totalWealthMinor)}
                   </span>
                 </li>
               </ul>
@@ -2028,6 +2252,8 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
   const [incomes, setIncomes] = useState<
     { categoryName: string; amountMinor: number }[]
   >([]);
+  const [forecast, setForecast] = useState<ReportingForecast | null>(null);
+  const [forecastErr, setForecastErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
 
@@ -2035,8 +2261,18 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
     void (async () => {
       setPending(true);
       setErr(null);
-      const r = await fetchSummaryByCategory(month);
+      setForecastErr(null);
+      const [fc, r] = await Promise.all([
+        fetchReportingForecast(),
+        fetchSummaryByCategory(month),
+      ]);
       setPending(false);
+      if (fc.ok) {
+        setForecast(fc.data);
+      } else {
+        setForecast(null);
+        setForecastErr(errorMessage(fc.data));
+      }
       if (!r.ok) {
         setErr(errorMessage(r.data));
         return;
@@ -2055,8 +2291,70 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
   return (
     <div className="finance-an">
       <h2 className="finance__h2">Аналитика</h2>
+      <section
+        className="finance-an__forecast"
+        aria-label="Прогноз по отчётному периоду"
+      >
+        <h3 className="finance__h3">Ожидаемый бюджет к концу периода</h3>
+        <p className="finance-an__forecast-hint">
+          Среднедневные доход и расход считаются по операциям с начала текущего
+          отчётного периода (см. главный экран). Прогноз линейный: чистый
+          дневной × оставшиеся дни + уже накопленный баланс периода.
+        </p>
+        {forecastErr ? <p className="finance__err">{forecastErr}</p> : null}
+        {forecast ? (
+          <div className="finance-an__forecast-body">
+            <p className="finance-an__forecast-period">
+              До{" "}
+              <strong>
+                {formatRuDateShort(`${forecast.periodLastDay}T12:00:00.000Z`)}
+              </strong>
+              {" · "}
+              следующая отчётная дата:{" "}
+              <strong>
+                {formatRuDateShort(`${forecast.nextReportingDay}T12:00:00.000Z`)}
+              </strong>
+            </p>
+            <ul className="finance-an__forecast-stats">
+              <li>
+                Среднедневной доход:{" "}
+                {formatRubFromMinor(forecast.avgDailyIncomeMinor)}
+              </li>
+              <li>
+                Среднедневной расход:{" "}
+                {formatRubFromMinor(forecast.avgDailyExpenseMinor)}
+              </li>
+              <li>
+                Среднедневной чистый поток:{" "}
+                {formatRubFromMinor(forecast.avgDailyNetMinor)}
+              </li>
+              <li>
+                Дней в периоде прошло: {forecast.daysElapsed}, осталось:{" "}
+                {forecast.daysRemaining}
+              </li>
+              <li>
+                Уже (доход − расход):{" "}
+                {formatRubFromMinor(forecast.realizedNetMinor)}
+              </li>
+            </ul>
+            <p className="finance-an__forecast-result">
+              Ожидаемый чистый результат к последнему дню периода:{" "}
+              <strong>
+                {formatRubFromMinor(forecast.projectedNetEndMinor)}
+              </strong>
+              {forecast.projectedNetEndMinor > 0
+                ? " — прогноз в плюсе"
+                : forecast.projectedNetEndMinor < 0
+                  ? " — прогноз в минусе"
+                  : ""}
+            </p>
+          </div>
+        ) : null}
+      </section>
       <label className="finance__month">
-        <span className="finance__month-label">Месяц</span>
+        <span className="finance__month-label">
+          Календарный месяц (категории)
+        </span>
         <input
           type="month"
           value={month}

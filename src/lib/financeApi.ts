@@ -259,6 +259,7 @@ export async function fetchReportingSummary(opts?: {
   const sp = new URLSearchParams();
   if (opts?.from) sp.set("from", opts.from);
   if (opts?.to) sp.set("to", opts.to);
+  sp.set("tzOffset", String(new Date().getTimezoneOffset()));
   const q = sp.toString();
   return json<{
     financeReportingDay: number;
@@ -308,6 +309,7 @@ export async function fetchReportingForecast(opts?: {
   const q = new URLSearchParams();
   if (opts?.from) q.set("from", opts.from);
   if (opts?.to) q.set("to", opts.to);
+  q.set("tzOffset", String(new Date().getTimezoneOffset()));
   const qs = q.toString();
   return json<ReportingForecast>(
     `/api/v1/finance/analytics/reporting-forecast${qs ? `?${qs}` : ""}`,

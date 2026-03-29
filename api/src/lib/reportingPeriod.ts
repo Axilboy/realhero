@@ -134,10 +134,128 @@ export function getActiveReportingPeriod(
   return getReportingPeriodContaining(anchorDay, ref);
 }
 
-/** Календарных дней в периоде (от начала до последнего дня включительно). */
+/**
+ * Локальная календарная дата для момента ref при смещении как у Date.getTimezoneOffset()
+ * (Москва ≈ −180).
+ */
+export function getLocalCalendarParts(
+  ref: Date,
+  tzOffsetMin: number,
+): { y: number; m: number; d: number } {
+  const shifted = new Date(ref.getTime() - tzOffsetMin * 60000);
+  return {
+    y: shifted.getUTCFullYear(),
+    m: shifted.getUTCMonth(),
+    d: shifted.getUTCDate(),
+  };
+}
+
+/** Начало локального календарного дня (y, m 0..11, d) в UTC. */
+export function localDayStartUtc(
+  y: number,
+  m: number,
+  d: number,
+  tzOffsetMin: number,
+): Date {
+  return new Date(Date.UTC(y, m, d, 0, 0, 0, 0) + tzOffsetMin * 60000);
+}
+
+function parseYmd(s: string): { y: number; m: number; d: number } | null {
+  const re = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  if (!re) return null;
+  const y = Number(re[1]);
+  const mo = Number(re[2]);
+  const day = Number(re[3]);
+  if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+  return { y, m: mo - 1, d: day };
+}
+
+/** CUSTOM: from/to — календарные дни в часовом поясе клиента (YYYY-MM-DD). */
+export function getCustomReportingPeriodTz(
+  fromStr: string,
+  toStr: string,
+  tzOffsetMin: number,
+): ReportingPeriod {
+  const a = parseYmd(fromStr);
+  const b = parseYmd(toStr);
+  if (!a || !b) {
+    return getReportingPeriodContainingTz(1, new Date(), tzOffsetMin);
+  }
+  const start = localDayStartUtc(a.y, a.m, a.d, tzOffsetMin);
+  const endDayStart = localDayStartUtc(b.y, b.m, b.d, tzOffsetMin);
+  if (endDayStart.getTime() < start.getTime()) {
+    return getCustomReportingPeriodTz(toStr, fromStr, tzOffsetMin);
+  }
+  const endExclusive = new Date(endDayStart.getTime() + 86400000);
+  return { start, endExclusive, lastDayInclusive: endDayStart };
+}
+
+/** Как getReportingPeriodContaining, но границы — по локальному календарю клиента. */
+export function getReportingPeriodContainingTz(
+  reportingDay: number,
+  ref: Date,
+  tzOffsetMin: number,
+): ReportingPeriod {
+  const D = clampReportingDay(reportingDay);
+  const { y, m, d } = getLocalCalendarParts(ref, tzOffsetMin);
+
+  let start: Date;
+  let endExclusive: Date;
+  if (d >= D) {
+    start = localDayStartUtc(y, m, D, tzOffsetMin);
+    endExclusive = localDayStartUtc(y, m + 1, D, tzOffsetMin);
+  } else {
+    start = localDayStartUtc(y, m - 1, D, tzOffsetMin);
+    endExclusive = localDayStartUtc(y, m, D, tzOffsetMin);
+  }
+
+  const lastDayInclusive = new Date(endExclusive.getTime() - 86400000);
+  return { start, endExclusive, lastDayInclusive };
+}
+
+export function getActiveReportingPeriodTz(
+  granularity: FinanceReportingGranularity,
+  anchorDay: number,
+  ref: Date,
+  customFromStr: string | null,
+  customToStr: string | null,
+  tzOffsetMin: number,
+): ReportingPeriod {
+  if (granularity === "CUSTOM") {
+    if (customFromStr && customToStr) {
+      return getCustomReportingPeriodTz(customFromStr, customToStr, tzOffsetMin);
+    }
+    return getReportingPeriodContainingTz(anchorDay, ref, tzOffsetMin);
+  }
+  if (granularity === "DAY") {
+    const { y, m, d } = getLocalCalendarParts(ref, tzOffsetMin);
+    const start = localDayStartUtc(y, m, d, tzOffsetMin);
+    const endExclusive = new Date(start.getTime() + 86400000);
+    return { start, endExclusive, lastDayInclusive: start };
+  }
+  if (granularity === "WEEK") {
+    const { y, m, d } = getLocalCalendarParts(ref, tzOffsetMin);
+    const sod = localDayStartUtc(y, m, d, tzOffsetMin);
+    const shifted = new Date(sod.getTime() - tzOffsetMin * 60000);
+    const dow = shifted.getUTCDay();
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const start = new Date(sod.getTime() + mondayOffset * 86400000);
+    const endExclusive = new Date(start.getTime() + 7 * 86400000);
+    const lastDayInclusive = new Date(endExclusive.getTime() - 86400000);
+    return { start, endExclusive, lastDayInclusive };
+  }
+  if (granularity === "YEAR") {
+    const { y } = getLocalCalendarParts(ref, tzOffsetMin);
+    const start = localDayStartUtc(y, 0, 1, tzOffsetMin);
+    const endExclusive = localDayStartUtc(y + 1, 0, 1, tzOffsetMin);
+    const lastDayInclusive = new Date(endExclusive.getTime() - 86400000);
+    return { start, endExclusive, lastDayInclusive };
+  }
+  return getReportingPeriodContainingTz(anchorDay, ref, tzOffsetMin);
+}
+
 /**
  * Диапазон occurredAt для отчёта: от начала периода до min(сейчас, конец периода).
- * Убирает расхождения groupBy и гарантирует, что операции не «выпадают» из окна.
  */
 export function occurredAtBoundsForReporting(
   period: ReportingPeriod,
@@ -148,6 +266,7 @@ export function occurredAtBoundsForReporting(
   return { gte: period.start, lte: new Date(capMs) };
 }
 
+/** Календарных дней в периоде (от начала до последнего дня включительно). */
 export function totalCalendarDaysInPeriod(period: ReportingPeriod): number {
   const a = Date.UTC(
     period.start.getUTCFullYear(),
@@ -160,6 +279,32 @@ export function totalCalendarDaysInPeriod(period: ReportingPeriod): number {
     period.lastDayInclusive.getUTCDate(),
   );
   return Math.max(1, Math.floor((b - a) / 86400000) + 1);
+}
+
+/** Дней с начала периода по локальному календарю клиента. */
+export function daysElapsedInPeriodTz(
+  period: ReportingPeriod,
+  ref: Date,
+  tzOffsetMin: number,
+): number {
+  const a = getLocalCalendarParts(period.start, tzOffsetMin);
+  const b = getLocalCalendarParts(ref, tzOffsetMin);
+  const day0 = Date.UTC(a.y, a.m, a.d);
+  const day1 = Date.UTC(b.y, b.m, b.d);
+  return Math.max(1, Math.floor((day1 - day0) / 86400000) + 1);
+}
+
+export function daysRemainingInPeriodTz(
+  period: ReportingPeriod,
+  ref: Date,
+  tzOffsetMin: number,
+): number {
+  const last = getLocalCalendarParts(period.lastDayInclusive, tzOffsetMin);
+  const lastT = Date.UTC(last.y, last.m, last.d);
+  const { y, m, d } = getLocalCalendarParts(ref, tzOffsetMin);
+  const tomorrowT = Date.UTC(y, m, d + 1);
+  if (tomorrowT > lastT) return 0;
+  return Math.floor((lastT - tomorrowT) / 86400000) + 1;
 }
 
 /** Дней с начала периода по ref (включительно), минимум 1. */

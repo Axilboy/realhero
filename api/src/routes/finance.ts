@@ -17,9 +17,13 @@ import {
 import {
   clampReportingDay,
   daysElapsedInPeriod,
+  daysElapsedInPeriodTz,
   daysRemainingInPeriod,
+  daysRemainingInPeriodTz,
   getActiveReportingPeriod,
+  getActiveReportingPeriodTz,
   getCustomReportingPeriod,
+  getCustomReportingPeriodTz,
   occurredAtBoundsForReporting,
   parseISODateUTC,
   totalCalendarDaysInPeriod,
@@ -163,14 +167,36 @@ function interestIncomeYearMinor(
   return Math.round((balanceMinor * p) / 100);
 }
 
+function parseTzOffsetMin(query: { tzOffset?: string }): number | null {
+  const raw = query.tzOffset;
+  if (raw === undefined || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 function reportingPeriodFromRequestQuery(
-  query: { from?: string; to?: string },
+  query: { from?: string; to?: string; tzOffset?: string },
   u: {
     financeReportingDay: number | null;
     financeReportingGranularity: FinanceReportingGranularity;
   },
   now: Date,
 ) {
+  const tzOffsetMin = parseTzOffsetMin(query);
+  if (tzOffsetMin !== null) {
+    if (query.from && query.to) {
+      return getCustomReportingPeriodTz(query.from, query.to, tzOffsetMin);
+    }
+    return getActiveReportingPeriodTz(
+      u.financeReportingGranularity ?? "MONTH",
+      clampReportingDay(u.financeReportingDay ?? 1),
+      now,
+      null,
+      null,
+      tzOffsetMin,
+    );
+  }
+
   const fromQ = query.from ? parseISODateUTC(query.from) : null;
   const toQ = query.to ? parseISODateUTC(query.to) : null;
   if (fromQ && toQ) {
@@ -1699,7 +1725,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       select: { financeReportingDay: true, financeReportingGranularity: true },
     });
     const now = new Date();
-    const q = request.query as { from?: string; to?: string };
+    const q = request.query as { from?: string; to?: string; tzOffset?: string };
     const period = reportingPeriodFromRequestQuery(q, {
       financeReportingDay: u?.financeReportingDay ?? 1,
       financeReportingGranularity:
@@ -1750,13 +1776,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       select: { financeReportingDay: true, financeReportingGranularity: true },
     });
     const now = new Date();
-    const q = request.query as { from?: string; to?: string };
+    const q = request.query as { from?: string; to?: string; tzOffset?: string };
     const period = reportingPeriodFromRequestQuery(q, {
       financeReportingDay: u?.financeReportingDay ?? 1,
       financeReportingGranularity:
         u?.financeReportingGranularity ?? "MONTH",
     }, now);
     const day = clampReportingDay(u?.financeReportingDay ?? 1);
+    const tzOffsetMin = parseTzOffsetMin(q);
     const { gte: occGte, lte: occLte } = occurredAtBoundsForReporting(
       period,
       now,
@@ -1774,8 +1801,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     ]);
     const incomeMinor = incAgg._sum.amountMinor ?? 0;
     const expenseMinor = expAgg._sum.amountMinor ?? 0;
-    const elapsed = daysElapsedInPeriod(period, now);
-    const remaining = daysRemainingInPeriod(period, now);
+    const elapsed =
+      tzOffsetMin !== null
+        ? daysElapsedInPeriodTz(period, now, tzOffsetMin)
+        : daysElapsedInPeriod(period, now);
+    const remaining =
+      tzOffsetMin !== null
+        ? daysRemainingInPeriodTz(period, now, tzOffsetMin)
+        : daysRemainingInPeriod(period, now);
     const totalDays = totalCalendarDaysInPeriod(period);
     const avgIncome = Math.round(incomeMinor / elapsed);
     const avgExpense = Math.round(expenseMinor / elapsed);

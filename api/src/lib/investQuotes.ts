@@ -415,12 +415,14 @@ export async function moexDividendsLastYearSumRubPerShare(
   return sum > 0 ? Math.round(sum * 100) / 100 : null;
 }
 
-function couponPaymentRub(row: Record<string, unknown>): number {
+/**
+ * Сумма одной купонной выплаты в ₽ (только value / value_rub; без valueprc —
+ * ставка в bondization — годовая, не «за период»).
+ */
+function bondCouponPerPeriodRub(row: Record<string, unknown>): number {
   const fv = Number(
     row.facevalue ?? row.initialfacevalue ?? row.nominal ?? row.face_value ?? 0,
   );
-  const vp = Number(row.valueprc ?? row.couponpercent ?? row.coupon_percent ?? 0);
-  if (vp > 0 && fv > 0) return (vp / 100) * fv;
 
   const vr = row.value_rub;
   if (vr != null && vr !== "") {
@@ -443,6 +445,30 @@ function couponPaymentRub(row: Record<string, unknown>): number {
   return 0;
 }
 
+/** Годовой купон в ₽ по годовой ставке valueprc (% номинала) — уже «за год», без ×12. */
+function bondAnnualCouponFromRateRub(row: Record<string, unknown>): number {
+  const fv = Number(
+    row.facevalue ?? row.initialfacevalue ?? row.nominal ?? row.face_value ?? 0,
+  );
+  const vp = Number(row.valueprc ?? row.couponpercent ?? row.coupon_percent ?? 0);
+  if (vp > 0 && fv > 0) return Math.round(((vp / 100) * fv) * 100) / 100;
+  return 0;
+}
+
+function bondCouponDate(row: Record<string, unknown>): Date | null {
+  const ds = row.coupondate ?? row.startdate;
+  if (!ds) return null;
+  const dt = new Date(String(ds).slice(0, 10));
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+/** Сколько раз в год по графику (медианный интервал между датами, дней). */
+function periodsPerYearFromMedianGapDays(medianDays: number): number {
+  if (!Number.isFinite(medianDays) || medianDays <= 1) return 12;
+  const ppy = Math.round(365 / medianDays);
+  return Math.max(1, Math.min(52, ppy));
+}
+
 /** Оценка годового купона в ₽ с одной облигации (по данным MOEX). */
 export async function moexBondAnnualCouponRubPerUnit(
   secid: string,
@@ -455,35 +481,47 @@ export async function moexBondAnnualCouponRubPerUnit(
   );
   const rows = issRows(j.coupons);
   if (!rows.length) return null;
-  const cut = daysAgo(400);
-  let sumRub = 0;
-  for (const r of rows) {
-    const ds = r.coupondate ?? r.startdate;
-    if (!ds) continue;
-    const dt = new Date(String(ds).slice(0, 10));
-    if (Number.isNaN(dt.getTime()) || dt < cut) continue;
-    const pay = couponPaymentRub(r);
-    if (pay > 0) sumRub += pay;
+
+  const dated = rows
+    .map((r) => ({ r, dt: bondCouponDate(r) }))
+    .filter((x): x is { r: Record<string, unknown>; dt: Date } => x.dt != null)
+    .sort((a, b) => a.dt.getTime() - b.dt.getTime());
+
+  if (!dated.length) return null;
+
+  const last = dated[dated.length - 1].r;
+  const perPeriod = bondCouponPerPeriodRub(last);
+  const annualFromRate = bondAnnualCouponFromRateRub(last);
+
+  const gaps: number[] = [];
+  for (let i = 1; i < dated.length; i++) {
+    const d =
+      (dated[i].dt.getTime() - dated[i - 1].dt.getTime()) / 86_400_000;
+    if (d > 0 && d < 400) gaps.push(d);
   }
-  if (sumRub > 0) return Math.round(sumRub * 100) / 100;
-  const last = rows[rows.length - 1];
-  const pay = couponPaymentRub(last);
-  if (!(pay > 0)) return null;
-  if (rows.length >= 2) {
-    const d0 = new Date(
-      String(
-        rows[rows.length - 2].coupondate ?? rows[rows.length - 2].startdate,
-      ).slice(0, 10),
-    );
-    const d1 = new Date(
-      String(
-        rows[rows.length - 1].coupondate ?? rows[rows.length - 1].startdate,
-      ).slice(0, 10),
-    );
-    const days = Math.abs(d1.getTime() - d0.getTime()) / 86400000;
-    if (days > 7) return Math.round(((pay * 365) / days) * 100) / 100;
+  let medianGap: number | null = null;
+  if (gaps.length > 0) {
+    gaps.sort((a, b) => a - b);
+    const mid = Math.floor(gaps.length / 2);
+    medianGap =
+      gaps.length % 2 ? gaps[mid]! : (gaps[mid - 1]! + gaps[mid]!) / 2;
   }
-  return Math.round(pay * 2 * 100) / 100;
+
+  // Явная сумма выплаты за период → год = выплата × число периодов в году (12 / 4 / 2 / 1 по интервалу).
+  if (perPeriod > 0) {
+    const ppy =
+      medianGap != null
+        ? periodsPerYearFromMedianGapDays(medianGap)
+        : 12;
+    return Math.round(perPeriod * ppy * 100) / 100;
+  }
+
+  // Только годовая ставка % — годовой денежный поток уже (vp/100)×номинал, не суммировать строки графика.
+  if (annualFromRate > 0) {
+    return annualFromRate;
+  }
+
+  return null;
 }
 
 export type QuoteFundamentals = {
@@ -511,7 +549,7 @@ export async function fetchQuoteFundamentals(
         annualIncomePerUnitRub: c,
         note:
           c != null
-            ? "MOEX: оценка годового купона с одной облигации"
+            ? "MOEX: годовой купон (выплата за период × периодов в год по графику или %×номинал)"
             : "MOEX: нет данных по купону",
       };
     }

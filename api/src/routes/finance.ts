@@ -1300,6 +1300,15 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       }
     }
 
+    if (body.isArchived === true && existing.excludeFromReporting) {
+      return reply.status(400).send({
+        error: {
+          message:
+            "Служебную категорию (корректировка баланса) нельзя архивировать",
+        },
+      });
+    }
+
     const updated = await prisma.category.update({
       where: { id },
       data: {

@@ -1247,11 +1247,14 @@ function FinanceMainPanel({
       const targetMinor = Math.round(targetRub * 100);
       const deltaMinor = targetMinor - currentMinor;
       if (deltaMinor !== 0) {
-        const adjCat = categories.find((cat) => cat.excludeFromReporting === true);
+        const catRes = await fetchCategories(false);
+        const adjCat = catRes.ok
+          ? catRes.data.categories.find((cat) => cat.excludeFromReporting === true)
+          : undefined;
         if (!adjCat) {
           setAccDetailBusy(false);
           setAccDetailErr(
-            "Нет служебной категории корректировки. Обновите страницу.",
+            "Не удалось получить служебную категорию корректировки. Повторите попытку.",
           );
           return;
         }
@@ -1318,7 +1321,6 @@ function FinanceMainPanel({
 
       {!pending ? (
         <FinanceAccountsRow
-          variant="stack"
           accounts={accounts}
           title="Счета"
           onOpenAccount={openAccountDetail}
@@ -2638,7 +2640,9 @@ function FinanceMainPanel({
             </label>
             {catError ? <p className="finance__err">{catError}</p> : null}
             <ul className="finance__cat-list">
-              {modalCategories.map((c) => (
+              {modalCategories
+                .filter((c) => !c.excludeFromReporting)
+                .map((c) => (
                 <li key={c.id} className="finance__cat-row">
                   <span className="finance__cat-name">
                     {c.name}

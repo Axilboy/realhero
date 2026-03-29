@@ -30,10 +30,13 @@ async function ensureBalanceAdjustmentCategory(
     where: { userId, name: BALANCE_ADJUSTMENT_CATEGORY_NAME },
   });
   if (exists) {
-    if (!exists.excludeFromReporting) {
+    const data: { excludeFromReporting?: boolean; isArchived?: boolean } = {};
+    if (!exists.excludeFromReporting) data.excludeFromReporting = true;
+    if (exists.isArchived) data.isArchived = false;
+    if (Object.keys(data).length > 0) {
       await prisma.category.update({
         where: { id: exists.id },
-        data: { excludeFromReporting: true },
+        data,
       });
     }
     return;

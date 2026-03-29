@@ -247,16 +247,22 @@ export async function fetchFinanceSettings() {
   return json<{
     financeReportingDay: number;
     financeReportingGranularity: FinanceReportingGranularity;
+    financeReportingCustomFrom: string | null;
+    financeReportingCustomTo: string | null;
   }>("/api/v1/finance/settings");
 }
 
 export async function patchFinanceSettings(body: {
   financeReportingDay?: number;
   financeReportingGranularity?: FinanceReportingGranularity;
+  financeReportingCustomFrom?: string | null;
+  financeReportingCustomTo?: string | null;
 }) {
   return json<{
     financeReportingDay: number;
     financeReportingGranularity: FinanceReportingGranularity;
+    financeReportingCustomFrom: string | null;
+    financeReportingCustomTo: string | null;
   }>("/api/v1/finance/settings", {
     method: "PATCH",
     body: JSON.stringify(body),

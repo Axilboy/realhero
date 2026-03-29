@@ -1417,6 +1417,20 @@ button.finance-acc-row__card:focus-visible {
   color: #9aa0a6;
 }
 
+.finance-main__balance-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #6d727b;
+}
+
+.finance-main__period-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #6d727b;
+}
+
 .finance-main__signed-row {
   display: flex;
   align-items: stretch;

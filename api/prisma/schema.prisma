@@ -51,6 +51,10 @@ model User {
   /// С какого числа каждого месяца ведётся отчётный период (1–28), если гранулярность MONTH.
   financeReportingDay Int          @default(1)
   financeReportingGranularity FinanceReportingGranularity @default(MONTH)
+  /// При гранулярности CUSTOM: начало диапазона YYYY-MM-DD (локальный календарь клиента + tzOffset в API).
+  financeReportingCustomFrom String?
+  /// При гранулярности CUSTOM: конец диапазона YYYY-MM-DD включительно.
+  financeReportingCustomTo   String?
   createdAt    DateTime             @default(now())
   categories   Category[]
   transactions Transaction[]

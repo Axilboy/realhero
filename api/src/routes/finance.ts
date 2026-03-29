@@ -1688,24 +1688,39 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const userId = getUserId(request);
     const u = await prisma.user.findUnique({
       where: { id: userId },
-      select: { financeReportingDay: true, financeReportingGranularity: true },
+      select: {
+        financeReportingDay: true,
+        financeReportingGranularity: true,
+        financeReportingCustomFrom: true,
+        financeReportingCustomTo: true,
+      },
     });
     return {
       financeReportingDay: clampReportingDay(u?.financeReportingDay ?? 1),
       financeReportingGranularity:
         u?.financeReportingGranularity ?? "MONTH",
+      financeReportingCustomFrom: u?.financeReportingCustomFrom ?? null,
+      financeReportingCustomTo: u?.financeReportingCustomTo ?? null,
     };
   });
+
+  function parseYmdString(s: string): boolean {
+    return /^(\d{4})-(\d{2})-(\d{2})$/.test(s.trim());
+  }
 
   app.patch("/settings", async (request, reply) => {
     const userId = getUserId(request);
     const body = request.body as {
       financeReportingDay?: number;
       financeReportingGranularity?: string;
+      financeReportingCustomFrom?: string | null;
+      financeReportingCustomTo?: string | null;
     };
     const data: {
       financeReportingDay?: number;
       financeReportingGranularity?: FinanceReportingGranularity;
+      financeReportingCustomFrom?: string | null;
+      financeReportingCustomTo?: string | null;
     } = {};
     if (body.financeReportingDay !== undefined) {
       const raw = body.financeReportingDay;
@@ -1728,23 +1743,93 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       }
       data.financeReportingGranularity = g;
     }
+    const nextGranularity =
+      data.financeReportingGranularity ??
+      (
+        await prisma.user.findUnique({
+          where: { id: userId },
+          select: { financeReportingGranularity: true },
+        })
+      )?.financeReportingGranularity ??
+      "MONTH";
+
+    if (body.financeReportingCustomFrom !== undefined) {
+      const raw = body.financeReportingCustomFrom;
+      if (raw === null || raw === "") {
+        data.financeReportingCustomFrom = null;
+      } else if (typeof raw !== "string" || !parseYmdString(raw)) {
+        return reply.status(400).send({
+          error: { message: "financeReportingCustomFrom — дата YYYY-MM-DD" },
+        });
+      } else {
+        data.financeReportingCustomFrom = raw.trim();
+      }
+    }
+    if (body.financeReportingCustomTo !== undefined) {
+      const raw = body.financeReportingCustomTo;
+      if (raw === null || raw === "") {
+        data.financeReportingCustomTo = null;
+      } else if (typeof raw !== "string" || !parseYmdString(raw)) {
+        return reply.status(400).send({
+          error: { message: "financeReportingCustomTo — дата YYYY-MM-DD" },
+        });
+      } else {
+        data.financeReportingCustomTo = raw.trim();
+      }
+    }
+
+    if (
+      body.financeReportingGranularity !== undefined &&
+      nextGranularity !== "CUSTOM"
+    ) {
+      data.financeReportingCustomFrom = null;
+      data.financeReportingCustomTo = null;
+    } else if (
+      data.financeReportingGranularity === "CUSTOM" &&
+      body.financeReportingCustomFrom === undefined &&
+      body.financeReportingCustomTo === undefined
+    ) {
+      const cur = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          financeReportingCustomFrom: true,
+          financeReportingCustomTo: true,
+        },
+      });
+      if (!cur?.financeReportingCustomFrom || !cur?.financeReportingCustomTo) {
+        return reply.status(400).send({
+          error: {
+            message:
+              "Для «Своя» укажите financeReportingCustomFrom и financeReportingCustomTo (YYYY-MM-DD)",
+          },
+        });
+      }
+    }
+
     if (Object.keys(data).length === 0) {
       return reply.status(400).send({
         error: {
           message:
-            "Укажите financeReportingDay и/или financeReportingGranularity",
+            "Укажите financeReportingDay и/или financeReportingGranularity и/или даты CUSTOM",
         },
       });
     }
     await prisma.user.update({ where: { id: userId }, data });
     const u = await prisma.user.findUnique({
       where: { id: userId },
-      select: { financeReportingDay: true, financeReportingGranularity: true },
+      select: {
+        financeReportingDay: true,
+        financeReportingGranularity: true,
+        financeReportingCustomFrom: true,
+        financeReportingCustomTo: true,
+      },
     });
     return {
       financeReportingDay: clampReportingDay(u?.financeReportingDay ?? 1),
       financeReportingGranularity:
         u?.financeReportingGranularity ?? "MONTH",
+      financeReportingCustomFrom: u?.financeReportingCustomFrom ?? null,
+      financeReportingCustomTo: u?.financeReportingCustomTo ?? null,
     };
   });
 

@@ -123,6 +123,26 @@ const GRANULARITY_LABEL: Record<FinanceReportingGranularity, string> = {
 const REP_CUSTOM_FROM_LS = "rh_fin_rep_custom_from";
 const REP_CUSTOM_TO_LS = "rh_fin_rep_custom_to";
 
+function reportingCustomRangeOpts(st: {
+  financeReportingGranularity: FinanceReportingGranularity;
+  financeReportingCustomFrom?: string | null;
+  financeReportingCustomTo?: string | null;
+}): { from: string; to: string } | undefined {
+  if (st.financeReportingGranularity !== "CUSTOM") return undefined;
+  let f = st.financeReportingCustomFrom?.trim() ?? "";
+  let t = st.financeReportingCustomTo?.trim() ?? "";
+  if (!f || !t) {
+    try {
+      f = localStorage.getItem(REP_CUSTOM_FROM_LS) ?? "";
+      t = localStorage.getItem(REP_CUSTOM_TO_LS) ?? "";
+    } catch {
+      /* ignore */
+    }
+  }
+  if (f && t) return { from: f, to: t };
+  return undefined;
+}
+
 /** Индекс вкладки «Финансы» в AppShell.TABS */
 const SHELL_TAB_FINANCE = 1;
 
@@ -362,6 +382,16 @@ function parseRuSignedDecimal(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Строка для поля «баланс в ₽» из копеек (можно с минусом). */
+function minorToEditableRubStr(minor: number): string {
+  const rub = minor / 100;
+  if (!Number.isFinite(rub)) return "0";
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: minor % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(rub);
+}
+
 function FinanceMainPanel({
   bump,
   onRefresh,
@@ -420,7 +450,7 @@ function FinanceMainPanel({
   const [accountEditOpen, setAccountEditOpen] = useState(false);
   const [editAccName, setEditAccName] = useState("");
   const [editAccInterestStr, setEditAccInterestStr] = useState("");
-  const [editBalanceAdjStr, setEditBalanceAdjStr] = useState("");
+  const [editBalanceTargetStr, setEditBalanceTargetStr] = useState("");
   const [accDetailBusy, setAccDetailBusy] = useState(false);
   const [accDetailErr, setAccDetailErr] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
@@ -895,6 +925,15 @@ function FinanceMainPanel({
     const r = await patchFinanceSettings({
       financeReportingDay: Math.floor(n),
       financeReportingGranularity: granularityDraft,
+      ...(granularityDraft === "CUSTOM"
+        ? {
+            financeReportingCustomFrom: repCustomFrom.trim(),
+            financeReportingCustomTo: repCustomTo.trim(),
+          }
+        : {
+            financeReportingCustomFrom: null,
+            financeReportingCustomTo: null,
+          }),
     });
     setSettingsBusy(false);
     if (!r.ok) {
@@ -950,7 +989,7 @@ function FinanceMainPanel({
           ? String(acc.annualInterestPercent)
           : "",
       );
-      setEditBalanceAdjStr("");
+      setEditBalanceTargetStr("");
     }
   }
 
@@ -980,6 +1019,10 @@ function FinanceMainPanel({
         annualInterestPercent = p;
       }
     }
+    const currentMinor =
+      accounts.find((a) => a.id === selectedAccount.id)?.balanceMinor ??
+      selectedAccount.balanceMinor;
+
     setAccDetailBusy(true);
     setAccDetailErr(null);
     const pr = await patchAccount(selectedAccount.id, {
@@ -993,41 +1036,46 @@ function FinanceMainPanel({
       setAccDetailErr(errorMessage(pr.data));
       return;
     }
-    const adj = parseRuSignedDecimal(editBalanceAdjStr);
-    const adjStrTrim = editBalanceAdjStr.trim();
-    if (adjStrTrim !== "" && adjStrTrim !== "-" && adjStrTrim !== "−") {
-      if (adj === null || adj === 0) {
+
+    const balStr = editBalanceTargetStr.trim();
+    if (balStr !== "" && balStr !== "-" && balStr !== "−") {
+      const targetRub = parseRuSignedDecimal(editBalanceTargetStr);
+      if (targetRub === null) {
         setAccDetailBusy(false);
-        setAccDetailErr("Корректировка баланса — число ₽ (можно с минусом)");
+        setAccDetailErr("Баланс — число в ₽ (можно с минусом)");
         return;
       }
-      const adjRub = adj;
-      const uni = categories.find(
-        (cat) => cat.name === "Универсальная" && cat.type === "BOTH",
-      );
-      if (!uni) {
-        setAccDetailBusy(false);
-        setAccDetailErr("Нет категории «Универсальная»");
-        return;
-      }
-      const kind = adjRub > 0 ? "INCOME" : "EXPENSE";
-      const tr = await createTransaction({
-        accountId: selectedAccount.id,
-        categoryId: uni.id,
-        kind,
-        amountRub: Math.abs(adjRub),
-        note: "Корректировка баланса счёта",
-        occurredAt: new Date().toISOString(),
-      });
-      if (!tr.ok) {
-        setAccDetailBusy(false);
-        setAccDetailErr(errorMessage(tr.data));
-        return;
+      const targetMinor = Math.round(targetRub * 100);
+      const deltaMinor = targetMinor - currentMinor;
+      if (deltaMinor !== 0) {
+        const uni = categories.find(
+          (cat) => cat.name === "Универсальная" && cat.type === "BOTH",
+        );
+        if (!uni) {
+          setAccDetailBusy(false);
+          setAccDetailErr("Нет категории «Универсальная»");
+          return;
+        }
+        const kind = deltaMinor > 0 ? "INCOME" : "EXPENSE";
+        const amountRub = Math.abs(deltaMinor) / 100;
+        const tr = await createTransaction({
+          accountId: selectedAccount.id,
+          categoryId: uni.id,
+          kind,
+          amountRub,
+          note: "Приведение баланса счёта к введённой сумме",
+          occurredAt: new Date().toISOString(),
+        });
+        if (!tr.ok) {
+          setAccDetailBusy(false);
+          setAccDetailErr(errorMessage(tr.data));
+          return;
+        }
       }
     }
     setAccDetailBusy(false);
     setAccountEditOpen(false);
-    setEditBalanceAdjStr("");
+    setEditBalanceTargetStr("");
     onRefresh();
     await refresh();
     void (async () => {
@@ -1041,17 +1089,6 @@ function FinanceMainPanel({
         );
       }
     })();
-  }
-
-  function toggleEditBalanceAdjSign() {
-    setEditBalanceAdjStr((s) => {
-      const t = s.trim();
-      if (t === "" || t === "-" || t === "−") return "−";
-      if (t.startsWith("-") || t.startsWith("−")) {
-        return t.slice(1).trimStart();
-      }
-      return `−${t}`;
-    });
   }
 
   async function confirmPurgeDelete() {
@@ -1216,6 +1253,13 @@ function FinanceMainPanel({
               </span>
             </div>
           </div>
+          {reporting.outflowMinor === 0 ? (
+            <p className="finance-main__period-hint">
+              В отчёт попадают только операции и переводы, у которых дата
+              попадает в указанный период. Если расходы или переводы были
+              раньше или позже — здесь будет 0 ₽.
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -1902,6 +1946,14 @@ function FinanceMainPanel({
                         className="finance__btn-secondary"
                         onClick={() => {
                           setAccDetailErr(null);
+                          const acc = accounts.find(
+                            (a) => a.id === selectedAccount?.id,
+                          );
+                          if (acc) {
+                            setEditBalanceTargetStr(
+                              minorToEditableRubStr(acc.balanceMinor),
+                            );
+                          }
                           setAccountEditOpen(true);
                         }}
                       >
@@ -2061,32 +2113,27 @@ function FinanceMainPanel({
                         />
                       </label>
                     ) : null}
-                    <div className="finance__field">
+                    <label className="finance__field">
                       <span className="finance-main__balance-adj-label">
-                        Корректировка баланса, ₽ (+ доход / − расход)
+                        Текущий баланс счёта, ₽
                       </span>
-                      <div className="finance-main__signed-row">
-                        <button
-                          type="button"
-                          className="finance-main__sign-btn"
-                          aria-label="Сменить знак"
-                          onClick={() => toggleEditBalanceAdjSign()}
-                        >
-                          ±
-                        </button>
-                        <input
-                          className="finance__input finance-main__signed-input"
-                          type="text"
-                          inputMode="text"
-                          autoComplete="off"
-                          value={editBalanceAdjStr}
-                          onChange={(e) =>
-                            setEditBalanceAdjStr(e.target.value)
-                          }
-                          placeholder="0 — не менять"
-                        />
-                      </div>
-                    </div>
+                      <p className="finance-main__balance-hint">
+                        Введите полную сумму на счёте (как в банке), а не
+                        изменение. Если сумма не совпадает с учётом в приложении,
+                        будет добавлена одна операция на разницу.
+                      </p>
+                      <input
+                        className="finance__input"
+                        type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={editBalanceTargetStr}
+                        onChange={(e) =>
+                          setEditBalanceTargetStr(e.target.value)
+                        }
+                        placeholder="например 99 445,50"
+                      />
+                    </label>
                     {accDetailErr ? (
                       <p className="finance__err">{accDetailErr}</p>
                     ) : null}
@@ -2948,16 +2995,9 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
       setErr(null);
       setForecastErr(null);
       const st = await fetchFinanceSettings();
-      let forecastOpts: { from?: string; to?: string } | undefined;
-      if (st.ok && st.data.financeReportingGranularity === "CUSTOM") {
-        try {
-          const f = localStorage.getItem(REP_CUSTOM_FROM_LS) ?? "";
-          const t = localStorage.getItem(REP_CUSTOM_TO_LS) ?? "";
-          if (f && t) forecastOpts = { from: f, to: t };
-        } catch {
-          /* ignore */
-        }
-      }
+      const forecastOpts = st.ok
+        ? reportingCustomRangeOpts(st.data)
+        : undefined;
       const [fc, r] = await Promise.all([
         fetchReportingForecast(forecastOpts),
         fetchSummaryByCategory(month),

@@ -44,6 +44,7 @@ import {
   type BodyLengthUnit,
   type BodyMassUnit,
 } from "../lib/bodyUnits";
+import { useI18n } from "../i18n/I18nContext";
 
 const SHELL_TAB_BODY = 2;
 
@@ -337,6 +338,31 @@ function BodySettingsModal({
           </button>
         </div>
         <form className="finance__form" onSubmit={(e) => void submit(e)}>
+          <h3 className="finance__h3 body-settings__lang-h3">
+            {t("shell.uiLanguage")}
+          </h3>
+          <div
+            className="shell__lang body-settings__lang"
+            role="group"
+            aria-label={t("shell.langPick")}
+          >
+            <button
+              type="button"
+              className={`shell__lang-btn${locale === "ru" ? " shell__lang-btn--on" : ""}`}
+              onClick={() => setLocale("ru")}
+              aria-pressed={locale === "ru"}
+            >
+              {t("shell.langRu")}
+            </button>
+            <button
+              type="button"
+              className={`shell__lang-btn${locale === "en" ? " shell__lang-btn--on" : ""}`}
+              onClick={() => setLocale("en")}
+              aria-pressed={locale === "en"}
+            >
+              {t("shell.langEn")}
+            </button>
+          </div>
           {formErr ? <p className="finance__err">{formErr}</p> : null}
           <label className="finance__field">
             Единицы массы

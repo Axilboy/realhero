@@ -1,17 +1,20 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useI18n } from "../i18n/I18nContext";
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
+  const { t, locale, setLocale } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   if (!loading && user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -20,9 +23,12 @@ export default function LoginPage() {
     setPending(true);
     try {
       await login(email, password);
-      navigate("/", { replace: true });
+      const from = (location.state as { from?: string } | null)?.from;
+      const target =
+        from && from.startsWith("/app") ? from : "/app";
+      navigate(target, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка входа");
+      setError(err instanceof Error ? err.message : t("auth.loginError"));
     } finally {
       setPending(false);
     }
@@ -31,9 +37,30 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1 className="auth-card__title">Вход</h1>
+        <div className="auth-card__lang" role="group" aria-label={t("shell.langPick")}>
+          <button
+            type="button"
+            className={`auth-lang-btn${locale === "ru" ? " auth-lang-btn--on" : ""}`}
+            onClick={() => setLocale("ru")}
+            aria-pressed={locale === "ru"}
+          >
+            {t("shell.langRu")}
+          </button>
+          <button
+            type="button"
+            className={`auth-lang-btn${locale === "en" ? " auth-lang-btn--on" : ""}`}
+            onClick={() => setLocale("en")}
+            aria-pressed={locale === "en"}
+          >
+            {t("shell.langEn")}
+          </button>
+        </div>
+        <h1 className="auth-card__title">{t("auth.titleLogin")}</h1>
         <p className="auth-card__hint">
-          Нет аккаунта? <Link to="/register">Регистрация</Link>
+          {t("auth.noAccount")}{" "}
+          <Link to="/register">{t("auth.registerLink")}</Link>
+          {" · "}
+          <Link to="/">{t("auth.toHome")}</Link>
         </p>
         <form className="auth-form" onSubmit={onSubmit}>
           <label className="auth-form__label">
@@ -48,7 +75,7 @@ export default function LoginPage() {
             />
           </label>
           <label className="auth-form__label">
-            Пароль
+            {t("auth.password")}
             <input
               className="auth-form__input"
               type="password"
@@ -61,7 +88,7 @@ export default function LoginPage() {
           </label>
           {error ? <p className="auth-form__error">{error}</p> : null}
           <button className="auth-form__submit" type="submit" disabled={pending}>
-            {pending ? "Входим…" : "Войти"}
+            {pending ? t("auth.signingIn") : t("auth.signIn")}
           </button>
         </form>
       </div>

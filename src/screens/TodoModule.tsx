@@ -6,6 +6,7 @@ import {
   type FormEvent,
 } from "react";
 import { useShellTabIndex } from "../context/ShellTabContext";
+import { useI18n } from "../i18n/I18nContext";
 import {
   createTask,
   deleteTask,
@@ -33,13 +34,8 @@ function localYmdFromIso(iso: string): string {
   return `${y}-${m}-${day}`;
 }
 
-const TABS = [
-  { key: 0, label: "Сегодня" },
-  { key: 1, label: "Входящие" },
-  { key: 2, label: "Все" },
-] as const;
-
 export default function TodoModule() {
+  const { t } = useI18n();
   const shellTab = useShellTabIndex();
   const todoActive = shellTab === SHELL_TAB_TODO;
 
@@ -55,6 +51,16 @@ export default function TodoModule() {
   const [newDue, setNewDue] = useState<"none" | "day" | "custom">("day");
   const [newDueCustom, setNewDueCustom] = useState(todayYmd);
   const [newTime, setNewTime] = useState("");
+
+  const tabsNav = useMemo(
+    () =>
+      [
+        { key: 0, label: t("todo.tabToday") },
+        { key: 1, label: t("todo.tabInbox") },
+        { key: 2, label: t("todo.tabAll") },
+      ] as const,
+    [t],
+  );
 
   const refresh = useCallback(async () => {
     setErr(null);
@@ -74,18 +80,20 @@ export default function TodoModule() {
   }, [todoActive, bump, refresh]);
 
   const lists = useMemo(() => {
-    const active = tasks.filter((t) => !t.completedAt);
-    const done = tasks.filter((t) => !!t.completedAt);
+    const active = tasks.filter((task) => !task.completedAt);
+    const done = tasks.filter((task) => !!task.completedAt);
 
-    const inbox = active.filter((t) => t.dueDate == null);
+    const inbox = active.filter((task) => task.dueDate == null);
 
     const forDay = (d: string) => {
       const activeDay = active.filter(
-        (t) => t.dueDate != null && t.dueDate <= d,
+        (task) => task.dueDate != null && task.dueDate <= d,
       );
-      const doneOnDay = done.filter((t) => localYmdFromIso(t.completedAt!) === d);
-      const overdue = activeDay.filter((t) => t.dueDate! < d);
-      const dueToday = activeDay.filter((t) => t.dueDate === d);
+      const doneOnDay = done.filter(
+        (task) => localYmdFromIso(task.completedAt!) === d,
+      );
+      const overdue = activeDay.filter((task) => task.dueDate! < d);
+      const dueToday = activeDay.filter((task) => task.dueDate === d);
       overdue.sort((a, b) => a.dueDate!.localeCompare(b.dueDate!));
       dueToday.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       doneOnDay.sort((a, b) => b.completedAt!.localeCompare(a.completedAt!));
@@ -106,10 +114,10 @@ export default function TodoModule() {
     return { inbox, forDay, allActive };
   }, [tasks]);
 
-  async function onToggle(t: UserTaskRow) {
+  async function onToggle(task: UserTaskRow) {
     setErr(null);
-    const next = !t.completedAt;
-    const r = await patchTask(t.id, { completed: next });
+    const next = !task.completedAt;
+    const r = await patchTask(task.id, { completed: next });
     if (!r.ok) {
       setErr(errorMessage(r.data));
       return;
@@ -169,19 +177,19 @@ export default function TodoModule() {
 
   return (
     <div className="todo-mod">
-      <h1 className="screen__title todo-mod__title">Задачи</h1>
+      <h1 className="screen__title todo-mod__title">{t("todo.title")}</h1>
 
-      <div className="todo-mod__subnav" role="tablist" aria-label="Разделы задач">
-        {TABS.map((t) => (
+      <div className="todo-mod__subnav" role="tablist" aria-label={t("todo.sectionsAria")}>
+        {tabsNav.map((tb) => (
           <button
-            key={t.key}
+            key={tb.key}
             type="button"
             role="tab"
-            aria-selected={tab === t.key}
-            className={`todo-mod__subbtn${tab === t.key ? " todo-mod__subbtn--on" : ""}`}
-            onClick={() => setTab(t.key)}
+            aria-selected={tab === tb.key}
+            className={`todo-mod__subbtn${tab === tb.key ? " todo-mod__subbtn--on" : ""}`}
+            onClick={() => setTab(tb.key)}
           >
-            {t.label}
+            {tb.label}
           </button>
         ))}
       </div>
@@ -189,7 +197,7 @@ export default function TodoModule() {
       {tab === 0 && (
         <div className="todo-mod__daybar">
           <label className="todo-mod__daylabel">
-            <span className="todo-mod__dayhint">День</span>
+            <span className="todo-mod__dayhint">{t("todo.dayHint")}</span>
             <input
               type="date"
               className="todo-mod__date"
@@ -202,7 +210,7 @@ export default function TodoModule() {
             className="todo-mod__today"
             onClick={() => setDay(todayYmd())}
           >
-            Сегодня
+            {t("todo.todayHeading")}
           </button>
         </div>
       )}
@@ -215,7 +223,7 @@ export default function TodoModule() {
 
       <div className="todo-mod__scroll">
         {pending ? (
-          <p className="todo-mod__muted">Загрузка…</p>
+          <p className="todo-mod__muted">{t("todo.loading")}</p>
         ) : tab === 0 ? (
           <TaskSections
             overdue={block.overdue}
@@ -228,14 +236,14 @@ export default function TodoModule() {
         ) : tab === 1 ? (
           <TaskList
             tasks={lists.inbox}
-            empty="Входящих нет — добавьте задачу без даты."
+            empty={t("todo.emptyInbox")}
             onToggle={onToggle}
             onDelete={onDelete}
           />
         ) : (
           <TaskList
             tasks={lists.allActive}
-            empty="Активных задач нет."
+            empty={t("todo.emptyActive")}
             onToggle={onToggle}
             onDelete={onDelete}
           />
@@ -245,34 +253,34 @@ export default function TodoModule() {
       <form className="todo-mod__add" onSubmit={(e) => void onSubmit(e)}>
         <input
           className="todo-mod__input"
-          placeholder="Новая задача…"
+          placeholder={t("todo.newTaskPlaceholder")}
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           maxLength={500}
-          aria-label="Текст задачи"
+          aria-label={t("todo.taskTextAria")}
         />
         <input
           className="todo-mod__input todo-mod__input--note"
-          placeholder="Заметка (необязательно)"
+          placeholder={t("todo.notePlaceholder")}
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           maxLength={4000}
         />
         <div className="todo-mod__row">
-          <span className="todo-mod__muted">Срок</span>
+          <span className="todo-mod__muted">{t("todo.due")}</span>
           <select
             className="todo-mod__select"
             value={newDue}
             onChange={(e) =>
               setNewDue(e.target.value as "none" | "day" | "custom")
             }
-            aria-label="Срок"
+            aria-label={t("todo.dueAria")}
           >
             <option value="day">
-              {tab === 0 ? "Выбранный день" : "Сегодня"}
+              {tab === 0 ? t("todo.dueSelectedDay") : t("todo.dueToday")}
             </option>
-            <option value="none">Без даты</option>
-            <option value="custom">Дата…</option>
+            <option value="none">{t("todo.dueNone")}</option>
+            <option value="custom">{t("todo.dueCustom")}</option>
           </select>
           {newDue === "custom" ? (
             <input
@@ -287,11 +295,11 @@ export default function TodoModule() {
             className="todo-mod__time"
             value={newTime}
             onChange={(e) => setNewTime(e.target.value)}
-            aria-label="Время"
+            aria-label={t("todo.timeAria")}
           />
         </div>
         <button type="submit" className="todo-mod__submit">
-          Добавить
+          {t("todo.add")}
         </button>
       </form>
     </div>
@@ -310,15 +318,16 @@ function TaskSections({
   dueToday: UserTaskRow[];
   doneOnDay: UserTaskRow[];
   dayLabel: string;
-  onToggle: (t: UserTaskRow) => void;
+  onToggle: (task: UserTaskRow) => void;
   onDelete: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const hasAny =
     overdue.length + dueToday.length + doneOnDay.length > 0;
   if (!hasAny) {
     return (
       <p className="todo-mod__muted">
-        На {dayLabel} нет задач. Добавьте ниже или перенесите срок из «Все».
+        {t("todo.emptyDay", { day: dayLabel })}
       </p>
     );
   }
@@ -326,7 +335,7 @@ function TaskSections({
     <>
       {overdue.length > 0 ? (
         <>
-          <h2 className="todo-mod__h2">Просрочено</h2>
+          <h2 className="todo-mod__h2">{t("todo.overdue")}</h2>
           <TaskList
             tasks={overdue}
             onToggle={onToggle}
@@ -337,7 +346,7 @@ function TaskSections({
       ) : null}
       {dueToday.length > 0 ? (
         <>
-          <h2 className="todo-mod__h2">На день</h2>
+          <h2 className="todo-mod__h2">{t("todo.onDay")}</h2>
           <TaskList
             tasks={dueToday}
             onToggle={onToggle}
@@ -348,7 +357,7 @@ function TaskSections({
       ) : null}
       {doneOnDay.length > 0 ? (
         <>
-          <h2 className="todo-mod__h2">Сделано</h2>
+          <h2 className="todo-mod__h2">{t("todo.done")}</h2>
           <TaskList
             tasks={doneOnDay}
             onToggle={onToggle}
@@ -371,52 +380,53 @@ function TaskList({
 }: {
   tasks: UserTaskRow[];
   empty: string;
-  onToggle: (t: UserTaskRow) => void;
+  onToggle: (task: UserTaskRow) => void;
   onDelete: (id: string) => void;
   done?: boolean;
 }) {
+  const { t } = useI18n();
   if (tasks.length === 0 && empty) {
     return <p className="todo-mod__muted">{empty}</p>;
   }
   if (tasks.length === 0) return null;
   return (
     <ul className="todo-mod__list">
-      {tasks.map((t) => (
-        <li key={t.id} className="todo-mod__li">
+      {tasks.map((task) => (
+        <li key={task.id} className="todo-mod__li">
           <label className="todo-mod__label">
             <input
               type="checkbox"
               className="todo-mod__check"
-              checked={!!t.completedAt}
-              onChange={() => onToggle(t)}
+              checked={!!task.completedAt}
+              onChange={() => onToggle(task)}
             />
             <span
-              className={`todo-mod__task-title${done || t.completedAt ? " todo-mod__task-title--done" : ""}`}
+              className={`todo-mod__task-title${done || task.completedAt ? " todo-mod__task-title--done" : ""}`}
             >
-              {t.title}
+              {task.title}
             </span>
-            {t.source === "QUEST" ? (
-              <span className="todo-mod__badge" title="Квест">
-                Квест
+            {task.source === "QUEST" ? (
+              <span className="todo-mod__badge" title={t("todo.questTitle")}>
+                {t("todo.questBadge")}
               </span>
             ) : null}
-            {t.dueTime ? (
-              <span className="todo-mod__timepill">{t.dueTime}</span>
+            {task.dueTime ? (
+              <span className="todo-mod__timepill">{task.dueTime}</span>
             ) : null}
-            {t.dueDate && !done ? (
-              <span className="todo-mod__duepill">{t.dueDate}</span>
+            {task.dueDate && !done ? (
+              <span className="todo-mod__duepill">{task.dueDate}</span>
             ) : null}
           </label>
-          {t.note ? (
-            <p className="todo-mod__note">{t.note}</p>
+          {task.note ? (
+            <p className="todo-mod__note">{task.note}</p>
           ) : null}
           <button
             type="button"
             className="todo-mod__del"
-            onClick={() => void onDelete(t.id)}
-            aria-label="Удалить задачу"
+            onClick={() => void onDelete(task.id)}
+            aria-label={t("todo.deleteTaskAria")}
           >
-            Удалить
+            {t("todo.delete")}
           </button>
         </li>
       ))}

@@ -2,6 +2,7 @@ import type { Prisma, TaskSource } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import { authPreHandler, getUserId } from "../authHook.js";
 import { prisma } from "../db.js";
+import { advanceQuestAfterTaskCompleted } from "../lib/questEngine.js";
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -266,6 +267,16 @@ export const tasksPlugin: FastifyPluginAsync = async (app) => {
       where: { id },
       data,
     });
+
+    if (
+      body.completed === true &&
+      existing.completedAt === null &&
+      row.source === "QUEST" &&
+      row.questInstanceId &&
+      row.questStepId
+    ) {
+      await advanceQuestAfterTaskCompleted(userId, row);
+    }
 
     return { task: serializeTask(row) };
   });

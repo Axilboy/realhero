@@ -14,6 +14,7 @@ import {
   bindFinanceAuthRefresh,
   resolveApiUrl,
 } from "../lib/financeApi";
+import { translateStatic } from "../i18n/I18nContext";
 
 export type AuthUser = { id: string; email: string };
 
@@ -27,8 +28,9 @@ type AuthContextValue = {
   logout: () => Promise<void>;
 };
 
-const SESSION_FAIL_HINT =
-  "Не удалось подтвердить сессию. Обновите страницу и попробуйте снова; на сервере проверьте прокси (не должен удалять Set-Cookie), CORS_ORIGINS и при необходимости COOKIE_DOMAIN.";
+function sessionFailHint(): string {
+  return translateStatic("auth.sessionFail");
+}
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -42,7 +44,7 @@ async function errorMessage(res: Response): Promise<string> {
   } catch {
     /* ignore */
   }
-  return res.statusText || "Ошибка запроса";
+  return res.statusText || translateStatic("auth.requestError");
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -87,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = (await res.json()) as { user: AuthUser; token?: string };
       if (data.token) setRhAccessToken(data.token);
       const ok = await refresh();
-      if (!ok) throw new Error(SESSION_FAIL_HINT);
+      if (!ok) throw new Error(sessionFailHint());
     },
     [refresh],
   );
@@ -104,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = (await res.json()) as { user: AuthUser; token?: string };
       if (data.token) setRhAccessToken(data.token);
       const ok = await refresh();
-      if (!ok) throw new Error(SESSION_FAIL_HINT);
+      if (!ok) throw new Error(sessionFailHint());
     },
     [refresh],
   );

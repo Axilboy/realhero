@@ -4,6 +4,13 @@
  * На ступени — 3 варианта; в UI — случайный набор.
  */
 
+import type { Locale } from "../i18n/locale";
+import {
+  DAY_TIERS_EN,
+  MONTH_TIERS_EN,
+  WEEK_TIERS_EN,
+} from "./financeMotivationEnTiers";
+
 export const DAY_STEP_RUB = 5;
 export const WEEK_STEP_RUB = 35;
 export const MONTH_STEP_RUB = 150;
@@ -533,6 +540,21 @@ function pickTriple(
   return row[i]!;
 }
 
+function motivationTiers(locale: Locale) {
+  if (locale === "en") {
+    return {
+      day: DAY_TIERS_EN,
+      week: WEEK_TIERS_EN,
+      month: MONTH_TIERS_EN,
+    };
+  }
+  return {
+    day: DAY_TIERS,
+    week: WEEK_TIERS,
+    month: MONTH_TIERS,
+  };
+}
+
 /**
  * Один текст на день / неделю / месяц по оценке месячного пассива (копейки).
  * Уровень текста берётся по дневной корзине (до 5000 ₽/день), чтобы три блока совпадали по смыслу.
@@ -540,6 +562,7 @@ function pickTriple(
 export function getMotivationFromMonthlyMinor(
   monthlyPassiveMinor: number,
   picks: MotivationPicks,
+  locale: Locale = "ru",
 ): MotivationPack | null {
   if (monthlyPassiveMinor <= 0) return null;
   const { dailyRub, weeklyRub, monthlyRub } =
@@ -552,12 +575,14 @@ export function getMotivationFromMonthlyMinor(
   const cap = DAY_THRESHOLDS[DAY_THRESHOLDS.length - 1] ?? 5000;
   const di = tierIndexForDailyBucket(Math.min(dayBucketRub, cap));
 
+  const { day, week, month } = motivationTiers(locale);
+
   return {
     dayBucketRub,
     weekBucketRub,
     monthBucketRub,
-    day: pickTriple(DAY_TIERS, di, picks.day),
-    week: pickTriple(WEEK_TIERS, di, picks.week),
-    month: pickTriple(MONTH_TIERS, di, picks.month),
+    day: pickTriple(day, di, picks.day),
+    week: pickTriple(week, di, picks.week),
+    month: pickTriple(month, di, picks.month),
   };
 }

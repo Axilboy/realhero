@@ -46,6 +46,44 @@ body {
   min-width: 0;
 }
 
+.shell__bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.shell__lang {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.shell__lang-btn {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #323945;
+  border-radius: 6px;
+  background: transparent;
+  color: #9aa0a6;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shell__lang-btn:hover {
+  background: #1a1e26;
+}
+
+.shell__lang-btn--on {
+  background: #252b36;
+  color: #e8eaed;
+  border-color: #454c5a;
+}
+
+.shell__lang-btn:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
+}
+
 .shell__bar-logout {
   flex-shrink: 0;
   padding: 0.35rem 0.65rem;
@@ -209,6 +247,34 @@ body {
   border: 1px solid #2a2f38;
 }
 
+.auth-card__lang {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.15rem;
+  margin-bottom: 0.75rem;
+}
+
+.auth-lang-btn {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #323945;
+  border-radius: 6px;
+  background: transparent;
+  color: #9aa0a6;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-lang-btn:hover {
+  background: #1f232b;
+}
+
+.auth-lang-btn--on {
+  background: #252b36;
+  color: #e8eaed;
+  border-color: #454c5a;
+}
+
 .auth-card__title {
   margin: 0 0 0.35rem;
   font-size: 1.35rem;
@@ -297,6 +363,215 @@ body {
 .auth-form__submit:focus-visible {
   outline: 2px solid #c5d6ff;
   outline-offset: 2px;
+}
+
+/* —— Лендинг (гость) —— */
+.landing {
+  min-height: 100%;
+  padding: 1rem 1.25rem 2rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  background: radial-gradient(ellipse 120% 80% at 50% -20%, #1e2a44 0%, transparent 55%),
+    #0f1115;
+}
+
+.landing__inner {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.landing__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2.25rem;
+}
+
+.landing__brand {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #e8eaed;
+}
+
+.landing__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.landing__lang {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.landing__lang-btn {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #323945;
+  border-radius: 6px;
+  background: transparent;
+  color: #9aa0a6;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.landing__lang-btn:hover {
+  background: #1a1e26;
+}
+
+.landing__lang-btn--on {
+  background: #252b36;
+  color: #e8eaed;
+  border-color: #454c5a;
+}
+
+.landing__link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #8ab4ff;
+  text-decoration: none;
+}
+
+.landing__link:hover {
+  text-decoration: underline;
+}
+
+.landing__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.landing__btn--ghost {
+  background: #1a1d24;
+  border-color: #2a2f38;
+  color: #e8eaed;
+}
+
+.landing__btn--ghost:hover {
+  background: #22262e;
+}
+
+.landing__btn--primary {
+  background: #8ab4ff;
+  color: #0f1115;
+  border-color: #8ab4ff;
+  font-weight: 700;
+}
+
+.landing__btn--primary:hover {
+  filter: brightness(1.06);
+}
+
+.landing__btn--secondary {
+  background: transparent;
+  border-color: #3d4654;
+  color: #c4c7cc;
+}
+
+.landing__btn--secondary:hover {
+  background: #1a1d24;
+  border-color: #4a5568;
+}
+
+.landing__main {
+  margin-bottom: 2.5rem;
+}
+
+.landing__banner {
+  margin: 0 0 1.25rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #c5d6ff;
+  background: rgba(138, 180, 255, 0.12);
+  border: 1px solid rgba(138, 180, 255, 0.28);
+}
+
+.landing__title {
+  margin: 0 0 0.85rem;
+  font-size: clamp(1.45rem, 4.5vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: #f1f3f4;
+}
+
+.landing__lead {
+  margin: 0 0 1.75rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #9aa0a6;
+}
+
+.landing__cta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 2.25rem;
+}
+
+@media (min-width: 420px) {
+  .landing__cta {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+.landing__features {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.landing__feature {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #1a1d24 0%, #14171c 100%);
+  border: 1px solid #2a2f38;
+}
+
+.landing__feature-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8ab4ff;
+}
+
+.landing__feature-text {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #b8bcc4;
+}
+
+.landing__footer {
+  padding-top: 0.5rem;
+  border-top: 1px solid #252a33;
+}
+
+.landing__footer-note {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #6d727b;
 }
 
 /* —— Финансы —— */
@@ -1153,6 +1428,12 @@ body {
   position: relative;
 }
 
+.body-nut__off-caption {
+  font-size: 0.78rem;
+  color: #9aa0a6;
+  margin: 0 0 0.35rem;
+}
+
 .body-nut__ac {
   position: absolute;
   left: 0;
@@ -1348,6 +1629,17 @@ body {
   border-color: #4a7f6f;
   background: #1e2a26;
   color: #b8d4c9;
+}
+
+.body-settings__lang-h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #bdc1c6;
+}
+
+.body-settings__lang {
+  margin-bottom: 1rem;
 }
 
 .body-panel__lead {
@@ -1720,6 +2012,10 @@ body {
 .finance__modal--fin-settings {
   display: flex;
   flex-direction: column;
+}
+
+.finance-main__lang {
+  margin-bottom: 0.85rem;
 }
 
 .finance-main__settings-body {
@@ -3699,7 +3995,142 @@ button.finance-dep-carousel__card:focus-visible {
 
 .hero__quest-progress {
   font-size: 0.78rem;
-  color: #5c6068;
+  color: #8b9099;
+}
+
+.hero__quest-sub {
+  margin: 0.85rem 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6a6f78;
+}
+
+.hero__quest-sub:first-of-type {
+  margin-top: 0.35rem;
+}
+
+.hero__quest-muted {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.hero__quest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.hero__quest-item {
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: #12151a;
+  border: 1px solid #252a33;
+}
+
+.hero__quest-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.65rem;
+  margin-bottom: 0.4rem;
+}
+
+.hero__quest-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e2e4e8;
+}
+
+.hero__quest-branch {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7b64c9;
+}
+
+.hero__quest-item-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.hero__quest-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.hero__btn--small {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.hero__btn--ghost {
+  background: transparent;
+  border: 1px solid #3a4252;
+  color: #9aa0a8;
+}
+
+.hero__btn--ghost:hover:not(:disabled) {
+  border-color: #5a6270;
+  color: #c4c7cc;
+}
+
+.hero__btn--ghost:disabled {
+  opacity: 0.55;
+}
+
+.hero__quest-list--pick {
+  gap: 0.75rem;
+}
+
+.hero__quest-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: #12151a;
+  border: 1px solid #252a33;
+}
+
+@media (min-width: 520px) {
+  .hero__quest-pick {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.hero__quest-pick-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.hero__quest-pick-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e2e4e8;
+}
+
+.hero__quest-pick-desc {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #8b9099;
+}
+
+.hero__quest-pick-xp {
+  font-size: 0.72rem;
+  color: #6bcf8e;
 }
 
 .hero__future {

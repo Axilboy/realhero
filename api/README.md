@@ -17,7 +17,7 @@ npm run dev
 
 ## Эндпоинты
 
-Префиксы API: **`/api/v1/finance/`**, **`/api/v1/body/`**, **`/api/v1/tasks`** (ниже пути относительно префикса модуля, если не указано иное).
+Префиксы API: **`/api/v1/finance/`**, **`/api/v1/body/`**, **`/api/v1/tasks`**, **`/api/v1/hero`** (ниже пути относительно префикса модуля, если не указано иное).
 
 ### Система и авторизация
 
@@ -112,13 +112,24 @@ npm run dev
 | PATCH | `/tasks/:id` | Частичное обновление; `completed: true` \| `false` — отметка выполнения |
 | DELETE | `/tasks/:id` | Удаление (204) |
 
+### Герой / геймификация (нужна сессия)
+
+Префикс **`/api/v1/hero`**.
+
+| Метод | Путь | Описание |
+|--------|------|-----------|
+| GET | `/hero` | Текущий накопленный опыт: `{ "totalExp": number }` (поле `User.heroTotalExp` в БД) |
+| POST | `/hero/sync-from-local` | Тело `{ "totalExp": number }` — подтянуть максимум из старого локального кэша: итог `max(сервер, min(заявленный, лимит))`, при росте создаётся запись `GamificationEvent` типа `LOCAL_IMPORT`; ответ `{ "totalExp", "appliedDelta" }` |
+
+Произвольная подмена EXP с клиента **не** поддерживается — только синхронизация «не ниже текущего сервера» в рамках лимита.
+
 ## Продакшен
 
 Полное обновление сайта на сервере (фронт + API + PM2) — из корня репозитория **`bash scripts/server-update.sh`**; если терминал уже в **`api/`** — **`bash update-all.sh`** (см. корневой **`README.md`**).
 
 - Задайте **`JWT_SECRET`**, **`NODE_ENV=production`**, **`CORS_ORIGINS`** с вашим `https://домен`.
 - **Сессия (cookie `rh_session`):** в коде **`maxAge` 30 дней** и **`SameSite=Lax`**. Если при каждом заходе снова просит войти — чаще всего открываешь сайт с **другого хоста**, чем при логине (например вошёл с **`www.`**, зашёл без него или наоборот): cookie привязана к хосту. Решение: в nginx **301 с одного варианта на другой** *или* в **`api/.env`** задать **`COOKIE_DOMAIN=.твой-домен.ru`** (точка в начале — для поддоменов), перезапустить API. По умолчанию при **`NODE_ENV=production`** cookie с флагом **`Secure`** — нужен **HTTPS**, иначе браузер не сохранит сессию; для HTTP в проде задайте **`COOKIE_SECURE=false`** в **`api/.env`**.
-- БД: при росте можно перейти на PostgreSQL (смена `provider` в `schema.prisma`).
+- **БД:** по умолчанию SQLite (`DATABASE_URL=file:./…`). Для **PostgreSQL** поднимите контейнер из корня репозитория: **`docker compose up -d`**, задайте в **`api/.env`** строку **`DATABASE_URL=postgresql://realhero:realhero@127.0.0.1:5432/realhero`**, в **`prisma/schema.prisma`** у datasource смените **`provider`** на **`postgresql`**, затем **`npx prisma db push`** (или накатите миграции, если используете `prisma migrate`). Резервное копирование: для SQLite — файл БД; для Postgres — **`pg_dump`** по расписанию.
 - Запуск: `npm run build && npm start` под **pm2** или **systemd**; **nginx** проксирует `location /api/` на порт API.
 
 ## Документация проекта

@@ -1,7 +1,7 @@
 const STORAGE_KEY = "rh_hero_game_v1";
 
 export type HeroPersistedState = {
-  /** Накопленный опыт (для уровня; источник правды позже — сервер). */
+  /** Накопленный опыт; источник правды — API (`heroTotalExp`), локально — кэш для офлайна. */
   totalExp: number;
 };
 

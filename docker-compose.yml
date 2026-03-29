@@ -1,0 +1,24 @@
+# Опционально: PostgreSQL для прода или локальной проверки с DATABASE_URL под Postgres.
+# Запуск: docker compose up -d
+# Строка подключения (пример): postgresql://realhero:realhero@127.0.0.1:5432/realhero
+# Затем в api/: сменить provider в prisma/schema.prisma на postgresql, задать DATABASE_URL, выполнить npx prisma db push (или migrate — см. api/README.md).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: realhero
+      POSTGRES_PASSWORD: realhero
+      POSTGRES_DB: realhero
+    ports:
+      - "5432:5432"
+    volumes:
+      - realhero_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U realhero -d realhero"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  realhero_pgdata:

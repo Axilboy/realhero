@@ -68,12 +68,7 @@ import {
   categoryNameForUi,
 } from "../lib/financeApi";
 import { currentMonthYm, formatRubFromMinor } from "../lib/money";
-
-const TYPE_LABEL: Record<string, string> = {
-  EXPENSE: "Расход",
-  INCOME: "Доход",
-  BOTH: "Оба",
-};
+import { useI18n } from "../i18n/I18nContext";
 
 type AccountDetailItem =
   | { kind: "tx"; at: string; tx: TransactionRow }
@@ -100,6 +95,12 @@ function mergeAccountMovements(
   );
   return items;
 }
+
+const TYPE_LABEL: Record<string, string> = {
+  EXPENSE: "Расход",
+  INCOME: "Доход",
+  BOTH: "Оба",
+};
 
 function MainRecentMovementRow({
   item,
@@ -860,6 +861,7 @@ function FinanceMainPanel({
   cardYieldDisplay: FinanceCardYieldDisplay;
   setCardYieldDisplay: Dispatch<SetStateAction<FinanceCardYieldDisplay>>;
 }) {
+  const { t, locale, setLocale } = useI18n();
   const [reporting, setReporting] = useState<{
     financeReportingDay: number;
     financeReportingGranularity: FinanceReportingGranularity;
@@ -1949,6 +1951,31 @@ function FinanceMainPanel({
                   </button>
                 </div>
                 <div className="finance-main__settings-body">
+                  <h3 className="finance__h3 finance-main__settings-h3">
+                    {t("shell.uiLanguage")}
+                  </h3>
+                  <div
+                    className="shell__lang finance-main__lang"
+                    role="group"
+                    aria-label={t("shell.langPick")}
+                  >
+                    <button
+                      type="button"
+                      className={`shell__lang-btn${locale === "ru" ? " shell__lang-btn--on" : ""}`}
+                      onClick={() => setLocale("ru")}
+                      aria-pressed={locale === "ru"}
+                    >
+                      {t("shell.langRu")}
+                    </button>
+                    <button
+                      type="button"
+                      className={`shell__lang-btn${locale === "en" ? " shell__lang-btn--on" : ""}`}
+                      onClick={() => setLocale("en")}
+                      aria-pressed={locale === "en"}
+                    >
+                      {t("shell.langEn")}
+                    </button>
+                  </div>
                   <h3 className="finance__h3 finance-main__settings-h3">
                     Отчётность
                   </h3>

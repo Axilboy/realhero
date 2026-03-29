@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../../i18n/I18nContext";
 import {
   getMotivationFromMonthlyMinor,
   type MotivationPicks,
@@ -27,6 +28,7 @@ export default function FinanceMotivationStrip({
   shuffleKey,
   layout = "stack",
 }: Props) {
+  const { locale, t } = useI18n();
   const [picks, setPicks] = useState<MotivationPicks>(randomPicks);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dotIndex, setDotIndex] = useState(0);
@@ -35,7 +37,11 @@ export default function FinanceMotivationStrip({
     setPicks(randomPicks());
   }, [monthlyPassiveMinor, shuffleKey]);
 
-  const pack = getMotivationFromMonthlyMinor(monthlyPassiveMinor, picks);
+  const pack = getMotivationFromMonthlyMinor(
+    monthlyPassiveMinor,
+    picks,
+    locale,
+  );
   if (!pack) return null;
 
   const sectionClass =
@@ -82,10 +88,11 @@ export default function FinanceMotivationStrip({
 
   const hint = (
     <p className="finance-motivation__hint">
-      Оценка по %% и бумагам. Примеры — что можно купить примерно на эти деньги
-      (дневная сумма округлена; неделя ~×7, месяц ~×30; цены в магазинах
-      ориентировочные). Сейчас: {pack.dayBucketRub} ₽/день · {pack.weekBucketRub}{" "}
-      ₽/нед · {pack.monthBucketRub} ₽/мес
+      {t("fin.motivationHint", {
+        day: pack.dayBucketRub,
+        week: pack.weekBucketRub,
+        month: pack.monthBucketRub,
+      })}
     </p>
   );
 
@@ -93,10 +100,10 @@ export default function FinanceMotivationStrip({
     return (
       <section
         className={sectionClass}
-        aria-label="Что даёт пассивный поток"
+        aria-label={t("fin.motivationAria")}
       >
         <h3 className="finance__h3 finance-motivation__title">
-          На что тянет пассивный доход
+          {t("fin.motivationTitle")}
         </h3>
         <div className="finance-motivation__carousel-bleed">
           <div
@@ -105,19 +112,19 @@ export default function FinanceMotivationStrip({
             role="list"
           >
             <div className="finance-motivation__slide" role="listitem">
-              <h4 className="finance-motivation__sub">Каждый день</h4>
+              <h4 className="finance-motivation__sub">{t("fin.eachDay")}</h4>
               <p className="finance-motivation__card finance-motivation__card--single">
                 {pack.day}
               </p>
             </div>
             <div className="finance-motivation__slide" role="listitem">
-              <h4 className="finance-motivation__sub">Каждую неделю</h4>
+              <h4 className="finance-motivation__sub">{t("fin.eachWeek")}</h4>
               <p className="finance-motivation__card finance-motivation__card--single">
                 {pack.week}
               </p>
             </div>
             <div className="finance-motivation__slide" role="listitem">
-              <h4 className="finance-motivation__sub">Каждый месяц</h4>
+              <h4 className="finance-motivation__sub">{t("fin.eachMonth")}</h4>
               <p className="finance-motivation__card finance-motivation__card--single">
                 {pack.month}
               </p>
@@ -126,15 +133,25 @@ export default function FinanceMotivationStrip({
           <div
             className="finance-acc-row__dots"
             role="tablist"
-            aria-label="Период примера"
+            aria-label={t("fin.periodExampleAria")}
           >
-            {(["День", "Неделя", "Месяц"] as const).map((label, i) => (
+            {(
+              [
+                t("fin.dotDay"),
+                t("fin.dotWeek"),
+                t("fin.dotMonth"),
+              ] as const
+            ).map((label, i) => (
               <button
                 key={label}
                 type="button"
                 role="tab"
                 aria-selected={dotIndex === i}
-                aria-label={`${label}: пример ${i + 1} из ${SLIDE_COUNT}`}
+                aria-label={t("fin.dotAria", {
+                  label,
+                  i: i + 1,
+                  n: SLIDE_COUNT,
+                })}
                 className={
                   dotIndex === i
                     ? "finance-acc-row__dot finance-acc-row__dot--on"
@@ -152,29 +169,29 @@ export default function FinanceMotivationStrip({
   return (
     <section
       className={sectionClass}
-      aria-label="Что даёт пассивный поток"
+      aria-label={t("fin.motivationAria")}
     >
       <h3 className="finance__h3 finance-motivation__title">
-        На что тянет пассивный доход
+        {t("fin.motivationTitle")}
       </h3>
       {hint}
 
       <div className="finance-motivation__block">
-        <h4 className="finance-motivation__sub">Каждый день</h4>
+        <h4 className="finance-motivation__sub">{t("fin.eachDay")}</h4>
         <p className="finance-motivation__card finance-motivation__card--single">
           {pack.day}
         </p>
       </div>
 
       <div className="finance-motivation__block">
-        <h4 className="finance-motivation__sub">Каждую неделю</h4>
+        <h4 className="finance-motivation__sub">{t("fin.eachWeek")}</h4>
         <p className="finance-motivation__card finance-motivation__card--single">
           {pack.week}
         </p>
       </div>
 
       <div className="finance-motivation__block">
-        <h4 className="finance-motivation__sub">Каждый месяц</h4>
+        <h4 className="finance-motivation__sub">{t("fin.eachMonth")}</h4>
         <p className="finance-motivation__card finance-motivation__card--single">
           {pack.month}
         </p>

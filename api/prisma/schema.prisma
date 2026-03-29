@@ -68,6 +68,8 @@ model User {
   bodyProteinGoalG Float?
   bodyFatGoalG     Float?
   bodyCarbGoalG    Float?
+  /// Накопленный опыт экрана «Герой» (уровень считается на клиенте по той же формуле, что и ранее для localStorage).
+  heroTotalExp Int @default(0)
   createdAt    DateTime             @default(now())
   categories   Category[]
   transactions Transaction[]
@@ -81,6 +83,71 @@ model User {
   trainingPrograms TrainingProgram[]
   workoutLogs      WorkoutLog[]
   tasks            UserTask[]
+  gamificationEvents GamificationEvent[]
+  questInstances   QuestInstance[]
+}
+
+/// Экземпляр квеста у пользователя (шаблоны — код `api/src/lib/questCatalog.ts`).
+enum QuestInstanceStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum QuestStepProgressStatus {
+  PENDING
+  DONE
+  SKIPPED
+}
+
+model QuestInstance {
+  id          String              @id @default(uuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Идентификатор шаблона из каталога (slug).
+  questId     String
+  status      QuestInstanceStatus @default(ACTIVE)
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+  abandonedAt DateTime?
+  stepProgress QuestStepProgress[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, questId])
+}
+
+model QuestStepProgress {
+  id         String                  @id @default(uuid())
+  instanceId String
+  instance   QuestInstance           @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  /// Совпадает с `QuestStepDef.id` в каталоге.
+  stepId     String
+  orderIndex Int
+  status     QuestStepProgressStatus @default(PENDING)
+  /// Для REPEAT в будущем; в v1 шаг = 1 единица.
+  progressCurrent Int              @default(0)
+  progressTarget  Int              @default(1)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@unique([instanceId, stepId])
+  @@index([instanceId])
+}
+
+/// Журнал начислений EXP (квесты, действия — позже; пока — импорт с клиента).
+model GamificationEvent {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Ключ домена: LOCAL_IMPORT, QUEST_STEP, ACTION_DAY …
+  type       String
+  expDelta   Int
+  payloadJson String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 /// Задача в модуле «Задачи» (локальная дата дедлайна как у замеров тела).

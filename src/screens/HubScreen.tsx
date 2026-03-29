@@ -11,7 +11,25 @@ import {
   errorMessage as bodyErrorMessage,
 } from "../lib/bodyApi";
 import { formatRubFromMinor } from "../lib/money";
-import { loadHeroLocalState, splitTotalExp } from "../lib/heroLocalState";
+import {
+  loadHeroLocalState,
+  saveHeroLocalState,
+  splitTotalExp,
+} from "../lib/heroLocalState";
+import {
+  fetchHero,
+  syncHeroFromLocal,
+  errorMessage as heroErrorMessage,
+} from "../lib/heroApi";
+import {
+  fetchQuestDefinitions,
+  fetchQuestInstances,
+  startQuest,
+  abandonQuest,
+  errorMessage as questErrorMessage,
+  type QuestDefinitionRow,
+  type QuestInstanceRow,
+} from "../lib/questApi";
 import {
   consecutiveStreakFrom,
   measurementDateSet,
@@ -21,14 +39,7 @@ import {
 } from "../lib/heroStreaks";
 import { useShellGoToTab } from "../context/ShellTabContext";
 import { SHELL_TAB } from "../lib/shellTabs";
-
-function heroTitleForLevel(level: number): string {
-  if (level < 3) return "Новичок";
-  if (level < 6) return "Искатель порядка";
-  if (level < 10) return "Страж привычек";
-  if (level < 15) return "Герой дня";
-  return "Легенда";
-}
+import { useI18n } from "../i18n/I18nContext";
 
 function pct(part: number, whole: number): number {
   if (whole <= 0) return 0;
@@ -36,53 +47,135 @@ function pct(part: number, whole: number): number {
 }
 
 export default function HubScreen() {
+  const { t } = useI18n();
   const goToTab = useShellGoToTab();
-  const heroPersist = useMemo(() => loadHeroLocalState(), []);
+  const [heroTotalExp, setHeroTotalExp] = useState<number>(
+    () => loadHeroLocalState().totalExp,
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [financeLine, setFinanceLine] = useState<string | null>(null);
   const [bodyKcalLine, setBodyKcalLine] = useState<string | null>(null);
   const [workoutStreak, setWorkoutStreak] = useState<number | null>(null);
   const [measStreak, setMeasStreak] = useState<number | null>(null);
+  const [questDefs, setQuestDefs] = useState<QuestDefinitionRow[]>([]);
+  const [questInstances, setQuestInstances] = useState<QuestInstanceRow[]>([]);
+  const [questStartBusy, setQuestStartBusy] = useState<string | null>(null);
+  const [questAbandonBusy, setQuestAbandonBusy] = useState<string | null>(null);
 
   const { level, expInLevel, expToNext } = useMemo(
-    () => splitTotalExp(heroPersist.totalExp),
-    [heroPersist.totalExp],
+    () => splitTotalExp(heroTotalExp),
+    [heroTotalExp],
   );
   const expPct = expToNext > 0 ? pct(expInLevel, expToNext) : 100;
+
+  const activeQuests = useMemo(
+    () => questInstances.filter((i) => i.status === "ACTIVE"),
+    [questInstances],
+  );
+
+  const availableQuests = useMemo(() => {
+    const activeIds = new Set(
+      questInstances
+        .filter((i) => i.status === "ACTIVE")
+        .map((i) => i.questId),
+    );
+    return questDefs.filter((d) => !activeIds.has(d.id));
+  }, [questDefs, questInstances]);
+
+  const branchLabel = useCallback(
+    (b: QuestDefinitionRow["branch"] | null | undefined) => {
+      switch (b) {
+        case "tutorial":
+          return t("hub.questBranchTutorial");
+        case "gym":
+          return t("hub.questBranchGym");
+        case "health":
+          return t("hub.questBranchHealth");
+        case "beauty":
+          return t("hub.questBranchBeauty");
+        case "books":
+          return t("hub.questBranchBooks");
+        case "cinema":
+          return t("hub.questBranchCinema");
+        default:
+          return "";
+      }
+    },
+    [t],
+  );
+
+  const heroTitleForLevel = useMemo(() => {
+    if (level < 3) return t("hub.titleNovice");
+    if (level < 6) return t("hub.titleSeeker");
+    if (level < 10) return t("hub.titleGuardian");
+    if (level < 15) return t("hub.titleHero");
+    return t("hub.titleLegend");
+  }, [level, t]);
 
   const refreshHub = useCallback(async () => {
     setLoadError(null);
     const today = ymdToday();
     const fromMeas = ymdAddDays(today, -120);
 
-    const [acc, nut, st, wo, meas] = await Promise.all([
+    const [acc, nut, st, wo, meas, qDef, qInst, heroR] = await Promise.all([
       fetchAccounts(),
       fetchNutritionDay(today),
       fetchBodySettings(),
       fetchWorkouts(150),
       fetchMeasurements({ from: fromMeas }),
+      fetchQuestDefinitions(),
+      fetchQuestInstances(),
+      fetchHero(),
     ]);
 
     const errs: string[] = [];
+
+    if (qDef.ok && "quests" in qDef.data) {
+      setQuestDefs(qDef.data.quests);
+    } else {
+      setQuestDefs([]);
+      if (!qDef.ok) errs.push(questErrorMessage(qDef.data));
+    }
+
+    if (qInst.ok && "instances" in qInst.data) {
+      setQuestInstances(qInst.data.instances);
+    } else {
+      setQuestInstances([]);
+      if (!qInst.ok) errs.push(questErrorMessage(qInst.data));
+    }
+
+    if (heroR.ok && "totalExp" in heroR.data) {
+      const te = heroR.data.totalExp;
+      saveHeroLocalState({ totalExp: te });
+      setHeroTotalExp(te);
+    } else if (!heroR.ok) {
+      errs.push(heroErrorMessage(heroR.data));
+    }
     if (acc.ok) {
       const sumAcc = acc.data.accounts.reduce((s, a) => s + a.balanceMinor, 0);
       const inv = acc.data.investmentsTotalMinor;
       const grand = sumAcc + inv;
-      setFinanceLine(`Всего: ${formatRubFromMinor(grand)}`);
+      setFinanceLine(
+        t("hub.financeTotal", { amount: formatRubFromMinor(grand) }),
+      );
     } else {
       setFinanceLine(null);
       errs.push(financeErrorMessage(acc.data));
     }
 
     if (nut.ok && st.ok) {
-      const t = nut.data.totals;
+      const k = nut.data.totals;
       const goal = st.data.bodyKcalGoal;
       if (goal != null && goal > 0) {
         setBodyKcalLine(
-          `Ккал: ${Math.round(t.kcal)} / ${goal} (${pct(t.kcal, goal)}%)`,
+          t("hub.kcalRatio", {
+            cur: Math.round(k.kcal),
+            goal,
+            pct: pct(k.kcal, goal),
+          }),
         );
       } else {
-        setBodyKcalLine(`Ккал за сегодня: ${Math.round(t.kcal)}`);
+        setBodyKcalLine(t("hub.kcalToday", { n: Math.round(k.kcal) }));
       }
     } else {
       setBodyKcalLine(null);
@@ -110,20 +203,89 @@ export default function HubScreen() {
     }
 
     if (errs.length) setLoadError(errs[0] ?? null);
-  }, []);
+  }, [t]);
+
+  const handleStartQuest = useCallback(
+    async (questId: string) => {
+      setQuestStartBusy(questId);
+      setLoadError(null);
+      try {
+        const r = await startQuest(questId);
+        if (!r.ok) {
+          setLoadError(questErrorMessage(r.data));
+          return;
+        }
+        await refreshHub();
+      } finally {
+        setQuestStartBusy(null);
+      }
+    },
+    [refreshHub],
+  );
+
+  const handleAbandonQuest = useCallback(
+    async (instanceId: string) => {
+      setQuestAbandonBusy(instanceId);
+      setLoadError(null);
+      try {
+        const r = await abandonQuest(instanceId);
+        if (!r.ok) {
+          setLoadError(questErrorMessage(r.data));
+          return;
+        }
+        await refreshHub();
+      } finally {
+        setQuestAbandonBusy(null);
+      }
+    },
+    [refreshHub],
+  );
 
   useEffect(() => {
     void refreshHub();
   }, [refreshHub]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const local = loadHeroLocalState();
+      const r = await fetchHero();
+      if (cancelled) return;
+      if (!r.ok || !("totalExp" in r.data)) {
+        setHeroTotalExp(local.totalExp);
+        if (!r.ok) {
+          setLoadError((prev) => prev ?? heroErrorMessage(r.data));
+        }
+        return;
+      }
+      let total = r.data.totalExp;
+      if (local.totalExp > total) {
+        const s = await syncHeroFromLocal(local.totalExp);
+        if (cancelled) return;
+        if (s.ok && "totalExp" in s.data) {
+          total = s.data.totalExp;
+        } else {
+          total = Math.max(total, local.totalExp);
+        }
+      } else {
+        total = Math.max(total, local.totalExp);
+      }
+      saveHeroLocalState({ totalExp: total });
+      setHeroTotalExp(total);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="screen hero">
-      <p className="screen__badge">Главная</p>
-      <h1 className="screen__title hero__title">Герой</h1>
+      <p className="screen__badge">{t("hub.badge")}</p>
+      <h1 className="screen__title hero__title">{t("hub.title")}</h1>
 
       <section className="hero__panel" aria-labelledby="hero-game-heading">
         <h2 id="hero-game-heading" className="hero__sr-only">
-          Прогресс героя
+          {t("hub.progressTitle")}
         </h2>
         <div className="hero__avatar-wrap">
           <div className="hero__avatar" aria-hidden>
@@ -131,8 +293,10 @@ export default function HubScreen() {
           </div>
           <div className="hero__level-block">
             <div className="hero__level-row">
-              <span className="hero__level-num">Ур. {level}</span>
-              <span className="hero__level-title">{heroTitleForLevel(level)}</span>
+              <span className="hero__level-num">
+                {t("hub.levelShort")} {level}
+              </span>
+              <span className="hero__level-title">{heroTitleForLevel}</span>
             </div>
             <div
               className="hero__exp-bar"
@@ -140,16 +304,13 @@ export default function HubScreen() {
               aria-valuemin={0}
               aria-valuemax={expToNext}
               aria-valuenow={expInLevel}
-              aria-label={`Опыт ${expInLevel} из ${expToNext}`}
+              aria-label={t("hub.expAria", { now: expInLevel, max: expToNext })}
             >
               <div className="hero__exp-fill" style={{ width: `${expPct}%` }} />
             </div>
             <p className="hero__exp-caption">
               EXP {expInLevel} / {expToNext}
-              <span className="hero__exp-hint">
-                {" "}
-                · начисления из действий — позже (локальный задел)
-              </span>
+              <span className="hero__exp-hint">{t("hub.expHint")}</span>
             </p>
           </div>
         </div>
@@ -157,61 +318,59 @@ export default function HubScreen() {
 
       <section className="hero__card" aria-labelledby="hero-focus-heading">
         <h2 id="hero-focus-heading" className="hero__card-title">
-          Сегодня
+          {t("hub.today")}
         </h2>
-        <p className="hero__card-text">
-          Задачи и квесты дня появятся здесь, когда будет модуль «Задачи» и API
-          квестов. Пока фокус — замеры, питание и финансы.
-        </p>
+        <p className="hero__card-text">{t("hub.todayText")}</p>
         <div className="hero__card-actions">
           <button
             type="button"
             className="hero__btn hero__btn--primary"
             onClick={() => goToTab(SHELL_TAB.BODY)}
           >
-            Тело
+            {t("hub.bodyBtn")}
           </button>
           <button
             type="button"
             className="hero__btn"
             onClick={() => goToTab(SHELL_TAB.TODO)}
           >
-            Задачи
+            {t("hub.todoBtn")}
           </button>
         </div>
       </section>
 
-      <section className="hero__streaks" aria-label="Серии">
+      <section className="hero__streaks" aria-label={t("hub.streaksAria")}>
         {(workoutStreak != null && workoutStreak > 0) ||
         (measStreak != null && measStreak > 0) ? (
           <div className="hero__streak-chips">
             {workoutStreak != null && workoutStreak > 0 ? (
-              <span className="hero__chip" title="Подряд дней с завершённой тренировкой">
-                Тренировки: {workoutStreak} дн.
+              <span
+                className="hero__chip"
+                title={t("hub.workoutTitle")}
+              >
+                {t("hub.workoutChip", { n: workoutStreak })}
               </span>
             ) : null}
             {measStreak != null && measStreak > 0 ? (
-              <span className="hero__chip" title="Подряд дней с записью замера">
-                Замеры: {measStreak} дн.
+              <span className="hero__chip" title={t("hub.measTitle")}>
+                {t("hub.measChip", { n: measStreak })}
               </span>
             ) : null}
           </div>
         ) : (
-          <p className="hero__streak-empty">
-            Серии ещё не начались — отметьте тренировку или замер в «Тело».
-          </p>
+          <p className="hero__streak-empty">{t("hub.streakEmpty")}</p>
         )}
       </section>
 
-      <section className="hero__minigrid" aria-label="Краткая сводка">
+      <section className="hero__minigrid" aria-label={t("hub.minigridAria")}>
         <button
           type="button"
           className="hero__mini hero__mini--click"
           onClick={() => goToTab(SHELL_TAB.BODY)}
         >
-          <span className="hero__mini-label">Тело</span>
+          <span className="hero__mini-label">{t("hub.miniBody")}</span>
           <span className="hero__mini-value">
-            {bodyKcalLine ?? "Нет данных за сегодня"}
+            {bodyKcalLine ?? t("hub.kcalNoData")}
           </span>
         </button>
         <button
@@ -219,37 +378,111 @@ export default function HubScreen() {
           className="hero__mini hero__mini--click"
           onClick={() => goToTab(SHELL_TAB.FINANCE)}
         >
-          <span className="hero__mini-label">Финансы</span>
+          <span className="hero__mini-label">{t("hub.miniFinance")}</span>
           <span className="hero__mini-value">
-            {financeLine ?? "Не удалось загрузить"}
+            {financeLine ?? t("hub.financeLoadFail")}
           </span>
         </button>
       </section>
 
       <section className="hero__card hero__card--quest" aria-labelledby="hero-quest-heading">
         <h2 id="hero-quest-heading" className="hero__card-title">
-          Квест
+          {t("hub.quest")}
         </h2>
         <p className="hero__card-text hero__card-text--muted">
-          Активных квестов пока нет. Шаги квеста будут дублироваться в «Задачи»,
-          чтобы не вести двойной учёт.
+          {t("hub.questText")}
         </p>
-        <div className="hero__quest-placeholder">
-          <span className="hero__quest-dots">○ ○ ○ ○ ○</span>
-          <span className="hero__quest-progress">0 / 0 шагов</span>
-        </div>
+
+        <h3 className="hero__quest-sub">{t("hub.questActive")}</h3>
+        {activeQuests.length === 0 ? (
+          <p className="hero__card-text hero__card-text--muted hero__quest-muted">
+            {t("hub.questEmpty")}
+          </p>
+        ) : (
+          <ul className="hero__quest-list">
+            {activeQuests.map((q) => (
+              <li key={q.id} className="hero__quest-item">
+                <div className="hero__quest-item-head">
+                  <span className="hero__quest-branch">
+                    {branchLabel(q.branch)}
+                  </span>
+                  <span className="hero__quest-name">{q.questTitle}</span>
+                </div>
+                <div className="hero__quest-item-row">
+                  <span className="hero__quest-progress">
+                    {t("hub.questStepsProgress", {
+                      done: q.stepsDone,
+                      total: q.stepsTotal,
+                    })}
+                  </span>
+                  <div className="hero__quest-item-actions">
+                    <button
+                      type="button"
+                      className="hero__btn hero__btn--small"
+                      onClick={() => goToTab(SHELL_TAB.TODO)}
+                    >
+                      {t("hub.questToTodo")}
+                    </button>
+                    <button
+                      type="button"
+                      className="hero__btn hero__btn--ghost"
+                      disabled={questAbandonBusy === q.id}
+                      onClick={() => void handleAbandonQuest(q.id)}
+                    >
+                      {t("hub.questAbandon")}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <h3 className="hero__quest-sub">{t("hub.questAvailable")}</h3>
+        {availableQuests.length === 0 ? (
+          <p className="hero__card-text hero__card-text--muted hero__quest-muted">
+            {activeQuests.length > 0
+              ? t("hub.questAllActive")
+              : t("hub.questEmpty")}
+          </p>
+        ) : (
+          <ul className="hero__quest-list hero__quest-list--pick">
+            {availableQuests.map((d) => (
+              <li key={d.id} className="hero__quest-pick">
+                <div className="hero__quest-pick-main">
+                  <span className="hero__quest-branch">
+                    {branchLabel(d.branch)}
+                  </span>
+                  <span className="hero__quest-pick-title">{d.title}</span>
+                  <span className="hero__quest-pick-desc">{d.description}</span>
+                  <span className="hero__quest-pick-xp">
+                    {t("hub.questXpTotal", { n: d.rewardXpTotal })}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="hero__btn hero__btn--primary hero__btn--small"
+                  disabled={questStartBusy === d.id}
+                  onClick={() => void handleStartQuest(d.id)}
+                >
+                  {t("hub.questStart")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
-      <section className="hero__future" aria-label="Скоро">
-        <span className="hero__future-label">Скоро</span>
+      <section className="hero__future" aria-label={t("hub.futureAria")}>
+        <span className="hero__future-label">{t("hub.futureLabel")}</span>
         <div className="hero__future-btns">
-          <button type="button" className="hero__icon-btn" disabled title="Инвентарь">
+          <button type="button" className="hero__icon-btn" disabled title={t("hub.futureInventory")}>
             🎒
           </button>
-          <button type="button" className="hero__icon-btn" disabled title="Питомец">
+          <button type="button" className="hero__icon-btn" disabled title={t("hub.futurePet")}>
             🐾
           </button>
-          <button type="button" className="hero__icon-btn" disabled title="Мини-игра">
+          <button type="button" className="hero__icon-btn" disabled title={t("hub.futureGame")}>
             🎮
           </button>
         </div>

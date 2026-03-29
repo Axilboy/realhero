@@ -1,30 +1,41 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentType,
 } from "react";
 import { ShellTabContext } from "../context/ShellTabContext";
 import { useAuth } from "../auth/AuthContext";
+import { useI18n } from "../i18n/I18nContext";
 import HubScreen from "../screens/HubScreen";
 import FinanceScreen from "../screens/FinanceScreen";
 import BodyScreen from "../screens/BodyScreen";
 import TodoScreen from "../screens/TodoScreen";
 import ActionsScreen from "../screens/ActionsScreen";
 
-const TABS: { id: string; label: string; Screen: ComponentType }[] = [
-  { id: "hub", label: "Герой", Screen: HubScreen },
-  { id: "finance", label: "Финансы", Screen: FinanceScreen },
-  { id: "body", label: "Тело", Screen: BodyScreen },
-  { id: "todo", label: "Задачи", Screen: TodoScreen },
-  { id: "actions", label: "Действия", Screen: ActionsScreen },
-];
-
 export default function AppShell() {
   const { user, logout } = useAuth();
+  const { t, locale, setLocale } = useI18n();
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
+
+  const tabs = useMemo(
+    () =>
+      [
+        { id: "hub", label: t("shell.tabHub"), Screen: HubScreen },
+        { id: "finance", label: t("shell.tabFinance"), Screen: FinanceScreen },
+        { id: "body", label: t("shell.tabBody"), Screen: BodyScreen },
+        { id: "todo", label: t("shell.tabTodo"), Screen: TodoScreen },
+        {
+          id: "actions",
+          label: t("shell.tabActions"),
+          Screen: ActionsScreen,
+        },
+      ] as const,
+    [t],
+  );
 
   const scrollToIndex = useCallback((index: number) => {
     const track = trackRef.current;
@@ -56,16 +67,40 @@ export default function AppShell() {
         <span className="shell__bar-email" title={user?.email}>
           {user?.email}
         </span>
+        <div className="shell__bar-actions">
+          <div
+            className="shell__lang"
+            role="group"
+            aria-label={t("shell.langPick")}
+          >
+            <button
+              type="button"
+              className={`shell__lang-btn${locale === "ru" ? " shell__lang-btn--on" : ""}`}
+              onClick={() => setLocale("ru")}
+              aria-pressed={locale === "ru"}
+            >
+              {t("shell.langRu")}
+            </button>
+            <button
+              type="button"
+              className={`shell__lang-btn${locale === "en" ? " shell__lang-btn--on" : ""}`}
+              onClick={() => setLocale("en")}
+              aria-pressed={locale === "en"}
+            >
+              {t("shell.langEn")}
+            </button>
+          </div>
         <button
           type="button"
           className="shell__bar-logout"
           onClick={() => void logout()}
         >
-          Выйти
+          {t("shell.logout")}
         </button>
+        </div>
       </header>
       <div className="shell__carousel" ref={trackRef}>
-        {TABS.map(({ id, Screen }) => (
+        {tabs.map(({ id, Screen }) => (
           <section
             key={id}
             className={
@@ -85,8 +120,8 @@ export default function AppShell() {
         ))}
       </div>
 
-      <nav className="shell__nav" aria-label="Основные разделы">
-        {TABS.map((tab, index) => (
+      <nav className="shell__nav" aria-label={t("shell.navMain")}>
+        {tabs.map((tab, index) => (
           <button
             key={tab.id}
             type="button"

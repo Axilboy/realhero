@@ -23,14 +23,9 @@ import {
   type NutritionEntryRow,
   type UserFoodRow,
 } from "../lib/bodyApi";
+import { useI18n } from "../i18n/I18nContext";
 
 const MEAL_ORDER: MealSlot[] = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
-const MEAL_LABEL: Record<MealSlot, string> = {
-  BREAKFAST: "Завтрак",
-  LUNCH: "Обед",
-  DINNER: "Ужин",
-  SNACK: "Перекус",
-};
 
 function applyPortion100(
   base: FoodNutrition100,
@@ -46,9 +41,11 @@ function applyPortion100(
 }
 
 function FoodScanModal({
+  t,
   onClose,
   onDecoded,
 }: {
+  t: (key: string, vars?: Record<string, string | number>) => string;
   onClose: () => void;
   onDecoded: (code: string) => void;
 }) {
@@ -95,7 +92,7 @@ function FoodScanModal({
           setErr(
             e instanceof Error
               ? e.message
-              : "Не удалось открыть камеру. Разрешите доступ или введите код вручную.",
+              : t("body.scanCameraErr"),
           );
         }
       } finally {
@@ -118,17 +115,16 @@ function FoodScanModal({
       <div className="finance__modal finance__modal--fullscreen">
         <div className="finance__modal-head">
           <h2 id="body-scan-title" className="finance__h2">
-            Штрихкод или QR
+            {t("body.barcodeOrQr")}
           </h2>
           <button type="button" className="finance__modal-close" onClick={onClose}>
-            Закрыть
+            {t("body.close")}
           </button>
         </div>
         <p className="screen__text body-nut__scan-hint">
-          Наведите камеру на штрихкод товара (EAN) или QR с кодом. Данные КБЖУ —
-          из Open Food Facts (на 100 г).
+          {t("body.scanHint")}
         </p>
-        {starting ? <p className="screen__text">Камера…</p> : null}
+        {starting ? <p className="screen__text">{t("body.cameraStarting")}</p> : null}
         {err ? <p className="finance__err">{err}</p> : null}
         <div id={regionId} className="body-nut__scan-region" />
       </div>
@@ -138,10 +134,12 @@ function FoodScanModal({
 }
 
 function UserFoodEditorModal({
+  t,
   initial,
   onClose,
   onSaved,
 }: {
+  t: (key: string, vars?: Record<string, string | number>) => string;
   initial: UserFoodRow | null;
   onClose: () => void;
   onSaved: () => void;
@@ -161,7 +159,7 @@ function UserFoodEditorModal({
     setFormErr(null);
     const nk = Number.parseInt(kcal, 10);
     if (!Number.isFinite(nk) || nk < 0) {
-      setFormErr("Ккал: целое ≥ 0");
+      setFormErr(t("body.errKcalInt"));
       setBusy(false);
       return;
     }
@@ -169,7 +167,7 @@ function UserFoodEditorModal({
     const fg = parseFloat(f.replace(",", "."));
     const cg = parseFloat(c.replace(",", "."));
     if (!Number.isFinite(pg) || !Number.isFinite(fg) || !Number.isFinite(cg)) {
-      setFormErr("БЖУ: числа");
+      setFormErr(t("body.errMacroNum"));
       setBusy(false);
       return;
     }
@@ -216,19 +214,19 @@ function UserFoodEditorModal({
       <div className="finance__modal finance__modal--fullscreen">
         <div className="finance__modal-head">
           <h2 id="user-food-title" className="finance__h2">
-            {initial ? "Изменить блюдо" : "Новое блюдо"}
+            {initial ? t("body.editFood") : t("body.newFood")}
           </h2>
           <button type="button" className="finance__modal-close" onClick={onClose}>
-            Закрыть
+            {t("body.close")}
           </button>
         </div>
         <form className="finance__form" onSubmit={(e) => void submit(e)}>
           {formErr ? <p className="finance__err">{formErr}</p> : null}
           <p className="screen__text body-nut__hint">
-            Значения на 100 г порции (как в справочнике).
+            {t("body.per100g")}
           </p>
           <label className="finance__field">
-            Название
+            {t("body.foodName")}
             <input
               className="finance__input"
               value={name}
@@ -237,7 +235,7 @@ function UserFoodEditorModal({
             />
           </label>
           <label className="finance__field">
-            Ккал / 100 г
+            {t("body.kcalPer100")}
             <input
               className="finance__input"
               inputMode="numeric"
@@ -248,7 +246,7 @@ function UserFoodEditorModal({
           </label>
           <div className="body-panel__macro-grid">
             <label className="finance__field">
-              Б / 100 г
+              {t("body.pPer100")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -257,7 +255,7 @@ function UserFoodEditorModal({
             />
             </label>
             <label className="finance__field">
-              Ж / 100 г
+              {t("body.fPer100")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -266,7 +264,7 @@ function UserFoodEditorModal({
             />
             </label>
             <label className="finance__field">
-              У / 100 г
+              {t("body.cPer100")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -276,7 +274,7 @@ function UserFoodEditorModal({
             </label>
           </div>
           <label className="finance__field">
-            Заметка
+            {t("body.noteFood")}
             <input
               className="finance__input"
               value={note}
@@ -284,7 +282,7 @@ function UserFoodEditorModal({
             />
           </label>
           <button className="finance__submit" type="submit" disabled={busy}>
-            {busy ? "…" : initial ? "Сохранить" : "Добавить"}
+            {busy ? "…" : initial ? t("body.save") : t("body.addSection")}
           </button>
         </form>
       </div>
@@ -310,6 +308,16 @@ export default function BodyNutritionPanel({
   onRefresh: () => void;
   userFoods: UserFoodRow[];
 }) {
+  const { t } = useI18n();
+  const mealLabels = useMemo(
+    () => ({
+      BREAKFAST: t("body.mealBreakfast"),
+      LUNCH: t("body.mealLunch"),
+      DINNER: t("body.mealDinner"),
+      SNACK: t("body.mealSnack"),
+    }),
+    [t],
+  );
   const [meal, setMeal] = useState<MealSlot>("BREAKFAST");
   const [name, setName] = useState("");
   const [kcal, setKcal] = useState("");
@@ -399,7 +407,7 @@ export default function BodyNutritionPanel({
     setLocalErr(null);
     const k = Number.parseInt(kcal, 10);
     if (!Number.isFinite(k) || k < 0) {
-      setLocalErr("Укажите ккал");
+      setLocalErr(t("body.errKcalRequired"));
       setBusy(false);
       return;
     }
@@ -440,7 +448,7 @@ export default function BodyNutritionPanel({
     setBusy(true);
     const k = Number.parseInt(kcal, 10);
     if (!Number.isFinite(k) || k < 0) {
-      setLocalErr("Укажите ккал");
+      setLocalErr(t("body.errKcalRequired"));
       setBusy(false);
       return;
     }
@@ -501,10 +509,10 @@ export default function BodyNutritionPanel({
   return (
     <div className="body-panel">
       <p className="screen__text body-panel__lead">
-        Дневник КБЖУ: поиск по базе, штрихкод, свои блюда. Цели — в настройках.
+        {t("body.nutritionLead")}
       </p>
       <label className="finance__field">
-        День
+        {t("body.day")}
         <input
           className="finance__input"
           type="date"
@@ -516,7 +524,7 @@ export default function BodyNutritionPanel({
       {goalK != null && goalK > 0 ? (
         <div className="body-panel__goals">
           <div className="body-panel__goal-row">
-            <span>Ккал</span>
+            <span>{t("body.kcalShort")}</span>
             <span>
               {totals.kcal} / {goalK}
             </span>
@@ -527,7 +535,10 @@ export default function BodyNutritionPanel({
             aria-valuenow={Math.min(100, Math.round((100 * totals.kcal) / goalK))}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuetext={`${totals.kcal} из ${goalK} килокалорий`}
+            aria-valuetext={t("body.kcalAria", {
+              cur: totals.kcal,
+              goal: goalK,
+            })}
           >
             <div
               className="body-panel__goal-fill"
@@ -541,17 +552,17 @@ export default function BodyNutritionPanel({
 
       <div className="body-nut__user-foods">
         <div className="body-nut__user-foods-head">
-          <span className="body-nut__section-title">Мои блюда</span>
+          <span className="body-nut__section-title">{t("body.myFoods")}</span>
           <button
             type="button"
             className="finance__btn-secondary"
             onClick={() => setUserFoodEditor("new")}
           >
-            + Добавить
+            {t("body.addFoodBtn")}
           </button>
         </div>
         {userFoods.length === 0 ? (
-          <p className="body-nut__empty">Пока нет сохранённых блюд.</p>
+          <p className="body-nut__empty">{t("body.noSavedFoods")}</p>
         ) : (
           <ul className="body-nut__user-food-list">
             {userFoods.map((uf) => (
@@ -576,7 +587,12 @@ export default function BodyNutritionPanel({
                 >
                   {uf.name}
                   <span className="body-nut__user-food-meta">
-                    {uf.kcal} ккал · Б{uf.proteinG} Ж{uf.fatG} У{uf.carbG} / 100 г
+                    {t("body.kcalMacroLine", {
+                      k: uf.kcal,
+                      p: uf.proteinG,
+                      f: uf.fatG,
+                      c: uf.carbG,
+                    })}
                   </span>
                 </button>
                 <div className="body-nut__user-food-actions">
@@ -585,7 +601,7 @@ export default function BodyNutritionPanel({
                     className="body-nut__link-btn"
                     onClick={() => setUserFoodEditor(uf)}
                   >
-                    Изм.
+                    {t("body.editShort")}
                   </button>
                   <button
                     type="button"
@@ -596,7 +612,7 @@ export default function BodyNutritionPanel({
                       })
                     }
                   >
-                    Удал.
+                    {t("body.delShort")}
                   </button>
                 </div>
               </li>
@@ -607,13 +623,18 @@ export default function BodyNutritionPanel({
 
       {MEAL_ORDER.map((slot) => (
         <div key={slot} className="body-panel__meal">
-          <h4 className="body-panel__meal-title">{MEAL_LABEL[slot]}</h4>
+          <h4 className="body-panel__meal-title">{mealLabels[slot]}</h4>
           <ul className="body-panel__food-list">
             {(grouped.get(slot) ?? []).map((e) => (
               <li key={e.id} className="body-panel__food-li">
                 <span>
-                  {e.name} — {e.kcal} ккал · Б{e.proteinG.toFixed(0)} Ж
-                  {e.fatG.toFixed(0)} У{e.carbG.toFixed(0)}
+                  {t("body.dishLine", {
+                    name: e.name,
+                    k: e.kcal,
+                    p: e.proteinG.toFixed(0),
+                    f: e.fatG.toFixed(0),
+                    c: e.carbG.toFixed(0),
+                  })}
                 </span>
                 <span className="body-panel__food-actions">
                   <button
@@ -627,7 +648,7 @@ export default function BodyNutritionPanel({
                     type="button"
                     className="body-panel__food-del"
                     onClick={() => void delEntry(e.id)}
-                    aria-label={`Удалить ${e.name}`}
+                    aria-label={t("body.deleteEntryAria", { name: e.name })}
                   >
                     ×
                   </button>
@@ -640,10 +661,10 @@ export default function BodyNutritionPanel({
 
       {editingEntry ? (
         <form className="finance__form body-nut__form" onSubmit={(e) => void saveEditEntry(e)}>
-          <h3 className="finance__h3">Изменить запись</h3>
+          <h3 className="finance__h3">{t("body.editEntry")}</h3>
           {localErr ? <p className="finance__err">{localErr}</p> : null}
           <label className="finance__field">
-            Приём
+            {t("body.meal")}
             <select
               className="finance__input"
               value={meal}
@@ -651,13 +672,13 @@ export default function BodyNutritionPanel({
             >
               {MEAL_ORDER.map((s) => (
                 <option key={s} value={s}>
-                  {MEAL_LABEL[s]}
+                  {mealLabels[s]}
                 </option>
               ))}
             </select>
           </label>
           <label className="finance__field">
-            Продукт / блюдо
+            {t("body.product")}
             <input
               className="finance__input"
               value={name}
@@ -666,7 +687,7 @@ export default function BodyNutritionPanel({
             />
           </label>
           <label className="finance__field">
-            Порция (г)
+            {t("body.portionG")}
             <input
               className="finance__input"
               inputMode="decimal"
@@ -675,7 +696,7 @@ export default function BodyNutritionPanel({
             />
           </label>
           <label className="finance__field">
-            Ккал
+            {t("body.kcal")}
             <input
               className="finance__input"
               inputMode="numeric"
@@ -686,7 +707,7 @@ export default function BodyNutritionPanel({
           </label>
           <div className="body-panel__macro-grid">
             <label className="finance__field">
-              Б (г)
+              {t("body.pShort")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -695,7 +716,7 @@ export default function BodyNutritionPanel({
             />
             </label>
             <label className="finance__field">
-              Ж (г)
+              {t("body.fShort")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -704,7 +725,7 @@ export default function BodyNutritionPanel({
             />
             </label>
             <label className="finance__field">
-              У (г)
+              {t("body.cShort")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -715,36 +736,39 @@ export default function BodyNutritionPanel({
           </div>
           <div className="body-nut__form-actions">
             <button className="finance__submit" type="submit" disabled={busy}>
-              Сохранить
+              {t("body.save")}
             </button>
             <button
               type="button"
               className="finance__btn-secondary"
               onClick={cancelEdit}
             >
-              Отмена
+              {t("body.cancel")}
             </button>
           </div>
         </form>
       ) : (
         <form className="finance__form body-nut__form" onSubmit={(e) => void submit(e)}>
-          <h3 className="finance__h3">Добавить</h3>
+          <h3 className="finance__h3">{t("body.addSection")}</h3>
           {localErr ? <p className="finance__err">{localErr}</p> : null}
 
           <div className="body-nut__search-wrap">
+            <p className="screen__text body-nut__off-caption">
+              {t("body.offSearchCaption")}
+            </p>
             <label className="finance__field">
-              Поиск продукта (автодополнение)
+              {t("body.searchProduct")}
               <input
                 className="finance__input"
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
                 onFocus={() => searchHits.length > 0 && setSearchOpen(true)}
-                placeholder="Начните вводить название…"
+                placeholder={t("body.searchPlaceholder")}
                 autoComplete="off"
               />
             </label>
             {searchBusy ? (
-              <p className="body-nut__search-status">Поиск…</p>
+              <p className="body-nut__search-status">{t("body.searching")}</p>
             ) : null}
             {searchOpen && searchHits.length > 0 ? (
               <ul className="body-nut__ac" role="listbox">
@@ -763,8 +787,12 @@ export default function BodyNutritionPanel({
                         {h.brand ? `${h.name} — ${h.brand}` : h.name}
                       </span>
                       <span className="body-nut__ac-meta">
-                        {h.kcal100} ккал · Б{h.protein100} Ж{h.fat100} У{h.carb100}{" "}
-                        / 100 г
+                        {t("body.acMeta100", {
+                          k: h.kcal100,
+                          p: h.protein100,
+                          f: h.fat100,
+                          c: h.carb100,
+                        })}
                       </span>
                     </button>
                   </li>
@@ -779,12 +807,12 @@ export default function BodyNutritionPanel({
               className="finance__btn-secondary"
               onClick={() => setScanOpen(true)}
             >
-              Сканировать штрихкод / QR
+              {t("body.scanBarcode")}
             </button>
           </div>
 
           <label className="finance__field">
-            Порция (г), пересчёт от 100 г
+            {t("body.portionFrom100")}
             <input
               className="finance__input"
               inputMode="decimal"
@@ -793,7 +821,7 @@ export default function BodyNutritionPanel({
             />
           </label>
           <label className="finance__field">
-            Приём
+            {t("body.meal")}
             <select
               className="finance__input"
               value={meal}
@@ -801,13 +829,13 @@ export default function BodyNutritionPanel({
             >
               {MEAL_ORDER.map((s) => (
                 <option key={s} value={s}>
-                  {MEAL_LABEL[s]}
+                  {mealLabels[s]}
                 </option>
               ))}
             </select>
           </label>
           <label className="finance__field">
-            Продукт / блюдо
+            {t("body.product")}
             <input
               className="finance__input"
               value={name}
@@ -816,7 +844,7 @@ export default function BodyNutritionPanel({
             />
           </label>
           <label className="finance__field">
-            Ккал
+            {t("body.kcal")}
             <input
               className="finance__input"
               inputMode="numeric"
@@ -827,7 +855,7 @@ export default function BodyNutritionPanel({
           </label>
           <div className="body-panel__macro-grid">
             <label className="finance__field">
-              Б (г)
+              {t("body.pShort")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -836,7 +864,7 @@ export default function BodyNutritionPanel({
             />
             </label>
             <label className="finance__field">
-              Ж (г)
+              {t("body.fShort")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -845,7 +873,7 @@ export default function BodyNutritionPanel({
             />
             </label>
             <label className="finance__field">
-              У (г)
+              {t("body.cShort")}
               <input
                 className="finance__input"
                 inputMode="decimal"
@@ -855,18 +883,23 @@ export default function BodyNutritionPanel({
             </label>
           </div>
           <button className="finance__submit" type="submit" disabled={busy}>
-            Добавить в дневник
+            {t("body.addToDiary")}
           </button>
         </form>
       )}
 
       <p className="body-panel__totals">
-        Итого: {totals.kcal} ккал · Б{totals.proteinG.toFixed(0)} Ж
-        {totals.fatG.toFixed(0)} У{totals.carbG.toFixed(0)}
+        {t("body.totalsLine", {
+          k: totals.kcal,
+          p: totals.proteinG.toFixed(0),
+          f: totals.fatG.toFixed(0),
+          c: totals.carbG.toFixed(0),
+        })}
       </p>
 
       {scanOpen ? (
         <FoodScanModal
+          t={t}
           onClose={() => setScanOpen(false)}
           onDecoded={(text) => {
             setScanOpen(false);
@@ -877,8 +910,7 @@ export default function BodyNutritionPanel({
                 applyBase(r.data.product, portionGRef.current);
               } else {
                 setLocalErr(
-                  errorMessage(r.data) ||
-                    "Продукт не найден. Попробуйте поиск по названию.",
+                  errorMessage(r.data) || t("body.productNotFound"),
                 );
               }
             })();
@@ -888,6 +920,7 @@ export default function BodyNutritionPanel({
 
       {userFoodEditor ? (
         <UserFoodEditorModal
+          t={t}
           initial={userFoodEditor === "new" ? null : userFoodEditor}
           onClose={() => setUserFoodEditor(null)}
           onSaved={() => onRefresh()}

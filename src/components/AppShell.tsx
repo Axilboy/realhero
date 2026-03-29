@@ -32,12 +32,6 @@ export default function AppShell() {
           Screen: HubScreen,
         },
         {
-          id: "finance",
-          navIcon: "finance",
-          label: t("shell.tabFinance"),
-          Screen: FinanceScreen,
-        },
-        {
           id: "body",
           navIcon: "body",
           label: t("shell.tabBody"),
@@ -46,13 +40,19 @@ export default function AppShell() {
         {
           id: "todo",
           navIcon: "todo",
-          label: t("shell.tabTodo"),
+          label: t("shell.tabDevelopment"),
           Screen: TodoScreen,
         },
         {
+          id: "finance",
+          navIcon: "finance",
+          label: t("shell.tabFinance"),
+          Screen: FinanceScreen,
+        },
+        {
           id: "actions",
-          navIcon: "actions",
-          label: t("shell.tabActions"),
+          navIcon: "settings",
+          label: t("shell.tabSettings"),
           Screen: ActionsScreen,
         },
       ] as const,

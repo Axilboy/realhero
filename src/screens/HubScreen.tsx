@@ -7,6 +7,8 @@ import {
 import {
   fetchBodySettings,
   fetchNutritionDay,
+  fetchMeasurements,
+  fetchWorkouts,
   errorMessage as bodyErrorMessage,
 } from "../lib/bodyApi";
 import { formatRubFromMinor } from "../lib/money";
@@ -29,18 +31,30 @@ import {
   type QuestDefinitionRow,
   type QuestInstanceRow,
 } from "../lib/questApi";
-import { ymdToday } from "../lib/heroStreaks";
+import {
+  consecutiveStreakFrom,
+  measurementDateSet,
+  workoutDatesFromCompleted,
+  ymdToday,
+} from "../lib/heroStreaks";
 import { useShellGoToTab } from "../context/ShellTabContext";
 import { SHELL_TAB } from "../lib/shellTabs";
 import { useI18n } from "../i18n/I18nContext";
+import { useAuth } from "../auth/AuthContext";
 
 function pct(part: number, whole: number): number {
   if (whole <= 0) return 0;
   return Math.min(100, Math.round((part / whole) * 100));
 }
 
+function macroBarPct(cur: number, goal: number | null | undefined): number {
+  if (goal == null || goal <= 0) return 0;
+  return Math.min(100, Math.round((cur / goal) * 100));
+}
+
 export default function HubScreen() {
   const { t } = useI18n();
+  const { user } = useAuth();
   const goToTab = useShellGoToTab();
   const [heroTotalExp, setHeroTotalExp] = useState<number>(
     () => loadHeroLocalState().totalExp,
@@ -56,6 +70,16 @@ export default function HubScreen() {
   const [questInstances, setQuestInstances] = useState<QuestInstanceRow[]>([]);
   const [questStartBusy, setQuestStartBusy] = useState<string | null>(null);
   const [questAbandonBusy, setQuestAbandonBusy] = useState<string | null>(null);
+  const [streakWorkout, setStreakWorkout] = useState(0);
+  const [streakMeas, setStreakMeas] = useState(0);
+  const [bodyBars, setBodyBars] = useState<{
+    kcalPct: number;
+    pPct: number;
+    fPct: number;
+    cPct: number;
+  } | null>(null);
+
+  const displayName = (user?.email?.split("@")[0] ?? "").trim();
 
   const { level, expInLevel, expToNext } = useMemo(
     () => splitTotalExp(heroTotalExp),
@@ -111,7 +135,7 @@ export default function HubScreen() {
     setLoadError(null);
     const today = ymdToday();
 
-    const [acc, nut, st, ov, qDef, qInst, heroR] = await Promise.all([
+    const [acc, nut, st, ov, qDef, qInst, heroR, wR, mR] = await Promise.all([
       fetchAccounts(),
       fetchNutritionDay(today),
       fetchBodySettings(),
@@ -119,6 +143,8 @@ export default function HubScreen() {
       fetchQuestDefinitions(),
       fetchQuestInstances(),
       fetchHero(),
+      fetchWorkouts(400),
+      fetchMeasurements(),
     ]);
 
     const errs: string[] = [];
@@ -188,6 +214,15 @@ export default function HubScreen() {
     if (nut.ok && st.ok) {
       const k = nut.data.totals;
       const goal = st.data.bodyKcalGoal;
+      const gP = st.data.bodyProteinGoalG;
+      const gF = st.data.bodyFatGoalG;
+      const gC = st.data.bodyCarbGoalG;
+      setBodyBars({
+        kcalPct: goal != null && goal > 0 ? pct(k.kcal, goal) : 0,
+        pPct: macroBarPct(k.proteinG, gP),
+        fPct: macroBarPct(k.fatG, gF),
+        cPct: macroBarPct(k.carbG, gC),
+      });
       if (goal != null && goal > 0) {
         setBodyKcalLine(
           t("hub.kcalRatio", {
@@ -200,9 +235,28 @@ export default function HubScreen() {
         setBodyKcalLine(t("hub.kcalToday", { n: Math.round(k.kcal) }));
       }
     } else {
+      setBodyBars(null);
       setBodyKcalLine(null);
       if (!nut.ok) errs.push(bodyErrorMessage(nut.data));
       if (!st.ok) errs.push(bodyErrorMessage(st.data));
+    }
+
+    if (wR.ok && "workouts" in wR.data) {
+      const dates = workoutDatesFromCompleted(
+        wR.data.workouts.map((x) => x.completedAt),
+      );
+      setStreakWorkout(consecutiveStreakFrom(dates, today));
+    } else {
+      setStreakWorkout(0);
+    }
+
+    if (mR.ok && "measurements" in mR.data) {
+      const dates = measurementDateSet(
+        mR.data.measurements.map((x) => x.date),
+      );
+      setStreakMeas(consecutiveStreakFrom(dates, today));
+    } else {
+      setStreakMeas(0);
     }
 
     if (errs.length) setLoadError(errs[0] ?? null);
@@ -283,8 +337,21 @@ export default function HubScreen() {
 
   return (
     <div className="screen hero">
-      <p className="screen__badge">{t("hub.badge")}</p>
-      <h1 className="screen__title hero__title">{t("hub.title")}</h1>
+      <header className="hero__head">
+        <div className="hero__head-text">
+          <p className="screen__badge hero__badge-tight">{t("hub.badge")}</p>
+          <h1 className="screen__title hero__title">{t("hub.title")}</h1>
+        </div>
+        <button
+          type="button"
+          className="hero__bell"
+          disabled
+          aria-label={t("hub.bellAria")}
+          title={t("hub.bellAria")}
+        >
+          <span aria-hidden>🔔</span>
+        </button>
+      </header>
 
       <section className="hero__panel" aria-labelledby="hero-game-heading">
         <h2 id="hero-game-heading" className="hero__sr-only">
@@ -299,6 +366,11 @@ export default function HubScreen() {
               <span className="hero__level-num">
                 {t("hub.levelShort")} {level}
               </span>
+              {displayName ? (
+                <span className="hero__profile-name">{displayName}</span>
+              ) : null}
+            </div>
+            <div className="hero__level-subrow">
               <span className="hero__level-title">{heroTitleForLevel}</span>
             </div>
             <div
@@ -319,23 +391,88 @@ export default function HubScreen() {
         </div>
       </section>
 
+      <section className="hero__streaks" aria-label={t("hub.streaksAria")}>
+        <div className="hero__streak-chips">
+          {streakWorkout > 0 ? (
+            <span className="hero__chip" title={t("hub.workoutTitle")}>
+              {t("hub.workoutChip", { n: streakWorkout })}
+            </span>
+          ) : null}
+          {streakMeas > 0 ? (
+            <span className="hero__chip" title={t("hub.measTitle")}>
+              {t("hub.measChip", { n: streakMeas })}
+            </span>
+          ) : null}
+          {streakWorkout === 0 && streakMeas === 0 ? (
+            <p className="hero__streak-empty">{t("hub.streakEmpty")}</p>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="hero__today" aria-labelledby="hero-today-h">
+        <h2 id="hero-today-h" className="hero__today-heading">
+          {t("hub.today")}
+        </h2>
+        <p className="hero__today-text">{t("hub.todayText")}</p>
+        <div className="hero__today-actions">
+          <button
+            type="button"
+            className="hero__today-btn"
+            onClick={() => goToTab(SHELL_TAB.BODY)}
+          >
+            {t("hub.bodyBtn")}
+          </button>
+          <button
+            type="button"
+            className="hero__today-btn hero__today-btn--secondary"
+            onClick={() => goToTab(SHELL_TAB.TODO)}
+          >
+            {t("hub.todoBtn")}
+          </button>
+        </div>
+      </section>
+
       <section className="hero__minigrid" aria-label={t("hub.minigridAria")}>
         <button
           type="button"
-          className="hero__mini hero__mini--click"
+          className="hero__mini hero__mini--click hero__mini--body"
           onClick={() => goToTab(SHELL_TAB.BODY)}
         >
           <span className="hero__mini-label">{t("hub.miniBody")}</span>
+          {bodyBars ? (
+            <div className="hero__kcal-track" aria-hidden>
+              <div
+                className="hero__kcal-fill"
+                style={{ width: `${bodyBars.kcalPct}%` }}
+              />
+            </div>
+          ) : null}
           <span className="hero__mini-value">
             {bodyKcalLine ?? t("hub.kcalNoData")}
           </span>
+          {bodyBars ? (
+            <div className="hero__macro-bars" aria-hidden>
+              <span
+                className="hero__macro-bar hero__macro-bar--p"
+                style={{ width: `${bodyBars.pPct}%` }}
+              />
+              <span
+                className="hero__macro-bar hero__macro-bar--f"
+                style={{ width: `${bodyBars.fPct}%` }}
+              />
+              <span
+                className="hero__macro-bar hero__macro-bar--c"
+                style={{ width: `${bodyBars.cPct}%` }}
+              />
+            </div>
+          ) : null}
           {bodyMacroLine ? (
             <span className="hero__mini-sub">{bodyMacroLine}</span>
           ) : null}
         </button>
         <button
           type="button"
-          className="hero__mini hero__mini--click"
+          className="hero__mini hero__mini--click hero__mini--finance"
           onClick={() => goToTab(SHELL_TAB.FINANCE)}
         >
           <span className="hero__mini-label">{t("hub.miniFinance")}</span>
@@ -369,7 +506,9 @@ export default function HubScreen() {
                   <span className="hero__quest-branch">
                     {branchLabel(q.branch)}
                   </span>
-                  <span className="hero__quest-name">{q.questTitle}</span>
+                  <span className="hero__quest-name">
+                    {t("hub.questNameLine", { title: q.questTitle })}
+                  </span>
                 </div>
                 <div className="hero__quest-item-row">
                   <span className="hero__quest-progress">
@@ -416,7 +555,9 @@ export default function HubScreen() {
                   <span className="hero__quest-branch">
                     {branchLabel(d.branch)}
                   </span>
-                  <span className="hero__quest-pick-title">{d.title}</span>
+                  <span className="hero__quest-pick-title">
+                    {t("hub.questNameLine", { title: d.title })}
+                  </span>
                   <span className="hero__quest-pick-desc">{d.description}</span>
                   <span className="hero__quest-pick-xp">
                     {t("hub.questXpTotal", { n: d.rewardXpTotal })}

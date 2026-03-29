@@ -1,17 +1,17 @@
 export const actionsRu = {
   actions: {
     badge: "Модуль",
-    title: "Действия",
-    text: "Привычки, ежедневные действия и награда опытом — заглушка.",
-    placeholder: "Привычки · Стрики · Награды",
+    title: "Настройки",
+    text: "Язык интерфейса переключается в шапке приложения. Здесь — расширенные опции, когда появятся.",
+    placeholder: "Уведомления · Тема · Экспорт данных",
   },
 };
 
 export const actionsEn = {
   actions: {
     badge: "Module",
-    title: "Actions",
-    text: "Habits, daily actions, and XP rewards — placeholder.",
-    placeholder: "Habits · Streaks · Rewards",
+    title: "Settings",
+    text: "Interface language is in the app header. More options will land here later.",
+    placeholder: "Notifications · Theme · Data export",
   },
 };

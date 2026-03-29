@@ -48,7 +48,7 @@ import {
 } from "../lib/bodyUnits";
 import { useI18n } from "../i18n/I18nContext";
 
-const SHELL_TAB_BODY = 2;
+const SHELL_TAB_BODY = 1;
 
 function modalPortal(node: ReactNode) {
   return createPortal(node, document.body);

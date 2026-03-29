@@ -1,8 +1,9 @@
 /** Индексы слайдов в `AppShell` (совпадают с порядком `TABS`). */
+/** Порядок как на мокапе v2: Герой → Тело → Развитие → Финансы → Настройки */
 export const SHELL_TAB = {
   HERO: 0,
-  FINANCE: 1,
-  BODY: 2,
-  TODO: 3,
+  BODY: 1,
+  TODO: 2,
+  FINANCE: 3,
   ACTIONS: 4,
 } as const;

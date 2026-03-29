@@ -2,6 +2,26 @@
   box-sizing: border-box;
 }
 
+/* Дизайн-токены мокапов v2 (см. ТЗ_UI_МОКАПЫ_V2.md). Ширина колонки = логическая ширина iPhone 13 Pro Max. */
+:root {
+  --rh-shell-max: 428px;
+  --rh-bg: #0f1115;
+  --rh-surface: #14171c;
+  --rh-surface-elevated: #1a1d24;
+  --rh-border: #2a2f38;
+  --rh-border-muted: #252a33;
+  --rh-accent: #8ab4ff;
+  --rh-text: #e8eaed;
+  --rh-text-secondary: #c4c7cc;
+  --rh-text-muted: #9aa0a6;
+  --rh-nav-bg: #12151a;
+  --rh-income: #81c995;
+  --rh-expense: #f28b82;
+  --rh-body-accent: #b8d4c9;
+  --rh-radius-card: 12px;
+  --rh-radius-btn: 10px;
+}
+
 html,
 body,
 #root {
@@ -10,9 +30,14 @@ body,
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #0f1115;
-  color: #e8eaed;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  background: var(--rh-bg);
+  color: var(--rh-text);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -21,8 +46,10 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  max-width: 32rem;
+  max-width: var(--rh-shell-max);
   margin: 0 auto;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .shell__bar {
@@ -926,7 +953,7 @@ body {
 
 .finance__modal {
   width: 100%;
-  max-width: 32rem;
+  max-width: var(--rh-shell-max);
   max-height: min(90vh, 36rem);
   overflow-y: auto;
   padding: 1rem 1.1rem 1.25rem;
@@ -3270,7 +3297,7 @@ button.finance-dep-carousel__card:focus-visible {
   /* shell__nav (~60px + safe) + finance-mod__subnav (~52px) + зазор */
   bottom: calc(7.85rem + env(safe-area-inset-bottom, 0px));
   z-index: 100;
-  width: min(32rem, calc(100vw - 1.5rem));
+  width: min(var(--rh-shell-max), calc(100vw - 1.5rem));
   min-height: 48px;
   padding: 0.65rem 1.25rem;
   border: none;
@@ -3898,8 +3925,43 @@ button.finance-dep-carousel__card:focus-visible {
 }
 
 /* —— Экран «Герой» —— */
+.hero__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.hero__head-text {
+  min-width: 0;
+}
+
+.hero__badge-tight {
+  margin-bottom: 0.2rem;
+}
+
+.hero__bell {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-top: 0.15rem;
+  padding: 0;
+  border: 1px solid var(--rh-border);
+  border-radius: 10px;
+  background: var(--rh-surface-elevated);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .hero__title {
-  margin-bottom: 1rem;
+  margin-bottom: 0;
+}
+
+.screen.hero .hero__title {
+  margin-bottom: 0;
 }
 
 .hero__sr-only {
@@ -3956,6 +4018,10 @@ button.finance-dep-carousel__card:focus-visible {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.hero__level-subrow {
   margin-bottom: 0.5rem;
 }
 
@@ -3964,6 +4030,16 @@ button.finance-dep-carousel__card:focus-visible {
   font-weight: 700;
   color: #e8eaed;
   letter-spacing: -0.02em;
+}
+
+.hero__profile-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--rh-text-secondary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hero__level-title {
@@ -4099,6 +4175,62 @@ button.finance-dep-carousel__card:focus-visible {
   line-height: 1.4;
 }
 
+.hero__today {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--rh-radius-card);
+  background: var(--rh-surface);
+  border: 1px solid var(--rh-border-muted);
+}
+
+.hero__today-heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--rh-text);
+  letter-spacing: -0.02em;
+}
+
+.hero__today-text {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--rh-text-muted);
+}
+
+.hero__today-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hero__today-btn {
+  flex: 1;
+  min-width: 6.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--rh-radius-btn);
+  border: 1px solid #3d4a66;
+  background: linear-gradient(180deg, #232a38 0%, #1a1f2a 100%);
+  color: var(--rh-accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hero__today-btn:hover {
+  border-color: #5c6a8a;
+}
+
+.hero__today-btn--secondary {
+  border-color: var(--rh-border);
+  background: var(--rh-surface-elevated);
+  color: var(--rh-text-secondary);
+}
+
+.hero__today-btn--secondary:hover {
+  border-color: #3a4252;
+}
+
 .hero__minigrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -4151,6 +4283,87 @@ button.finance-dep-carousel__card:focus-visible {
   font-size: 0.72rem;
   line-height: 1.35;
   color: #7c8088;
+}
+
+.hero__mini--body {
+  background: linear-gradient(
+    155deg,
+    rgba(184, 212, 201, 0.12) 0%,
+    #14171c 55%
+  );
+  border-color: rgba(184, 212, 201, 0.28);
+}
+
+.hero__mini--body.hero__mini--click:hover {
+  border-color: rgba(184, 212, 201, 0.45);
+  background: linear-gradient(
+    155deg,
+    rgba(184, 212, 201, 0.16) 0%,
+    #181c24 55%
+  );
+}
+
+.hero__mini--finance {
+  background: linear-gradient(
+    155deg,
+    rgba(129, 201, 149, 0.1) 0%,
+    #14171c 55%
+  );
+  border-color: rgba(129, 201, 149, 0.28);
+}
+
+.hero__mini--finance.hero__mini--click:hover {
+  border-color: rgba(129, 201, 149, 0.42);
+  background: linear-gradient(
+    155deg,
+    rgba(129, 201, 149, 0.14) 0%,
+    #181c24 55%
+  );
+}
+
+.hero__kcal-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  margin-top: 0.15rem;
+}
+
+.hero__kcal-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #5a8f7b, var(--rh-body-accent));
+  min-width: 2px;
+  transition: width 0.25s ease;
+}
+
+.hero__macro-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.hero__macro-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.hero__macro-bar--p {
+  background: linear-gradient(90deg, #7eb8a8, #b8d4c9);
+}
+
+.hero__macro-bar--f {
+  background: linear-gradient(90deg, #c9a86c, #e0c89a);
+}
+
+.hero__macro-bar--c {
+  background: linear-gradient(90deg, #6b8cce, #9ab4e8);
 }
 
 .hero__quest-placeholder {

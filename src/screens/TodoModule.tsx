@@ -17,7 +17,7 @@ import {
   type UserTaskRow,
 } from "../lib/todoApi";
 
-const SHELL_TAB_TODO = 3;
+const SHELL_TAB_TODO = 2;
 
 function todayYmd(): string {
   const d = new Date();

@@ -2,6 +2,7 @@ export const hubRu = {
   hub: {
     title: "Герой",
     badge: "Главная",
+    bellAria: "Уведомления (скоро)",
     progressTitle: "Прогресс героя",
     levelShort: "Ур.",
     expAria: "Опыт {{now}} из {{max}}",
@@ -28,7 +29,8 @@ export const hubRu = {
     macroLine: "Б {{p}} · Ж {{f}} · У {{c}}",
     kcalRatio: "Ккал: {{cur}} / {{goal}} ({{pct}}%)",
     kcalToday: "Ккал за сегодня: {{n}}",
-    quest: "Квест",
+    quest: "Квесты",
+    questNameLine: "Квест: {{title}}",
     questText:
       "Активных квестов пока нет. Шаги квеста будут дублироваться в «Задачи», чтобы не вести двойной учёт.",
     questSteps: "0 / 0 шагов",
@@ -64,6 +66,7 @@ export const hubEn = {
   hub: {
     title: "Hero",
     badge: "Home",
+    bellAria: "Notifications (soon)",
     progressTitle: "Hero progress",
     levelShort: "Lv.",
     expAria: "XP {{now}} of {{max}}",
@@ -90,7 +93,8 @@ export const hubEn = {
     macroLine: "P {{p}} · F {{f}} · C {{c}}",
     kcalRatio: "kcal: {{cur}} / {{goal}} ({{pct}}%)",
     kcalToday: "kcal today: {{n}}",
-    quest: "Quest",
+    quest: "Quests",
+    questNameLine: "Quest: {{title}}",
     questText:
       "No active quests yet. Quest steps will be mirrored in Tasks to avoid double bookkeeping.",
     questSteps: "0 / 0 steps",

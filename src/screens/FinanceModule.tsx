@@ -262,7 +262,7 @@ function reportingCustomRangeOpts(st: {
 }
 
 /** Индекс вкладки «Финансы» в AppShell.TABS */
-const SHELL_TAB_FINANCE = 1;
+const SHELL_TAB_FINANCE = 3;
 
 function formatFinanceDateShort(iso: string, locale: Locale): string {
   const d = new Date(iso);

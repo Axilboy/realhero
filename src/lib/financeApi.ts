@@ -342,6 +342,58 @@ export async function fetchReportingForecast(opts?: {
   );
 }
 
+export type BudgetLine = {
+  categoryId: string;
+  name: string;
+  limitMinor: number | null;
+  spentMinor: number;
+  remainingMinor: number | null;
+};
+
+export type BudgetTotals = {
+  limitTotalMinor: number;
+  spentInBudgetMinor: number;
+  remainingTotalMinor: number;
+};
+
+export type BudgetSummary = {
+  periodYm: string;
+  hasBudgets: boolean;
+  limitTotalMinor: number;
+  spentInBudgetMinor: number;
+  remainingTotalMinor: number;
+};
+
+export async function fetchBudget(periodYm?: string) {
+  const q = periodYm
+    ? `?periodYm=${encodeURIComponent(periodYm)}`
+    : "";
+  return json<{
+    periodYm: string;
+    lines: BudgetLine[];
+    totals: BudgetTotals;
+  }>(`/api/v1/finance/budget${q}`);
+}
+
+export async function fetchBudgetSummary(periodYm?: string) {
+  const q = periodYm
+    ? `?periodYm=${encodeURIComponent(periodYm)}`
+    : "";
+  return json<BudgetSummary>(`/api/v1/finance/budget/summary${q}`);
+}
+
+export async function putBudgetLine(payload: {
+  categoryId: string;
+  periodYm: string;
+  /** null — снять лимит (коп.) */
+  limitMinor: number | null;
+}) {
+  return json<{ ok: boolean }>("/api/v1/finance/budget", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchInvestOverview(refreshQuotes?: boolean) {
   const q =
     refreshQuotes === true ? "?refresh=1" : "";

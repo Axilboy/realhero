@@ -63,6 +63,7 @@ model User {
   accounts     Account[]
   investments  InvestmentPosition[]
   transfers    Transfer[]
+  categoryBudgets CategoryBudget[]
 }
 
 model Account {
@@ -115,8 +116,25 @@ model Category {
   excludeFromReporting Boolean @default(false)
   createdAt   DateTime        @default(now())
   transactions Transaction[]
+  budgets      CategoryBudget[]
 
   @@index([userId])
+}
+
+/// Лимит расходов по категории за календарный месяц (YYYY-MM).
+model CategoryBudget {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  periodYm   String
+  limitMinor Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, categoryId, periodYm])
+  @@index([userId, periodYm])
 }
 
 model Transaction {

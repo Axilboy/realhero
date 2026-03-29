@@ -23,9 +23,12 @@ import {
   deleteTransaction,
   errorMessage,
   fetchAccounts,
+  fetchBudget,
+  fetchBudgetSummary,
   fetchCategories,
   fetchFinanceSettings,
   fetchInvestOverview,
+  putBudgetLine,
   fetchReportingForecast,
   fetchReportingSummary,
   fetchSummaryByCategory,
@@ -39,6 +42,9 @@ import {
   patchHolding,
   type AccountRow,
   type AccountType,
+  type BudgetLine,
+  type BudgetTotals,
+  type BudgetSummary,
   type Category,
   type DepositSavingsAccountRow,
   type FinanceReportingGranularity,
@@ -329,7 +335,7 @@ function categoryOptionsForKind(cats: Category[], kind: TransactionKind) {
   );
 }
 
-type TabKey = 0 | 1 | 2;
+type TabKey = 0 | 1 | 2 | 3;
 
 export default function FinanceModule() {
   const shellTab = useShellTabIndex();
@@ -360,7 +366,7 @@ export default function FinanceModule() {
       <div className="finance-mod__swipe">
         <div
           className="finance-mod__track"
-          style={{ transform: `translateY(-${(tab * 100) / 3}%)` }}
+          style={{ transform: `translateY(-${(tab * 100) / 4}%)` }}
         >
           <div className="finance-mod__panel">
             <FinanceMainPanel
@@ -381,15 +387,23 @@ export default function FinanceModule() {
           <div className="finance-mod__panel">
             <FinanceAnalyticsPanel bump={bump} />
           </div>
+          <div className="finance-mod__panel">
+            <FinanceBudgetPanel
+              bump={bump}
+              budgetActive={tab === 3}
+              onSaved={refreshAll}
+            />
+          </div>
         </div>
       </div>
 
       <nav className="finance-mod__subnav" aria-label="Разделы финансов">
         {(
           [
-            ["Главный", 0],
+            ["Главная", 0],
             ["Инвестиции", 1],
             ["Аналитика", 2],
+            ["Бюджет", 3],
           ] as const
         ).map(([label, i]) => (
           <button
@@ -453,6 +467,9 @@ function FinanceMainPanel({
   } | null>(null);
   const [capAlloc, setCapAlloc] = useState<InvestAllocation | null>(null);
   const [monthlyPassiveMinor, setMonthlyPassiveMinor] = useState(0);
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(
+    null,
+  );
   const [reportingDayDraft, setReportingDayDraft] = useState("1");
   const [granularityDraft, setGranularityDraft] =
     useState<FinanceReportingGranularity>("MONTH");
@@ -570,11 +587,13 @@ function FinanceMainPanel({
       }
     }
 
-    const [rep, c, a, ov] = await Promise.all([
+    const budgetYm = currentMonthYm();
+    const [rep, c, a, ov, bs] = await Promise.all([
       fetchReportingSummary(summaryOpts),
       fetchCategories(false),
       fetchAccounts(),
       fetchInvestOverview(false),
+      fetchBudgetSummary(budgetYm),
     ]);
     setPending(false);
 
@@ -623,6 +642,12 @@ function FinanceMainPanel({
     } else {
       setCapAlloc(null);
       setMonthlyPassiveMinor(0);
+    }
+
+    if (bs.ok) {
+      setBudgetSummary(bs.data);
+    } else {
+      setBudgetSummary(null);
     }
 
     if (errs.length) setLoadError(errs[0]);
@@ -1226,6 +1251,30 @@ function FinanceMainPanel({
               <span>Оценка пассивного потока (~в месяц)</span>
               <strong>{formatRubFromMinor(monthlyPassiveMinor)}</strong>
             </div>
+          ) : null}
+          {budgetSummary?.hasBudgets ? (
+            <div
+              className={
+                budgetSummary.remainingTotalMinor < 0
+                  ? "finance-main__budget-strip finance-main__budget-strip--over"
+                  : "finance-main__budget-strip"
+              }
+            >
+              <span className="finance-main__budget-strip-label">
+                Бюджет ({budgetSummary.periodYm}): осталось
+              </span>
+              <strong className="finance-main__budget-strip-val">
+                {formatRubFromMinor(budgetSummary.remainingTotalMinor)}
+              </strong>
+              <span className="finance-main__budget-strip-of">
+                {" "}
+                из {formatRubFromMinor(budgetSummary.limitTotalMinor)}
+              </span>
+            </div>
+          ) : !pending ? (
+            <p className="finance-main__budget-hint">
+              Лимиты по категориям — во вкладке «Бюджет» (календарный месяц).
+            </p>
           ) : null}
           {capAlloc ? (
             <div className="finance-main__cap-split">
@@ -3158,6 +3207,159 @@ function FinanceInvestPanel({
             </div>,
           )
         : null}
+    </div>
+  );
+}
+
+function FinanceBudgetPanel({
+  bump,
+  budgetActive,
+  onSaved,
+}: {
+  bump: number;
+  budgetActive: boolean;
+  onSaved: () => void;
+}) {
+  const [periodYm, setPeriodYm] = useState(currentMonthYm);
+  const [lines, setLines] = useState<BudgetLine[]>([]);
+  const [totals, setTotals] = useState<BudgetTotals | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const load = useCallback(async () => {
+    setPending(true);
+    setErr(null);
+    const r = await fetchBudget(periodYm);
+    setPending(false);
+    if (!r.ok) {
+      setErr(errorMessage(r.data));
+      setLines([]);
+      setTotals(null);
+      return;
+    }
+    setLines(r.data.lines);
+    setTotals(r.data.totals);
+  }, [periodYm]);
+
+  useEffect(() => {
+    if (!budgetActive) return;
+    void load();
+  }, [budgetActive, bump, load]);
+
+  async function onLimitBlur(categoryId: string, raw: string) {
+    const t = raw.trim();
+    const limitMinor =
+      t === ""
+        ? null
+        : Math.round(
+            Number(t.replace(/\s/g, "").replace(",", ".").replace("−", "-")) *
+              100,
+          );
+    if (
+      limitMinor !== null &&
+      (!Number.isFinite(limitMinor) || limitMinor < 0)
+    ) {
+      setErr("Лимит — неотрицательное число (₽)");
+      return;
+    }
+    setErr(null);
+    const r = await putBudgetLine({ categoryId, periodYm, limitMinor });
+    if (!r.ok) {
+      setErr(errorMessage(r.data));
+      return;
+    }
+    void load();
+    onSaved();
+  }
+
+  return (
+    <div className="finance-budget">
+      <h2 className="finance__h2">Бюджет</h2>
+      <p className="finance-budget__hint">
+        Лимиты по категориям расходов за{" "}
+        <strong>календарный месяц</strong> (не путать с отчётным периодом на
+        главной). Пустое поле лимита — без ограничения по категории.
+      </p>
+      <label className="finance__field finance-budget__month">
+        <span>Месяц</span>
+        <input
+          className="finance__input"
+          type="month"
+          value={periodYm}
+          onChange={(e) => setPeriodYm(e.target.value)}
+        />
+      </label>
+      {err ? <p className="finance__err">{err}</p> : null}
+      {pending ? <p className="screen__text">Загрузка…</p> : null}
+      {!pending && totals ? (
+        <div className="finance-budget__totals">
+          <span>
+            По категориям с лимитом: потрачено{" "}
+            <strong>{formatRubFromMinor(totals.spentInBudgetMinor)}</strong> из{" "}
+            <strong>{formatRubFromMinor(totals.limitTotalMinor)}</strong>
+            {" · "}
+            осталось{" "}
+            <strong
+              className={
+                totals.remainingTotalMinor < 0
+                  ? "finance-budget__remain--bad"
+                  : undefined
+              }
+            >
+              {formatRubFromMinor(totals.remainingTotalMinor)}
+            </strong>
+          </span>
+        </div>
+      ) : null}
+      {!pending && lines.length > 0 ? (
+        <ul className="finance-budget__list">
+          <li className="finance-budget__row finance-budget__row--head">
+            <span>Категория</span>
+            <span>Лимит</span>
+            <span className="finance-budget__h-num">Потрачено</span>
+            <span className="finance-budget__h-num">Осталось</span>
+          </li>
+          {lines.map((ln) => (
+            <li key={ln.categoryId} className="finance-budget__row">
+              <span className="finance-budget__cat">{ln.name}</span>
+              <label className="finance-budget__limit">
+                <span className="finance-budget__limit-label">Лимит ₽</span>
+                <input
+                  className="finance__input finance-budget__limit-input"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="—"
+                  defaultValue={
+                    ln.limitMinor != null
+                      ? new Intl.NumberFormat("ru-RU", {
+                          minimumFractionDigits:
+                            ln.limitMinor % 100 === 0 ? 0 : 2,
+                          maximumFractionDigits: 2,
+                        }).format(ln.limitMinor / 100)
+                      : ""
+                  }
+                  key={`${ln.categoryId}-${periodYm}-${ln.limitMinor ?? "x"}`}
+                  onBlur={(e) => void onLimitBlur(ln.categoryId, e.target.value)}
+                />
+              </label>
+              <span className="finance-budget__spent">
+                {formatRubFromMinor(ln.spentMinor)}
+              </span>
+              <span
+                className={
+                  ln.remainingMinor != null && ln.remainingMinor < 0
+                    ? "finance-budget__rem finance-budget__rem--bad"
+                    : "finance-budget__rem"
+                }
+              >
+                {ln.remainingMinor != null
+                  ? formatRubFromMinor(ln.remainingMinor)
+                  : "—"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

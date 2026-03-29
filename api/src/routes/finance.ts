@@ -1669,6 +1669,198 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     };
   });
 
+  /** Лимиты по категориям за календарный месяц + фактические расходы. */
+  app.get("/budget", async (request, reply) => {
+    const userId = getUserId(request);
+    await ensureUserHasCategories(prisma, userId);
+    const q = request.query as { periodYm?: string };
+    const periodYm =
+      q.periodYm?.trim() ?? new Date().toISOString().slice(0, 7);
+    const range = parseMonth(periodYm);
+    if (!range) {
+      return reply.status(400).send({ error: { message: "periodYm=YYYY-MM" } });
+    }
+
+    const expenseCats = await prisma.category.findMany({
+      where: {
+        userId,
+        isArchived: false,
+        excludeFromReporting: false,
+        OR: [{ type: "EXPENSE" }, { type: "BOTH" }],
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
+
+    const budgets = await prisma.categoryBudget.findMany({
+      where: { userId, periodYm },
+    });
+    const limitByCat = new Map(budgets.map((b) => [b.categoryId, b.limitMinor]));
+
+    const spentRows = await prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: {
+        userId,
+        kind: "EXPENSE",
+        occurredAt: { gte: range.start, lt: range.end },
+        category: { excludeFromReporting: false },
+      },
+      _sum: { amountMinor: true },
+    });
+    const spentByCat = new Map(
+      spentRows.map((r) => [r.categoryId, r._sum.amountMinor ?? 0]),
+    );
+
+    let limitTotal = 0;
+    let spentInBudget = 0;
+    const lines = expenseCats.map((c) => {
+      const limitMinor = limitByCat.get(c.id) ?? null;
+      const spentMinor = spentByCat.get(c.id) ?? 0;
+      const remainingMinor =
+        limitMinor != null ? limitMinor - spentMinor : null;
+      if (limitMinor != null) {
+        limitTotal += limitMinor;
+        spentInBudget += spentMinor;
+      }
+      return {
+        categoryId: c.id,
+        name: c.name,
+        limitMinor,
+        spentMinor,
+        remainingMinor,
+      };
+    });
+
+    return {
+      periodYm,
+      lines,
+      totals: {
+        limitTotalMinor: limitTotal,
+        spentInBudgetMinor: spentInBudget,
+        remainingTotalMinor: limitTotal - spentInBudget,
+      },
+    };
+  });
+
+  /** Краткая сводка для главной экрана «Финансы». */
+  app.get("/budget/summary", async (request, reply) => {
+    const userId = getUserId(request);
+    await ensureUserHasCategories(prisma, userId);
+    const q = request.query as { periodYm?: string };
+    const periodYm =
+      q.periodYm?.trim() ?? new Date().toISOString().slice(0, 7);
+    const range = parseMonth(periodYm);
+    if (!range) {
+      return reply.status(400).send({ error: { message: "periodYm=YYYY-MM" } });
+    }
+
+    const budgets = await prisma.categoryBudget.findMany({
+      where: { userId, periodYm },
+    });
+    if (budgets.length === 0) {
+      return {
+        periodYm,
+        hasBudgets: false,
+        limitTotalMinor: 0,
+        spentInBudgetMinor: 0,
+        remainingTotalMinor: 0,
+      };
+    }
+
+    const limitTotal = budgets.reduce((s, b) => s + b.limitMinor, 0);
+    const catIds = budgets.map((b) => b.categoryId);
+    const spentRows = await prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: {
+        userId,
+        kind: "EXPENSE",
+        categoryId: { in: catIds },
+        occurredAt: { gte: range.start, lt: range.end },
+        category: { excludeFromReporting: false },
+      },
+      _sum: { amountMinor: true },
+    });
+    const spentByCat = new Map(
+      spentRows.map((r) => [r.categoryId, r._sum.amountMinor ?? 0]),
+    );
+    let spentInBudget = 0;
+    for (const b of budgets) {
+      spentInBudget += spentByCat.get(b.categoryId) ?? 0;
+    }
+
+    return {
+      periodYm,
+      hasBudgets: true,
+      limitTotalMinor: limitTotal,
+      spentInBudgetMinor: spentInBudget,
+      remainingTotalMinor: limitTotal - spentInBudget,
+    };
+  });
+
+  app.put("/budget", async (request, reply) => {
+    const userId = getUserId(request);
+    await ensureUserHasCategories(prisma, userId);
+    const body = request.body as {
+      categoryId?: string;
+      periodYm?: string;
+      limitMinor?: number | null;
+    };
+    const categoryId =
+      typeof body.categoryId === "string" ? body.categoryId.trim() : "";
+    const periodYm =
+      typeof body.periodYm === "string"
+        ? body.periodYm.trim()
+        : new Date().toISOString().slice(0, 7);
+    if (!categoryId) {
+      return reply.status(400).send({ error: { message: "Укажите categoryId" } });
+    }
+    if (!parseMonth(periodYm)) {
+      return reply.status(400).send({ error: { message: "periodYm=YYYY-MM" } });
+    }
+
+    const cat = await prisma.category.findFirst({
+      where: { id: categoryId, userId, isArchived: false },
+    });
+    if (!cat) {
+      return reply.status(400).send({ error: { message: "Категория не найдена" } });
+    }
+    if (cat.type !== "EXPENSE" && cat.type !== "BOTH") {
+      return reply
+        .status(400)
+        .send({ error: { message: "Бюджет только для категорий расходов" } });
+    }
+
+    const lim = body.limitMinor;
+    if (lim === null || lim === undefined) {
+      await prisma.categoryBudget.deleteMany({
+        where: { userId, categoryId, periodYm },
+      });
+      return { ok: true };
+    }
+    if (typeof lim !== "number" || !Number.isFinite(lim) || lim < 0) {
+      return reply.status(400).send({
+        error: { message: "limitMinor — неотрицательное число (коп.)" },
+      });
+    }
+    const limitMinor = Math.round(lim);
+    await prisma.categoryBudget.upsert({
+      where: {
+        userId_categoryId_periodYm: {
+          userId,
+          categoryId,
+          periodYm,
+        },
+      },
+      create: {
+        userId,
+        categoryId,
+        periodYm,
+        limitMinor,
+      },
+      update: { limitMinor },
+    });
+    return { ok: true };
+  });
+
   app.get("/settings", async (request) => {
     const userId = getUserId(request);
     const u = await prisma.user.findUnique({

@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import App from "./App.tsx";
 import "./index.css";
+import "./finance-prototype.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

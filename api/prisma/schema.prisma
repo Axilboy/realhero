@@ -114,11 +114,20 @@ model Category {
   sortOrder   Int             @default(0)
   /// Не учитывать в доходах/расходах отчётного периода (корректировка баланса счёта).
   excludeFromReporting Boolean @default(false)
+  /// Родительская категория (подкатегории — один уровень вложенности).
+  parentId    String?
+  parent      Category?       @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[]      @relation("CategoryHierarchy")
+  /// Эмодзи-иконка для виджета (например 🍕).
+  iconEmoji   String?
+  /// Акцентный цвет виджета (#RRGGBB или ключ темы).
+  accentColor String?
   createdAt   DateTime        @default(now())
   transactions Transaction[]
   budgets      CategoryBudget[]
 
   @@index([userId])
+  @@index([userId, parentId])
 }
 
 /// Лимит расходов по категории за календарный месяц (YYYY-MM).

@@ -22,6 +22,9 @@ export type Category = {
   sortOrder: number;
   /** Служебные категории (корректировка баланса) не входят в отчётные доходы/расходы. */
   excludeFromReporting?: boolean;
+  parentId?: string | null;
+  iconEmoji?: string | null;
+  accentColor?: string | null;
 };
 
 /** Системная категория, если пользователь не выбрал другую. */
@@ -544,16 +547,37 @@ export async function fetchCategories(includeArchived = false) {
   return json<{ categories: Category[] }>(`/api/v1/finance/categories${q}`);
 }
 
-export async function createCategory(name: string, type: CategoryType) {
+export type CreateCategoryPayload = {
+  name: string;
+  type: CategoryType;
+  parentId?: string | null;
+  iconEmoji?: string | null;
+  accentColor?: string | null;
+};
+
+export async function createCategory(
+  nameOrPayload: string | CreateCategoryPayload,
+  typeArg?: CategoryType,
+) {
+  const payload: CreateCategoryPayload =
+    typeof nameOrPayload === "string"
+      ? { name: nameOrPayload, type: typeArg! }
+      : nameOrPayload;
   return json<{ category: Category }>("/api/v1/finance/categories", {
     method: "POST",
-    body: JSON.stringify({ name, type }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function patchCategory(
   id: string,
-  body: Partial<{ name: string; isArchived: boolean; type: CategoryType }>,
+  body: Partial<{
+    name: string;
+    isArchived: boolean;
+    type: CategoryType;
+    iconEmoji: string | null;
+    accentColor: string | null;
+  }>,
 ) {
   return json<{ category: Category }>(`/api/v1/finance/categories/${id}`, {
     method: "PATCH",

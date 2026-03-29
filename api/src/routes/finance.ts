@@ -1233,6 +1233,9 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const body = request.body as {
       name?: string;
       type?: CategoryType;
+      parentId?: string | null;
+      iconEmoji?: string | null;
+      accentColor?: string | null;
     };
     const name = body.name?.trim() ?? "";
     if (!name || name.length > 80) {
@@ -1247,8 +1250,63 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       });
     }
 
+    const parentId =
+      typeof body.parentId === "string" && body.parentId.trim() !== ""
+        ? body.parentId.trim()
+        : null;
+
+    let resolvedType: CategoryType = type;
+    let sortWhere: Prisma.CategoryWhereInput = {
+      userId,
+      type,
+      parentId: null,
+    };
+
+    if (parentId) {
+      const parent = await prisma.category.findFirst({
+        where: { id: parentId, userId },
+      });
+      if (!parent) {
+        return reply.status(400).send({
+          error: { message: "Родительская категория не найдена" },
+        });
+      }
+      if (parent.isArchived) {
+        return reply.status(400).send({
+          error: { message: "Нельзя добавить подкатегорию в архивную категорию" },
+        });
+      }
+      if (parent.parentId) {
+        return reply.status(400).send({
+          error: { message: "Поддерживается только один уровень вложенности" },
+        });
+      }
+      if (parent.type === "EXPENSE" || parent.type === "INCOME") {
+        if (type !== parent.type) {
+          return reply.status(400).send({
+            error: {
+              message: "Тип подкатегории должен совпадать с родительской",
+            },
+          });
+        }
+        resolvedType = parent.type;
+      } else {
+        resolvedType = type;
+      }
+      sortWhere = { userId, parentId };
+    }
+
+    const iconEmoji =
+      typeof body.iconEmoji === "string"
+        ? body.iconEmoji.trim().slice(0, 8) || null
+        : null;
+    const accentColor =
+      typeof body.accentColor === "string"
+        ? body.accentColor.trim().slice(0, 32) || null
+        : null;
+
     const maxSort = await prisma.category.aggregate({
-      where: { userId, type },
+      where: sortWhere,
       _max: { sortOrder: true },
     });
     const sortOrder = (maxSort._max.sortOrder ?? -1) + 1;
@@ -1257,7 +1315,10 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       data: {
         userId,
         name,
-        type,
+        type: resolvedType,
+        parentId,
+        iconEmoji,
+        accentColor,
         isBuiltIn: false,
         isArchived: false,
         sortOrder,
@@ -1274,6 +1335,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       isArchived?: boolean;
       sortOrder?: number;
       type?: CategoryType;
+      iconEmoji?: string | null;
+      accentColor?: string | null;
     };
 
     const existing = await prisma.category.findFirst({
@@ -1361,6 +1424,19 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       }
     }
 
+    const iconEmojiUpd =
+      body.iconEmoji !== undefined
+        ? typeof body.iconEmoji === "string"
+          ? body.iconEmoji.trim().slice(0, 8) || null
+          : null
+        : undefined;
+    const accentColorUpd =
+      body.accentColor !== undefined
+        ? typeof body.accentColor === "string"
+          ? body.accentColor.trim().slice(0, 32) || null
+          : null
+        : undefined;
+
     const updated = await prisma.category.update({
       where: { id },
       data: {
@@ -1368,6 +1444,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         ...(body.isArchived !== undefined ? { isArchived: body.isArchived } : {}),
         ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
         ...(body.type !== undefined ? { type: body.type } : {}),
+        ...(iconEmojiUpd !== undefined ? { iconEmoji: iconEmojiUpd } : {}),
+        ...(accentColorUpd !== undefined ? { accentColor: accentColorUpd } : {}),
       },
     });
     return { category: updated };

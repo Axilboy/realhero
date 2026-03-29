@@ -294,17 +294,63 @@ function FinanceAccountsRow({
       : a.name.localeCompare(b.name, "ru"),
   );
   const showAdd = onAddAccount != null;
+  const overlayCarousel = variant === "carousel" && carouselFullWidth;
+
+  const slideCount = useMemo(() => {
+    if (sorted.length === 0 && showAdd) return 1;
+    return sorted.length + (showAdd ? 1 : 0);
+  }, [sorted.length, showAdd]);
+
+  const [carouselDotIndex, setCarouselDotIndex] = useState(0);
+
+  function carouselStepPx(): number | null {
+    const el = scrollRef.current;
+    if (!el) return null;
+    const first = el.querySelector<HTMLElement>(".finance-acc-row__card");
+    if (!first) return null;
+    const gapPx = Number.parseFloat(
+      getComputedStyle(el).gap || getComputedStyle(el).columnGap || "0",
+    );
+    return first.getBoundingClientRect().width + (Number.isFinite(gapPx) ? gapPx : 0);
+  }
 
   function scrollAccountCarousel(dir: -1 | 1) {
     const el = scrollRef.current;
-    if (!el) return;
-    const first = el.querySelector<HTMLElement>(".finance-acc-row__card");
-    if (!first) return;
-    const cs = getComputedStyle(el);
-    const gapPx = Number.parseFloat(cs.gap || cs.columnGap || "0") || 0;
-    const step = first.getBoundingClientRect().width + gapPx;
+    const step = carouselStepPx();
+    if (!el || step == null || step <= 0) return;
     el.scrollBy({ left: dir * step, behavior: "smooth" });
   }
+
+  function goToCarouselSlide(i: number) {
+    const el = scrollRef.current;
+    const step = carouselStepPx();
+    if (!el || step == null || step <= 0) return;
+    const max = Math.max(0, slideCount - 1);
+    const idx = Math.min(Math.max(0, i), max);
+    el.scrollTo({ left: idx * step, behavior: "smooth" });
+  }
+
+  useEffect(() => {
+    if (!overlayCarousel) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const syncDot = () => {
+      const step = carouselStepPx();
+      if (step == null || step <= 0) return;
+      const n = el.querySelectorAll(".finance-acc-row__card").length;
+      if (n === 0) return;
+      const idx = Math.round(el.scrollLeft / step);
+      setCarouselDotIndex(Math.min(Math.max(0, idx), Math.max(0, n - 1)));
+    };
+    el.addEventListener("scroll", syncDot, { passive: true });
+    const ro = new ResizeObserver(() => syncDot());
+    ro.observe(el);
+    syncDot();
+    return () => {
+      el.removeEventListener("scroll", syncDot);
+      ro.disconnect();
+    };
+  }, [overlayCarousel, slideCount, sorted.length, showAdd]);
   const renderAccountCard = (a: AccountRow) => {
     const interest = accountShowsInterestLines(a);
     const inner = (
@@ -379,6 +425,43 @@ function FinanceAccountsRow({
     );
   };
 
+  const carouselListInner =
+    sorted.length === 0 && showAdd ? (
+      <button
+        type="button"
+        className="finance-acc-row__card finance-acc-row__card--add"
+        onClick={onAddAccount}
+      >
+        <span className="finance-acc-row__plus" aria-hidden>
+          +
+        </span>
+        <span className="finance-acc-row__add-tx">Новый счёт</span>
+      </button>
+    ) : (
+      <>
+        {sorted.map((a) => renderAccountCard(a))}
+        {showAdd ? (
+          <button
+            type="button"
+            className="finance-acc-row__card finance-acc-row__card--add"
+            onClick={onAddAccount}
+            aria-label="Новый счёт"
+          >
+            <span className="finance-acc-row__plus" aria-hidden>
+              +
+            </span>
+          </button>
+        ) : null}
+      </>
+    );
+
+  const scrollClassName = [
+    "finance-acc-row__scroll",
+    overlayCarousel ? "finance-acc-row__scroll--hide-scrollbar" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div
       className={
@@ -394,58 +477,76 @@ function FinanceAccountsRow({
     >
       <h3 className="finance__h3 finance-acc-row__title">{title}</h3>
       {variant === "carousel" ? (
-        <div className="finance-acc-row__carousel-shell">
-          <button
-            type="button"
-            className="finance-acc-row__nav finance-acc-row__nav--prev"
-            aria-label="Предыдущий счёт"
-            onClick={() => scrollAccountCarousel(-1)}
-          >
-            ‹
-          </button>
-          <div
-            ref={scrollRef}
-            className="finance-acc-row__scroll"
-            role="list"
-          >
-            {sorted.length === 0 && showAdd ? (
+        overlayCarousel ? (
+          <div className="finance-acc-row__carousel-bleed">
+            <div className="finance-acc-row__carousel-shell finance-acc-row__carousel-shell--overlay">
+              <div ref={scrollRef} className={scrollClassName} role="list">
+                {carouselListInner}
+              </div>
               <button
                 type="button"
-                className="finance-acc-row__card finance-acc-row__card--add"
-                onClick={onAddAccount}
+                className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--prev"
+                aria-label="Предыдущий счёт"
+                onClick={() => scrollAccountCarousel(-1)}
               >
-                <span className="finance-acc-row__plus" aria-hidden>
-                  +
-                </span>
-                <span className="finance-acc-row__add-tx">Новый счёт</span>
+                ‹
               </button>
-            ) : (
-              <>
-                {sorted.map((a) => renderAccountCard(a))}
-                {showAdd ? (
+              <button
+                type="button"
+                className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--next"
+                aria-label="Следующий счёт"
+                onClick={() => scrollAccountCarousel(1)}
+              >
+                ›
+              </button>
+            </div>
+            {slideCount > 1 ? (
+              <div
+                className="finance-acc-row__dots"
+                role="tablist"
+                aria-label="Счета"
+              >
+                {Array.from({ length: slideCount }, (_, i) => (
                   <button
+                    key={i}
                     type="button"
-                    className="finance-acc-row__card finance-acc-row__card--add"
-                    onClick={onAddAccount}
-                    aria-label="Новый счёт"
-                  >
-                    <span className="finance-acc-row__plus" aria-hidden>
-                      +
-                    </span>
-                  </button>
-                ) : null}
-              </>
-            )}
+                    role="tab"
+                    aria-selected={carouselDotIndex === i}
+                    aria-label={`Счёт ${i + 1} из ${slideCount}`}
+                    className={
+                      carouselDotIndex === i
+                        ? "finance-acc-row__dot finance-acc-row__dot--on"
+                        : "finance-acc-row__dot"
+                    }
+                    onClick={() => goToCarouselSlide(i)}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
-          <button
-            type="button"
-            className="finance-acc-row__nav finance-acc-row__nav--next"
-            aria-label="Следующий счёт"
-            onClick={() => scrollAccountCarousel(1)}
-          >
-            ›
-          </button>
-        </div>
+        ) : (
+          <div className="finance-acc-row__carousel-shell">
+            <button
+              type="button"
+              className="finance-acc-row__nav finance-acc-row__nav--prev"
+              aria-label="Предыдущий счёт"
+              onClick={() => scrollAccountCarousel(-1)}
+            >
+              ‹
+            </button>
+            <div ref={scrollRef} className={scrollClassName} role="list">
+              {carouselListInner}
+            </div>
+            <button
+              type="button"
+              className="finance-acc-row__nav finance-acc-row__nav--next"
+              aria-label="Следующий счёт"
+              onClick={() => scrollAccountCarousel(1)}
+            >
+              ›
+            </button>
+          </div>
+        )
       ) : (
         <div ref={scrollRef} className="finance-acc-row__scroll" role="list">
           {sorted.length === 0 && showAdd ? (
@@ -1594,7 +1695,7 @@ function FinanceMainPanel({
               }
             >
               <span className="finance-main__budget-strip-label">
-                Бюджет ({budgetSummary.periodYm}): осталось
+                Осталось:{" "}
               </span>
               <strong className="finance-main__budget-strip-val">
                 {formatRubFromMinor(budgetSummary.remainingTotalMinor)}

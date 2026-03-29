@@ -55,6 +55,7 @@ import {
   type TransactionKind,
   type TransactionRow,
   type TransferRow,
+  UNCATEGORIZED_CATEGORY_NAME,
 } from "../lib/financeApi";
 import { currentMonthYm, formatRubFromMinor } from "../lib/money";
 
@@ -265,19 +266,22 @@ function accountDebtInterestExpense(a: AccountCardLike): boolean {
   );
 }
 
-/** Счета: горизонтальная карусель или вертикальный список на всю ширину (`stack`). */
+/** Счета: карусель (узкие карточки или слайды на всю ширину), либо список `stack`. */
 function FinanceAccountsRow({
   accounts,
   title,
   onOpenAccount,
   onAddAccount,
   variant = "carousel",
+  carouselFullWidth = false,
 }: {
   accounts: AccountRow[];
   title: string;
   onOpenAccount?: (id: string) => void;
   onAddAccount?: () => void;
   variant?: "carousel" | "stack";
+  /** Одна карточка на ширину ленты (главная «Финансы»), с прокруткой влево–вправо */
+  carouselFullWidth?: boolean;
 }) {
   const sorted = [...accounts].sort((a, b) =>
     a.sortOrder !== b.sortOrder
@@ -364,7 +368,12 @@ function FinanceAccountsRow({
       className={
         variant === "stack"
           ? "finance-acc-row-wrap finance-acc-row-wrap--stack"
-          : "finance-acc-row-wrap"
+          : [
+              "finance-acc-row-wrap",
+              carouselFullWidth ? "finance-acc-row-wrap--slides-full" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
       }
     >
       <h3 className="finance__h3 finance-acc-row__title">{title}</h3>
@@ -425,8 +434,21 @@ function categoryOptionsForKind(cats: Category[], kind: TransactionKind) {
     (c) =>
       !c.isArchived &&
       !c.excludeFromReporting &&
+      c.name !== UNCATEGORIZED_CATEGORY_NAME &&
       (c.type === kind || c.type === "BOTH"),
   );
+}
+
+/** Категории в форме «Добавить»: пользовательские + в конце системная «Без категории». */
+function categoryOptionsForAddOp(cats: Category[], kind: TransactionKind) {
+  const base = categoryOptionsForKind(cats, kind);
+  const unc = cats.find(
+    (c) =>
+      c.name === UNCATEGORIZED_CATEGORY_NAME &&
+      !c.isArchived &&
+      (c.type === kind || c.type === "BOTH"),
+  );
+  return unc ? [...base, unc] : base;
 }
 
 type TabKey = 0 | 1 | 2 | 3;
@@ -779,7 +801,7 @@ function FinanceMainPanel({
     opTab === "income" ? "INCOME" : "EXPENSE";
   const pickable =
     opTab === "expense" || opTab === "income"
-      ? categoryOptionsForKind(categories, txKindForTab)
+      ? categoryOptionsForAddOp(categories, txKindForTab)
       : [];
   useEffect(() => {
     if (opTab !== "expense" && opTab !== "income") return;
@@ -826,6 +848,10 @@ function FinanceMainPanel({
     setInvAssetKind("STOCK");
     setInvQuoteMeta(null);
     setAddOpOpen(true);
+    void (async () => {
+      const r = await fetchCategories(false);
+      if (r.ok) setCategories(r.data.categories);
+    })();
   }
 
   async function onSubmitAddOp(e: FormEvent) {
@@ -1328,6 +1354,7 @@ function FinanceMainPanel({
 
       {!pending ? (
         <FinanceAccountsRow
+          carouselFullWidth
           accounts={accounts}
           title="Счета"
           onOpenAccount={openAccountDetail}
@@ -1907,7 +1934,7 @@ function FinanceMainPanel({
                       <span className="finance-addop__sub">Категория</span>
                       {pickable.length === 0 ? (
                         <span className="finance-addop__empty">
-                          Нет категорий этого типа — добавьте в «Категории».
+                          Нет категорий — обновите страницу или подождите загрузку.
                         </span>
                       ) : (
                         <div
@@ -2122,7 +2149,7 @@ function FinanceMainPanel({
                       opTab === "debt" ||
                       (opTab === "transfer" && accounts.length < 2) ||
                       ((opTab === "expense" || opTab === "income") &&
-                        (accounts.length === 0 || pickable.length === 0))
+                        accounts.length === 0)
                     }
                   >
                     {formBusy ? "…" : "Добавить"}
@@ -2670,7 +2697,11 @@ function FinanceMainPanel({
             {catError ? <p className="finance__err">{catError}</p> : null}
             <ul className="finance__cat-list">
               {modalCategories
-                .filter((c) => !c.excludeFromReporting)
+                .filter(
+                  (c) =>
+                    !c.excludeFromReporting &&
+                    c.name !== UNCATEGORIZED_CATEGORY_NAME,
+                )
                 .map((c) => (
                 <li key={c.id} className="finance__cat-row">
                   <span className="finance__cat-name">

@@ -36,6 +36,7 @@ import {
 } from "../lib/accountInterest.js";
 import { applyDailyInterestAccruals } from "../lib/dailyInterestAccrual.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
+import { UNCATEGORIZED_CATEGORY_NAME } from "../lib/defaultCategories.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
 
 function categoryAllowsKind(type: CategoryType, kind: TransactionKind): boolean {
@@ -1307,6 +1308,57 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
             "Служебную категорию (корректировка баланса) нельзя архивировать",
         },
       });
+    }
+
+    if (body.isArchived === true && existing.name === UNCATEGORIZED_CATEGORY_NAME) {
+      return reply.status(400).send({
+        error: {
+          message: "Системную категорию «Без категории» нельзя архивировать",
+        },
+      });
+    }
+
+    if (body.isArchived === true && !existing.excludeFromReporting) {
+      const otherExpense = await prisma.category.count({
+        where: {
+          userId,
+          id: { not: existing.id },
+          isArchived: false,
+          excludeFromReporting: false,
+          OR: [{ type: "EXPENSE" }, { type: "BOTH" }],
+        },
+      });
+      const otherIncome = await prisma.category.count({
+        where: {
+          userId,
+          id: { not: existing.id },
+          isArchived: false,
+          excludeFromReporting: false,
+          OR: [{ type: "INCOME" }, { type: "BOTH" }],
+        },
+      });
+      if (
+        (existing.type === "EXPENSE" || existing.type === "BOTH") &&
+        otherExpense === 0
+      ) {
+        return reply.status(400).send({
+          error: {
+            message:
+              "Нельзя архивировать последнюю категорию, через которую можно отнести расход",
+          },
+        });
+      }
+      if (
+        (existing.type === "INCOME" || existing.type === "BOTH") &&
+        otherIncome === 0
+      ) {
+        return reply.status(400).send({
+          error: {
+            message:
+              "Нельзя архивировать последнюю категорию, через которую можно отнести доход",
+          },
+        });
+      }
     }
 
     const updated = await prisma.category.update({

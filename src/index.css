@@ -1176,6 +1176,61 @@ body {
   margin-bottom: 0.75rem;
 }
 
+/* Главная «Финансы»: карусель — по одной карточке на ширину ленты (листание влево–вправо), ниже по высоте */
+.finance-acc-row-wrap--slides-full {
+  width: 100%;
+  min-width: 0;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__scroll {
+  gap: 0;
+  padding-bottom: 0.4rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__card {
+  flex: 0 0 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 0.45rem 0.65rem;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__card--add {
+  flex: 0 0 100%;
+  width: 100%;
+  min-height: 5.25rem;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__type {
+  min-height: 0;
+  font-size: 0.62rem;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__name {
+  min-height: 0;
+  margin: 0.08rem 0 0.2rem;
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__bal {
+  min-height: 0;
+  font-size: 1rem;
+}
+
+.finance-acc-row-wrap--slides-full .finance-acc-row__rate,
+.finance-acc-row-wrap--slides-full .finance-acc-row__inc {
+  font-size: 0.64rem;
+  margin-top: 0.1rem;
+  line-height: 1.25;
+}
+
 .finance-acc-row-wrap--stack .finance-acc-row__scroll {
   flex-direction: column;
   overflow-x: visible;

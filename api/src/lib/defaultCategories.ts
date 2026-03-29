@@ -53,9 +53,16 @@ export const DEFAULT_CATEGORIES: SeedCat[] = [
     sortOrder: 1,
     excludeFromReporting: true,
   },
+  /** Системная: операции без выбранной пользовательской категории. */
+  { name: "Без категории", type: "BOTH", sortOrder: 997 },
 ];
 
 export const BALANCE_ADJUSTMENT_CATEGORY_NAME = "Корректировка баланса";
+
+export const UNCATEGORIZED_CATEGORY_NAME = "Без категории";
+
+/** Встроенная категория BOTH — всегда должна оставаться доступной для расходов и доходов. */
+export const UNIVERSAL_CATEGORY_NAME = "Универсальная";
 
 /** Начисленные %% по вкладу / накопительному (доход). */
 export const INTEREST_ACCRUAL_INCOME_CATEGORY_NAME = "Проценты и дивиденды";

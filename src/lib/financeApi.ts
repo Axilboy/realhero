@@ -24,6 +24,9 @@ export type Category = {
   excludeFromReporting?: boolean;
 };
 
+/** Системная категория, если пользователь не выбрал другую. */
+export const UNCATEGORIZED_CATEGORY_NAME = "Без категории";
+
 export type AccountRow = {
   id: string;
   name: string;

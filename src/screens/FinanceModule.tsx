@@ -291,7 +291,14 @@ function FinanceAccountsRow({
       <>
         <div className="finance-acc-row__type">{ACCOUNT_TYPE_LABEL[a.type]}</div>
         <div className="finance-acc-row__name">{a.name}</div>
-        <div className="finance-acc-row__bal">
+        <div
+          className={
+            (a.type === "CREDIT_CARD" || a.type === "BANK") &&
+            a.balanceMinor < 0
+              ? "finance-acc-row__bal finance-acc-row__bal--debt"
+              : "finance-acc-row__bal"
+          }
+        >
           {formatRubFromMinor(a.balanceMinor)}
         </div>
         {interest ? (
@@ -2477,12 +2484,29 @@ function FinanceMainPanel({
                     ) : null}
                     <label className="finance__field">
                       <span className="finance-main__balance-adj-label">
-                        Текущий баланс счёта, ₽
+                        {selectedAccount.type === "CREDIT_CARD"
+                          ? "Текущий баланс карты, ₽"
+                          : "Текущий баланс счёта, ₽"}
                       </span>
                       <p className="finance-main__balance-hint">
-                        Введите полную сумму на счёте (как в банке), а не
-                        изменение. Если сумма не совпадает с учётом в приложении,
-                        будет добавлена одна операция на разницу.
+                        {selectedAccount.type === "CREDIT_CARD" ||
+                        selectedAccount.type === "BANK" ? (
+                          <>
+                            {selectedAccount.type === "CREDIT_CARD"
+                              ? "У кредитной карты баланс может быть отрицательным: "
+                              : "У счёта баланс может быть отрицательным (овердрафт): "}
+                            <strong>минус — задолженность</strong>, плюс — свои
+                            средства. Введите полную сумму со знаком (как в
+                            выписке), не дельту. Если не совпадает с учётом здесь,
+                            будет одна корректирующая операция на разницу.
+                          </>
+                        ) : (
+                          <>
+                            Введите полную сумму на счёте (как в банке), а не
+                            изменение. Если сумма не совпадает с учётом в
+                            приложении, будет добавлена одна операция на разницу.
+                          </>
+                        )}
                       </p>
                       <input
                         className="finance__input"
@@ -2493,7 +2517,12 @@ function FinanceMainPanel({
                         onChange={(e) =>
                           setEditBalanceTargetStr(e.target.value)
                         }
-                        placeholder="например 99 445,50"
+                        placeholder={
+                          selectedAccount.type === "CREDIT_CARD" ||
+                          selectedAccount.type === "BANK"
+                            ? "например −25 000 или 3 200,50"
+                            : "например 99 445,50"
+                        }
                       />
                     </label>
                     {accDetailErr ? (

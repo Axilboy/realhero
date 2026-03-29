@@ -1353,6 +1353,10 @@ button.finance-acc-row__card:focus-visible {
   line-height: 1.3;
 }
 
+.finance-acc-row__bal--debt {
+  color: #f28b82;
+}
+
 .finance-acc-row__rate {
   font-size: 0.7rem;
   color: #9aa0a6;

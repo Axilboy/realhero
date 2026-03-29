@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useState,
   type FormEvent,
   type ReactNode,
@@ -11,13 +10,11 @@ import { useShellTabIndex } from "../context/ShellTabContext";
 import {
   addWorkoutLine,
   createMeasurement,
-  createNutritionEntry,
   createProgram,
   createTrainingDay,
   createTrainingExercise,
   createWorkout,
   deleteMeasurement,
-  deleteNutritionEntry,
   deleteProgram,
   deleteTrainingExercise,
   errorMessage,
@@ -25,17 +22,20 @@ import {
   fetchMeasurements,
   fetchNutritionDay,
   fetchPrograms,
+  fetchUserFoods,
   fetchWorkouts,
   patchBodySettings,
   patchWorkout,
   type BodyMeasurementRow,
   type BodySettings,
   type ExerciseKind,
-  type MealSlot,
   type NutritionEntryRow,
   type TrainingProgramRow,
+  type UserFoodRow,
   type WorkoutLogRow,
 } from "../lib/bodyApi";
+import BodyHomePanel from "./BodyHomePanel";
+import BodyNutritionPanel from "./BodyNutritionPanel";
 import {
   formatLength,
   formatMass,
@@ -59,14 +59,6 @@ function todayYmd(): string {
   return `${y}-${m}-${day}`;
 }
 
-const MEAL_ORDER: MealSlot[] = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"];
-const MEAL_LABEL: Record<MealSlot, string> = {
-  BREAKFAST: "Завтрак",
-  LUNCH: "Обед",
-  DINNER: "Ужин",
-  SNACK: "Перекус",
-};
-
 const KIND_LABEL: Record<ExerciseKind, string> = {
   STRENGTH: "Сила",
   CARDIO: "Кардио",
@@ -75,16 +67,18 @@ const KIND_LABEL: Record<ExerciseKind, string> = {
   OTHER: "Другое",
 };
 
-const TABS = [
-  { key: 0, label: "Замеры" },
-  { key: 1, label: "Питание" },
-  { key: 2, label: "Тренировки" },
-] as const;
+const BODY_NAV = [
+  { id: "home" as const, label: "Главная" },
+  { id: "nutrition" as const, label: "Питание" },
+  { id: "training" as const, label: "Тренировки" },
+];
 
 export default function BodyModule() {
   const shellTab = useShellTabIndex();
   const bodyActive = shellTab === SHELL_TAB_BODY;
-  const [tab, setTab] = useState(0);
+  const [panel, setPanel] = useState<
+    "home" | "measurements" | "nutrition" | "training"
+  >("home");
   const [bump, setBump] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -102,16 +96,26 @@ export default function BodyModule() {
     fatG: 0,
     carbG: 0,
   });
+  const [todayTotals, setTodayTotals] = useState({
+    kcal: 0,
+    proteinG: 0,
+    fatG: 0,
+    carbG: 0,
+  });
+  const [userFoods, setUserFoods] = useState<UserFoodRow[]>([]);
   const [programs, setPrograms] = useState<TrainingProgramRow[]>([]);
   const [workouts, setWorkouts] = useState<WorkoutLogRow[]>([]);
 
   const refresh = useCallback(async () => {
     setErr(null);
-    const [st, m, p, w] = await Promise.all([
+    const today = todayYmd();
+    const [st, m, p, w, uf, nutToday] = await Promise.all([
       fetchBodySettings(),
       fetchMeasurements(),
       fetchPrograms(),
       fetchWorkouts(15),
+      fetchUserFoods(),
+      fetchNutritionDay(today),
     ]);
     if (!st.ok) {
       setErr(errorMessage(st.data));
@@ -123,6 +127,9 @@ export default function BodyModule() {
     else setErr(errorMessage(m.data));
     if (p.ok) setPrograms(p.data.programs);
     if (w.ok) setWorkouts(w.data.workouts);
+    if (uf.ok) setUserFoods(uf.data.foods);
+    else setUserFoods([]);
+    if (nutToday.ok) setTodayTotals(nutToday.data.totals);
     setPending(false);
   }, []);
 
@@ -160,52 +167,74 @@ export default function BodyModule() {
       </div>
 
       <div className="body-mod__swipe">
-        <div
-          className="body-mod__track"
-          style={{ transform: `translateY(-${(tab * 100) / 3}%)` }}
-        >
-          <div className="body-mod__panel">
-            <MeasurementsPanel
+        <div className="body-mod__panel body-mod__panel--single">
+          {panel === "home" ? (
+            <BodyHomePanel
               pending={pending}
               err={err}
               measurements={measurements}
               massU={massU}
               lenU={lenU}
-              onRefresh={() => setBump((x) => x + 1)}
+              settings={settings}
+              todayTotals={todayTotals}
+              workouts={workouts}
+              onOpenMeasurements={() => setPanel("measurements")}
             />
-          </div>
-          <div className="body-mod__panel">
-            <NutritionPanel
+          ) : null}
+          {panel === "measurements" ? (
+            <>
+              <div className="body-mod__back-row">
+                <button
+                  type="button"
+                  className="body-mod__back"
+                  onClick={() => setPanel("home")}
+                >
+                  ← К сводке
+                </button>
+              </div>
+              <MeasurementsPanel
+                pending={pending}
+                err={err}
+                measurements={measurements}
+                massU={massU}
+                lenU={lenU}
+                onRefresh={() => setBump((x) => x + 1)}
+              />
+            </>
+          ) : null}
+          {panel === "nutrition" ? (
+            <BodyNutritionPanel
               settings={settings}
               date={nutritionDate}
               onDate={setNutritionDate}
               entries={nutritionEntries}
               totals={nutritionTotals}
+              userFoods={userFoods}
               onRefresh={() => setBump((x) => x + 1)}
             />
-          </div>
-          <div className="body-mod__panel">
+          ) : null}
+          {panel === "training" ? (
             <TrainingPanel
               programs={programs}
               workouts={workouts}
               massU={massU}
               onRefresh={() => setBump((x) => x + 1)}
             />
-          </div>
+          ) : null}
         </div>
       </div>
 
       <nav className="body-mod__subnav" aria-label="Разделы тела">
-        {TABS.map((t) => (
+        {BODY_NAV.map((t) => (
           <button
-            key={t.key}
+            key={t.id}
             type="button"
             className={
-              tab === t.key
+              panel === t.id
                 ? "body-mod__subbtn body-mod__subbtn--on"
                 : "body-mod__subbtn"
             }
-            onClick={() => setTab(t.key)}
+            onClick={() => setPanel(t.id)}
           >
             {t.label}
           </button>
@@ -540,218 +569,6 @@ function MeasurementsPanel({
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function NutritionPanel({
-  settings,
-  date,
-  onDate,
-  entries,
-  totals,
-  onRefresh,
-}: {
-  settings: BodySettings | null;
-  date: string;
-  onDate: (d: string) => void;
-  entries: NutritionEntryRow[];
-  totals: { kcal: number; proteinG: number; fatG: number; carbG: number };
-  onRefresh: () => void;
-}) {
-  const [meal, setMeal] = useState<MealSlot>("BREAKFAST");
-  const [name, setName] = useState("");
-  const [kcal, setKcal] = useState("");
-  const [p, setP] = useState("");
-  const [f, setF] = useState("");
-  const [carb, setCarb] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [localErr, setLocalErr] = useState<string | null>(null);
-
-  const grouped = useMemo(() => {
-    const map = new Map<MealSlot, NutritionEntryRow[]>();
-    for (const s of MEAL_ORDER) map.set(s, []);
-    for (const e of entries) {
-      map.get(e.mealSlot)?.push(e);
-    }
-    return map;
-  }, [entries]);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setLocalErr(null);
-    const k = Number.parseInt(kcal, 10);
-    if (!Number.isFinite(k) || k < 0) {
-      setLocalErr("Укажите ккал");
-      setBusy(false);
-      return;
-    }
-    const r = await createNutritionEntry({
-      date,
-      mealSlot: meal,
-      name: name.trim(),
-      kcal: k,
-      proteinG: p.trim() === "" ? 0 : Number(p.replace(",", ".")),
-      fatG: f.trim() === "" ? 0 : Number(f.replace(",", ".")),
-      carbG: carb.trim() === "" ? 0 : Number(carb.replace(",", ".")),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      setLocalErr(errorMessage(r.data));
-      return;
-    }
-    setName("");
-    setKcal("");
-    setP("");
-    setF("");
-    setCarb("");
-    onRefresh();
-  }
-
-  async function delEntry(id: string) {
-    const r = await deleteNutritionEntry(id);
-    if (r.ok) onRefresh();
-  }
-
-  const goalK = settings?.bodyKcalGoal;
-
-  return (
-    <div className="body-panel">
-      <p className="screen__text body-panel__lead">
-        Дневник КБЖУ и цели из настроек.
-      </p>
-      <label className="finance__field">
-        День
-        <input
-          className="finance__input"
-          type="date"
-          value={date}
-          onChange={(e) => onDate(e.target.value)}
-        />
-      </label>
-
-      {goalK != null && goalK > 0 ? (
-        <div className="body-panel__goals">
-          <div className="body-panel__goal-row">
-            <span>Ккал</span>
-            <span>
-              {totals.kcal} / {goalK}
-            </span>
-          </div>
-          <div
-            className="body-panel__goal-bar"
-            role="progressbar"
-            aria-valuenow={Math.min(100, totals.kcal / goalK)}
-            aria-valuemin={0}
-            aria-valuemax={1}
-          >
-            <div
-              className="body-panel__goal-fill"
-              style={{
-                width: `${Math.min(100, (100 * totals.kcal) / goalK)}%`,
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {MEAL_ORDER.map((slot) => (
-        <div key={slot} className="body-panel__meal">
-          <h4 className="body-panel__meal-title">{MEAL_LABEL[slot]}</h4>
-          <ul className="body-panel__food-list">
-            {(grouped.get(slot) ?? []).map((e) => (
-              <li key={e.id} className="body-panel__food-li">
-                <span>
-                  {e.name} — {e.kcal} ккал · Б{e.proteinG.toFixed(0)} Ж
-                  {e.fatG.toFixed(0)} У{e.carbG.toFixed(0)}
-                </span>
-                <button
-                  type="button"
-                  className="body-panel__food-del"
-                  onClick={() => void delEntry(e.id)}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-
-      <form className="finance__form" onSubmit={(e) => void submit(e)}>
-        {localErr ? <p className="finance__err">{localErr}</p> : null}
-        <label className="finance__field">
-          Приём
-          <select
-            className="finance__input"
-            value={meal}
-            onChange={(e) => setMeal(e.target.value as MealSlot)}
-          >
-            {MEAL_ORDER.map((s) => (
-              <option key={s} value={s}>
-                {MEAL_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="finance__field">
-          Продукт / блюдо
-          <input
-            className="finance__input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </label>
-        <label className="finance__field">
-          Ккал
-          <input
-            className="finance__input"
-            inputMode="numeric"
-            value={kcal}
-            onChange={(e) => setKcal(e.target.value)}
-            required
-          />
-        </label>
-        <div className="body-panel__macro-grid">
-          <label className="finance__field">
-            Б (г)
-            <input
-              className="finance__input"
-              inputMode="decimal"
-              value={p}
-              onChange={(e) => setP(e.target.value)}
-            />
-          </label>
-          <label className="finance__field">
-            Ж (г)
-            <input
-              className="finance__input"
-              inputMode="decimal"
-              value={f}
-              onChange={(e) => setF(e.target.value)}
-            />
-          </label>
-          <label className="finance__field">
-            У (г)
-            <input
-              className="finance__input"
-              inputMode="decimal"
-              value={carb}
-              onChange={(e) => setCarb(e.target.value)}
-            />
-          </label>
-        </div>
-        <button className="finance__submit" type="submit" disabled={busy}>
-          Добавить
-        </button>
-      </form>
-
-      <p className="body-panel__totals">
-        Итого: {totals.kcal} ккал · Б{totals.proteinG.toFixed(0)} Ж
-        {totals.fatG.toFixed(0)} У{totals.carbG.toFixed(0)}
-      </p>
     </div>
   );
 }

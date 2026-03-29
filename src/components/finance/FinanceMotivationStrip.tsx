@@ -50,13 +50,6 @@ export default function FinanceMotivationStrip({
     return w > 0 ? w : null;
   }
 
-  function scrollMotivationCarousel(dir: -1 | 1) {
-    const el = scrollRef.current;
-    const step = carouselStepPx();
-    if (!el || step == null) return;
-    el.scrollBy({ left: dir * step, behavior: "smooth" });
-  }
-
   function goToMotivationSlide(i: number) {
     const el = scrollRef.current;
     const step = carouselStepPx();
@@ -105,49 +98,30 @@ export default function FinanceMotivationStrip({
         <h3 className="finance__h3 finance-motivation__title">
           На что тянет пассивный доход
         </h3>
-        {hint}
         <div className="finance-motivation__carousel-bleed">
-          <div className="finance-motivation__carousel-shell finance-motivation__carousel-shell--overlay">
-            <button
-              type="button"
-              className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--prev"
-              aria-label="Предыдущий: день, неделя или месяц"
-              onClick={() => scrollMotivationCarousel(-1)}
-            >
-              ‹
-            </button>
-            <div
-              ref={scrollRef}
-              className="finance-motivation__scroller finance-acc-row__scroll--hide-scrollbar"
-              role="list"
-            >
-              <div className="finance-motivation__slide" role="listitem">
-                <h4 className="finance-motivation__sub">Каждый день</h4>
-                <p className="finance-motivation__card finance-motivation__card--single">
-                  {pack.day}
-                </p>
-              </div>
-              <div className="finance-motivation__slide" role="listitem">
-                <h4 className="finance-motivation__sub">Каждую неделю</h4>
-                <p className="finance-motivation__card finance-motivation__card--single">
-                  {pack.week}
-                </p>
-              </div>
-              <div className="finance-motivation__slide" role="listitem">
-                <h4 className="finance-motivation__sub">Каждый месяц</h4>
-                <p className="finance-motivation__card finance-motivation__card--single">
-                  {pack.month}
-                </p>
-              </div>
+          <div
+            ref={scrollRef}
+            className="finance-motivation__scroller finance-acc-row__scroll--hide-scrollbar"
+            role="list"
+          >
+            <div className="finance-motivation__slide" role="listitem">
+              <h4 className="finance-motivation__sub">Каждый день</h4>
+              <p className="finance-motivation__card finance-motivation__card--single">
+                {pack.day}
+              </p>
             </div>
-            <button
-              type="button"
-              className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--next"
-              aria-label="Следующий: день, неделя или месяц"
-              onClick={() => scrollMotivationCarousel(1)}
-            >
-              ›
-            </button>
+            <div className="finance-motivation__slide" role="listitem">
+              <h4 className="finance-motivation__sub">Каждую неделю</h4>
+              <p className="finance-motivation__card finance-motivation__card--single">
+                {pack.week}
+              </p>
+            </div>
+            <div className="finance-motivation__slide" role="listitem">
+              <h4 className="finance-motivation__sub">Каждый месяц</h4>
+              <p className="finance-motivation__card finance-motivation__card--single">
+                {pack.month}
+              </p>
+            </div>
           </div>
           <div
             className="finance-acc-row__dots"

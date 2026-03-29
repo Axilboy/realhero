@@ -5,7 +5,7 @@ import {
   useState,
   type ComponentType,
 } from "react";
-import { ShellTabIndexContext } from "../context/ShellTabContext";
+import { ShellTabContext } from "../context/ShellTabContext";
 import { useAuth } from "../auth/AuthContext";
 import HubScreen from "../screens/HubScreen";
 import FinanceScreen from "../screens/FinanceScreen";
@@ -50,7 +50,7 @@ export default function AppShell() {
   }, []);
 
   return (
-    <ShellTabIndexContext.Provider value={active}>
+    <ShellTabContext.Provider value={{ activeIndex: active, goToTab: scrollToIndex }}>
       <div className="shell">
       <header className="shell__bar">
         <span className="shell__bar-email" title={user?.email}>
@@ -73,7 +73,9 @@ export default function AppShell() {
                 ? "shell__slide shell__slide--finance"
                 : id === "body"
                   ? "shell__slide shell__slide--body"
-                  : "shell__slide"
+                  : id === "todo"
+                    ? "shell__slide shell__slide--todo"
+                    : "shell__slide"
             }
             aria-label={id}
             id={`panel-${id}`}
@@ -97,6 +99,6 @@ export default function AppShell() {
         ))}
       </nav>
     </div>
-    </ShellTabIndexContext.Provider>
+    </ShellTabContext.Provider>
   );
 }

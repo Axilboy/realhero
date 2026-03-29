@@ -82,6 +82,30 @@ export type NutritionEntryRow = {
   updatedAt: string;
 };
 
+/** КБЖУ на 100 г (Open Food Facts или свой справочник). */
+export type FoodNutrition100 = {
+  name: string;
+  brand: string | null;
+  kcal100: number;
+  protein100: number;
+  fat100: number;
+  carb100: number;
+  code: string | null;
+};
+
+export type UserFoodRow = {
+  id: string;
+  userId: string;
+  name: string;
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbG: number;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type TrainingExerciseRow = {
   id: string;
   dayId: string;
@@ -193,6 +217,58 @@ export async function fetchNutritionDay(date: string) {
   }>(`/api/v1/body/nutrition/day/${encodeURIComponent(date)}`);
 }
 
+export async function searchFoodProducts(q: string) {
+  return j<{ products: FoodNutrition100[] }>(
+    `/api/v1/body/food/search?q=${encodeURIComponent(q)}`,
+  );
+}
+
+export async function fetchFoodByBarcode(code: string) {
+  const clean = code.replace(/\D/g, "") || code;
+  return j<{ product: FoodNutrition100 }>(
+    `/api/v1/body/food/barcode/${encodeURIComponent(clean)}`,
+  );
+}
+
+export async function fetchUserFoods() {
+  return j<{ foods: UserFoodRow[] }>("/api/v1/body/user-foods");
+}
+
+export async function createUserFood(payload: {
+  name: string;
+  kcal: number;
+  proteinG: number;
+  fatG: number;
+  carbG: number;
+  note?: string | null;
+}) {
+  return j<{ food: UserFoodRow }>("/api/v1/body/user-foods", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function patchUserFood(
+  id: string,
+  payload: Partial<{
+    name: string;
+    kcal: number;
+    proteinG: number;
+    fatG: number;
+    carbG: number;
+    note: string | null;
+  }>,
+) {
+  return j<{ food: UserFoodRow }>(`/api/v1/body/user-foods/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteUserFood(id: string) {
+  return j<{ ok: boolean }>(`/api/v1/body/user-foods/${id}`, { method: "DELETE" });
+}
+
 export async function createNutritionEntry(payload: {
   date: string;
   mealSlot: MealSlot;
@@ -205,6 +281,24 @@ export async function createNutritionEntry(payload: {
 }) {
   return j<{ entry: NutritionEntryRow }>("/api/v1/body/nutrition/entries", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function patchNutritionEntry(
+  id: string,
+  payload: Partial<{
+    mealSlot: MealSlot;
+    name: string;
+    portionG: number | null;
+    kcal: number;
+    proteinG: number;
+    fatG: number;
+    carbG: number;
+  }>,
+) {
+  return j<{ entry: NutritionEntryRow }>(`/api/v1/body/nutrition/entries/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }

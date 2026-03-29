@@ -10,6 +10,7 @@ import { prisma } from "./db.js";
 import { seedUserCategories } from "./lib/seedUserCategories.js";
 import { financePlugin } from "./routes/finance.js";
 import { bodyPlugin } from "./routes/body.js";
+import { tasksPlugin } from "./routes/tasks.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -164,6 +165,7 @@ async function main() {
 
   await app.register(financePlugin, { prefix: "/api/v1/finance" });
   await app.register(bodyPlugin, { prefix: "/api/v1/body" });
+  await app.register(tasksPlugin, { prefix: "/api/v1" });
 
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? "0.0.0.0";

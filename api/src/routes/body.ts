@@ -7,6 +7,10 @@ import type {
 import type { FastifyPluginAsync } from "fastify";
 import { authPreHandler, getUserId } from "../authHook.js";
 import { prisma } from "../db.js";
+import {
+  fetchOffProductByCode,
+  searchOffProducts,
+} from "../lib/openFoodFacts.js";
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -359,6 +363,111 @@ export const bodyPlugin: FastifyPluginAsync = async (app) => {
     const userId = getUserId(request);
     const id = (request.params as { id: string }).id;
     const r = await prisma.nutritionEntry.deleteMany({ where: { id, userId } });
+    if (r.count === 0) {
+      return reply.status(404).send({ error: { message: "Не найдено" } });
+    }
+    return { ok: true };
+  });
+
+  /** Поиск продуктов (Open Food Facts), автодополнение. */
+  app.get("/food/search", async (request, reply) => {
+    const q = (request.query as { q?: string }).q?.trim() ?? "";
+    if (q.length < 2) {
+      return reply.status(400).send({
+        error: { message: "Минимум 2 символа" },
+      });
+    }
+    const products = await searchOffProducts(q, 15);
+    return { products };
+  });
+
+  /** Штрихкод / QR (цифры кода) → КБЖУ на 100 г. */
+  app.get("/food/barcode/:code", async (request, reply) => {
+    const raw = (request.params as { code: string }).code ?? "";
+    const product = await fetchOffProductByCode(raw);
+    if (!product) {
+      return reply.status(404).send({
+        error: { message: "Продукт не найден в Open Food Facts" },
+      });
+    }
+    return { product };
+  });
+
+  app.get("/user-foods", async (request) => {
+    const userId = getUserId(request);
+    const rows = await prisma.userFood.findMany({
+      where: { userId },
+      orderBy: [{ updatedAt: "desc" }],
+    });
+    return { foods: rows };
+  });
+
+  app.post("/user-foods", async (request, reply) => {
+    const userId = getUserId(request);
+    const b = request.body as Record<string, unknown>;
+    const name = typeof b.name === "string" ? b.name.trim() : "";
+    if (!name) {
+      return reply.status(400).send({ error: { message: "Укажите name" } });
+    }
+    const kcal = parseIntNum(b.kcal);
+    if (kcal == null || kcal < 0) {
+      return reply.status(400).send({ error: { message: "kcal ≥ 0" } });
+    }
+    const p = parseFloatNum(b.proteinG) ?? 0;
+    const f = parseFloatNum(b.fatG) ?? 0;
+    const c = parseFloatNum(b.carbG) ?? 0;
+    const row = await prisma.userFood.create({
+      data: {
+        userId,
+        name: name.slice(0, 200),
+        kcal,
+        proteinG: p,
+        fatG: f,
+        carbG: c,
+        note:
+          typeof b.note === "string" ? b.note.slice(0, 500) : null,
+      },
+    });
+    return reply.status(201).send({ food: row });
+  });
+
+  app.patch("/user-foods/:id", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const existing = await prisma.userFood.findFirst({
+      where: { id, userId },
+    });
+    if (!existing) {
+      return reply.status(404).send({ error: { message: "Не найдено" } });
+    }
+    const b = request.body as Record<string, unknown>;
+    const data: Record<string, unknown> = {};
+    if (typeof b.name === "string") data.name = b.name.trim().slice(0, 200);
+    if (b.kcal !== undefined) {
+      const k = parseIntNum(b.kcal);
+      if (k == null || k < 0) {
+        return reply.status(400).send({ error: { message: "kcal" } });
+      }
+      data.kcal = k;
+    }
+    if (b.proteinG !== undefined) data.proteinG = parseFloatNum(b.proteinG) ?? 0;
+    if (b.fatG !== undefined) data.fatG = parseFloatNum(b.fatG) ?? 0;
+    if (b.carbG !== undefined) data.carbG = parseFloatNum(b.carbG) ?? 0;
+    if (b.note !== undefined) {
+      data.note =
+        typeof b.note === "string" ? b.note.slice(0, 500) : null;
+    }
+    const row = await prisma.userFood.update({
+      where: { id },
+      data: data as object,
+    });
+    return { food: row };
+  });
+
+  app.delete("/user-foods/:id", async (request, reply) => {
+    const userId = getUserId(request);
+    const id = (request.params as { id: string }).id;
+    const r = await prisma.userFood.deleteMany({ where: { id, userId } });
     if (r.count === 0) {
       return reply.status(404).send({ error: { message: "Не найдено" } });
     }

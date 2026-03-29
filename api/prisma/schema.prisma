@@ -77,8 +77,33 @@ model User {
   categoryBudgets CategoryBudget[]
   bodyMeasurements BodyMeasurement[]
   nutritionEntries NutritionEntry[]
+  userFoods        UserFood[]
   trainingPrograms TrainingProgram[]
   workoutLogs      WorkoutLog[]
+  tasks            UserTask[]
+}
+
+/// Задача в модуле «Задачи» (локальная дата дедлайна как у замеров тела).
+model UserTask {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  note        String?
+  /// Локальный календарный день YYYY-MM-DD; null — «входящие» без даты.
+  dueDate     String?
+  /// Опционально время в течение дня, «HH:mm».
+  dueTime     String?
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+  source      TaskSource @default(MANUAL)
+  questInstanceId String?
+  questStepId     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, dueDate])
+  @@index([userId, completedAt])
 }
 
 enum BodyMassUnit {
@@ -104,6 +129,12 @@ enum ExerciseKind {
   STRETCH
   WARMUP
   OTHER
+}
+
+/// Источник задачи: ручной ввод или шаг квеста (задел под `ТЗ_КВЕСТЫ_И_ТУДУ.md`).
+enum TaskSource {
+  MANUAL
+  QUEST
 }
 
 model Account {
@@ -265,6 +296,24 @@ model NutritionEntry {
   updatedAt DateTime @updatedAt
 
   @@index([userId, date])
+}
+
+/// Сохранённые пользователем блюда (КБЖУ на 100 г, как в справочнике).
+model UserFood {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  kcal      Int
+  proteinG  Float
+  fatG      Float
+  carbG     Float
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, name])
 }
 
 model TrainingProgram {

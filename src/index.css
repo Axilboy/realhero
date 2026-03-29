@@ -1312,12 +1312,12 @@ button.finance-main__recent-tx-btn:focus-visible {
   margin: 0 0 0.45rem;
 }
 
-/* Главная: карусель на ширину экрана + точки вместо ползунка */
+/* Карусель счетов: только ширина родителя (без 100vw — иначе при overflow:hidden у .shell__slide--finance контент обрезается). */
 .finance-acc-row__carousel-bleed {
-  width: 100vw;
-  max-width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .finance-acc-row__carousel-shell {
@@ -1339,6 +1339,7 @@ button.finance-main__recent-tx-btn:focus-visible {
 
 .finance-acc-row__carousel-shell--overlay .finance-acc-row__scroll {
   width: 100%;
+  min-width: 0;
 }
 
 .finance-acc-row__scroll--hide-scrollbar {

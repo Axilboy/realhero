@@ -104,6 +104,25 @@ function moexNumericPrice(pick: Record<string, unknown>): number | null {
   return null;
 }
 
+/** На рынке облигаций MOEX котировка (LAST и др.) — в % от номинала, не в ₽. */
+function moexBondCleanPriceRub(
+  rawPercentOfPar: number,
+  faceValueRub: number,
+): number {
+  if (!(faceValueRub > 0) || !Number.isFinite(rawPercentOfPar)) return rawPercentOfPar;
+  return Math.round(((rawPercentOfPar / 100) * faceValueRub) * 100) / 100;
+}
+
+function moexSecuritiesFaceValueRub(
+  secPick: Record<string, unknown> | undefined,
+): number {
+  if (!secPick) return 0;
+  const fv = Number(
+    secPick.facevalue ?? secPick.initialfacevalue ?? secPick.nominal ?? 0,
+  );
+  return Number.isFinite(fv) && fv > 0 ? fv : 0;
+}
+
 async function searchCoinGecko(q: string): Promise<QuoteSearchHit[]> {
   const j = await cached(`cg:search:${q}`, () =>
     getJson<{
@@ -213,18 +232,45 @@ async function priceCoinGeckoRub(
   return { priceRub: rub, asOf: null };
 }
 
+async function moexBondFaceValueForHistory(sid: string): Promise<number | null> {
+  const j = await cached(`moex:secfv:${sid}`, () =>
+    getJson<{
+      securities?: { columns?: string[]; data?: unknown[][] };
+    }>(
+      `https://iss.moex.com/iss/engines/stock/markets/bonds/securities/${encodeURIComponent(sid)}.json?iss.meta=off`,
+    ),
+  );
+  const secRows = issRows(j.securities);
+  const secPick = moexPickRow(secRows, sid);
+  const fv = moexSecuritiesFaceValueRub(secPick);
+  return fv > 0 ? fv : null;
+}
+
 async function moexHistoryClose(
   sid: string,
   dateYmd: string,
 ): Promise<{ num: number; note: string } | null> {
   const enc = encodeURIComponent(sid);
-  const tryUrls = [
-    `https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
-    `https://iss.moex.com/iss/history/engines/stock/markets/shares/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
-    `https://iss.moex.com/iss/history/engines/stock/markets/bonds/boards/TQCB/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
-    `https://iss.moex.com/iss/history/engines/stock/markets/bonds/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+  const tryUrls: { url: string; bonds: boolean }[] = [
+    {
+      url: `https://iss.moex.com/iss/history/engines/stock/markets/shares/boards/TQBR/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+      bonds: false,
+    },
+    {
+      url: `https://iss.moex.com/iss/history/engines/stock/markets/shares/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+      bonds: false,
+    },
+    {
+      url: `https://iss.moex.com/iss/history/engines/stock/markets/bonds/boards/TQCB/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+      bonds: true,
+    },
+    {
+      url: `https://iss.moex.com/iss/history/engines/stock/markets/bonds/securities/${enc}.json?from=${dateYmd}&till=${dateYmd}&iss.meta=off`,
+      bonds: true,
+    },
   ];
-  for (const u of tryUrls) {
+  let bondFace: number | null | undefined;
+  for (const { url: u, bonds } of tryUrls) {
     const j = await cached(`moex:hist:${sid}:${dateYmd}:${u}`, () =>
       getJson<{ history?: { columns?: string[]; data?: unknown[][] } }>(u),
     );
@@ -235,13 +281,23 @@ async function moexHistoryClose(
         const b = String(r.boardid ?? "").toUpperCase();
         return b === "TQBR" || b === "TQCB" || b === "TQOB" || b === "TQOD";
       }) ?? rows[0];
-    const num = moexNumericPrice(row);
-    if (num != null) {
+    const raw = moexNumericPrice(row);
+    if (raw == null) continue;
+    if (bonds) {
+      if (bondFace === undefined) {
+        bondFace = await moexBondFaceValueForHistory(sid).catch(() => null);
+      }
+      const fv = bondFace ?? 0;
+      const num = fv > 0 ? moexBondCleanPriceRub(raw, fv) : raw;
       return {
         num,
         note: "MOEX, цена закрытия (₽)",
       };
     }
+    return {
+      num: raw,
+      note: "MOEX, цена закрытия (₽)",
+    };
   }
   return null;
 }
@@ -262,18 +318,26 @@ async function moexCurrentPrice(
     try {
       const url = `https://iss.moex.com/iss/engines/stock/markets/${market}/securities/${encodeURIComponent(sid)}.json?iss.meta=off`;
       const j = await cached(`moex:md:${market}:${sid}`, () =>
-        getJson<{ marketdata?: { columns?: string[]; data?: unknown[][] } }>(
-          url,
-        ),
+        getJson<{
+          securities?: { columns?: string[]; data?: unknown[][] };
+          marketdata?: { columns?: string[]; data?: unknown[][] };
+        }>(url),
       );
       const rows = issRows(j.marketdata);
+      const secRows = issRows(j.securities);
       const pick = moexPickRow(rows, sid);
       if (!pick) continue;
       const raw = moexNumericPrice(pick);
       if (raw != null) {
         const label = market === "bonds" ? "облигации" : "акции";
+        const secPick = moexPickRow(secRows, sid);
+        const face = moexSecuritiesFaceValueRub(secPick);
+        const priceRub =
+          market === "bonds" && face > 0
+            ? moexBondCleanPriceRub(raw, face)
+            : raw;
         return {
-          priceRub: raw,
+          priceRub,
           note: `MOEX (${label}), последняя или закрытие`,
         };
       }
@@ -370,7 +434,8 @@ function couponPaymentRub(row: Record<string, unknown>): number {
     if (!Number.isFinite(n) || n <= 0) return 0;
     // MOEX часто отдаёт в value ставку купона в % номинала; без номинала value
     // ошибочно читали как рубли (10 вместо 10% от 1000 ₽ = 100 ₽).
-    if (fv > 0 && n > 0 && n <= 25) {
+    // Суммы вроде 20 ₽ за период не трактуем как % (20% от 1000 = 200 ₽).
+    if (fv > 0 && n > 0 && n <= 15) {
       return Math.round(((n / 100) * fv) * 100) / 100;
     }
     return n;

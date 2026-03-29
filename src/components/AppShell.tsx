@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ComponentType,
 } from "react";
 import { ShellTabContext } from "../context/ShellTabContext";
 import { useAuth } from "../auth/AuthContext";

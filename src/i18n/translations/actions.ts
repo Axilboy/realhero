@@ -1,17 +1,35 @@
 export const actionsRu = {
   actions: {
-    badge: "Модуль",
-    title: "Настройки",
-    text: "Язык интерфейса переключается в шапке приложения. Здесь — расширенные опции, когда появятся.",
-    placeholder: "Уведомления · Тема · Экспорт данных",
+    pageTitle: "Настройки",
+    intro: "Управление аккаунтом и параметрами интерфейса.",
+    sectionAccount: "Аккаунт",
+    sectionInterface: "Интерфейс",
+    sectionSoon: "Скоро",
+    emailLabel: "Email",
+    langLabel: "Язык",
+    langHint: "Также переключается в шапке приложения.",
+    soonBadge: "Скоро",
+    soonNotifications: "Уведомления",
+    soonTheme: "Тема оформления",
+    soonExport: "Экспорт данных",
+    logout: "Выйти",
   },
 };
 
 export const actionsEn = {
   actions: {
-    badge: "Module",
-    title: "Settings",
-    text: "Interface language is in the app header. More options will land here later.",
-    placeholder: "Notifications · Theme · Data export",
+    pageTitle: "Settings",
+    intro: "Account and interface preferences.",
+    sectionAccount: "Account",
+    sectionInterface: "Interface",
+    sectionSoon: "Coming soon",
+    emailLabel: "Email",
+    langLabel: "Language",
+    langHint: "You can also switch it in the app header.",
+    soonBadge: "Soon",
+    soonNotifications: "Notifications",
+    soonTheme: "Appearance",
+    soonExport: "Data export",
+    logout: "Log out",
   },
 };

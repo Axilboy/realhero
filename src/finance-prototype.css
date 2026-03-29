@@ -64,6 +64,19 @@
   overflow-y: auto;
 }
 
+.finance__modal--fullscreen .finproto-cat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.finance__modal--fullscreen .finproto-cat__tree {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+}
+
 .finproto-cat__group {
   margin-bottom: 0.35rem;
 }
@@ -92,8 +105,11 @@
   height: 2.1rem;
   border-radius: 12px;
   border: 1px solid;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
+  line-height: 1;
   flex-shrink: 0;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
 }
 
 .finproto-cat__ico--sm {
@@ -146,6 +162,11 @@
   border-bottom: 1px solid #222830;
 }
 
+.finproto-cat__sub > span:not(.finproto-cat__ico) {
+  flex: 1;
+  min-width: 0;
+}
+
 .finproto-cat__subform {
   margin: 0.5rem 0 0.35rem 1.85rem;
   padding: 0.65rem;
@@ -175,20 +196,21 @@
 }
 
 .finproto-cat__emoji {
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: 8px;
+  width: 1.95rem;
+  height: 1.95rem;
+  border-radius: 10px;
   border: 1px solid #2a2f38;
   background: #14171c;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.08rem;
   line-height: 1;
   padding: 0;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
 }
 
 .finproto-cat__emoji--on {
-  border-color: #8ab4ff;
-  background: #252b36;
+  box-shadow: 0 0 0 1px rgba(138, 180, 255, 0.35);
 }
 
 .finproto-cat__colors {
@@ -338,8 +360,19 @@
 }
 
 .finproto-tx__cat-ic {
-  opacity: 0.55;
-  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.25rem;
+  border-radius: 10px;
+  border: 1px solid #3d4a5c;
+  background: #1a1d24;
+  font-size: 1.05rem;
+  line-height: 1;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
 }
 
 .finproto-tx__card-ic {
@@ -453,7 +486,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.95rem;
+  font-size: 1rem;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
+  line-height: 1;
 }
 
 .finance__modal--addop.finproto-modal--wide {
@@ -467,4 +503,9 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+
+.finance__modal--fullscreen.finance__modal--addop.finproto-modal--wide {
+  max-width: none;
+  max-height: none;
 }

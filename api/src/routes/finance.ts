@@ -37,7 +37,10 @@ import {
 } from "../lib/accountInterest.js";
 import { applyDailyInterestAccruals } from "../lib/dailyInterestAccrual.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
-import { UNCATEGORIZED_CATEGORY_NAME } from "../lib/defaultCategories.js";
+import {
+  UNCATEGORIZED_CATEGORY_NAME,
+  UNIVERSAL_CATEGORY_NAME,
+} from "../lib/defaultCategories.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
 
 function categoryAllowsKind(type: CategoryType, kind: TransactionKind): boolean {
@@ -762,15 +765,24 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         };
       });
 
+    /**
+     * Вкладка «Инвестиции»: без кредитных карт и без банковских счётов с долгом
+     * (отрицательный баланс — кредит/овердрафт).
+     */
+    const investDepositSavingsAccounts = interestRateAccounts.filter(
+      (a) =>
+        a.type !== "CREDIT_CARD" &&
+        !(a.type === "BANK" && a.balanceMinor < 0),
+    );
+
     let depositSavingsIncomeMonthMinor = 0;
-    for (const ds of interestRateAccounts) {
+    for (const ds of investDepositSavingsAccounts) {
       depositSavingsIncomeMonthMinor += ds.interestIncomeMonthMinor;
     }
 
-    /** Во вкладке «Инвестиции» — без кредитных карт (они на главной в счетах). */
-    const depositSavingsAccounts = interestRateAccounts
-      .filter((a) => a.type !== "CREDIT_CARD")
-      .sort((x, y) => x.name.localeCompare(y.name, "ru"));
+    const depositSavingsAccounts = [...investDepositSavingsAccounts].sort(
+      (x, y) => x.name.localeCompare(y.name, "ru"),
+    );
 
     const hasFlow = totalAnnualMinor > 0 && total > 0;
     const couponDividendYearMinor = hasFlow ? totalAnnualMinor : null;
@@ -1808,18 +1820,25 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     });
     const nameById = new Map(cats.map((c) => [c.id, c.name]));
 
+    const skipUni = (name: string | undefined) =>
+      name === UNIVERSAL_CATEGORY_NAME;
+
     return {
       month: ym,
-      expenses: expenseRows.map((r) => ({
-        categoryId: r.categoryId,
-        categoryName: nameById.get(r.categoryId) ?? "—",
-        amountMinor: r._sum.amountMinor ?? 0,
-      })),
-      incomes: incomeRows.map((r) => ({
-        categoryId: r.categoryId,
-        categoryName: nameById.get(r.categoryId) ?? "—",
-        amountMinor: r._sum.amountMinor ?? 0,
-      })),
+      expenses: expenseRows
+        .filter((r) => !skipUni(nameById.get(r.categoryId)))
+        .map((r) => ({
+          categoryId: r.categoryId,
+          categoryName: nameById.get(r.categoryId) ?? "—",
+          amountMinor: r._sum.amountMinor ?? 0,
+        })),
+      incomes: incomeRows
+        .filter((r) => !skipUni(nameById.get(r.categoryId)))
+        .map((r) => ({
+          categoryId: r.categoryId,
+          categoryName: nameById.get(r.categoryId) ?? "—",
+          amountMinor: r._sum.amountMinor ?? 0,
+        })),
     };
   });
 

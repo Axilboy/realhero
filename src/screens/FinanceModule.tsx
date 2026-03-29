@@ -63,6 +63,8 @@ import {
   type TransactionRow,
   type TransferRow,
   UNCATEGORIZED_CATEGORY_NAME,
+  UNIVERSAL_CATEGORY_NAME,
+  categoryNameForUi,
 } from "../lib/financeApi";
 import { currentMonthYm, formatRubFromMinor } from "../lib/money";
 
@@ -688,6 +690,7 @@ function categoryOptionsForKind(cats: Category[], kind: TransactionKind) {
       !c.isArchived &&
       !c.excludeFromReporting &&
       c.name !== UNCATEGORIZED_CATEGORY_NAME &&
+      c.name !== UNIVERSAL_CATEGORY_NAME &&
       (c.type === kind || c.type === "BOTH"),
   );
 }
@@ -1085,13 +1088,18 @@ function FinanceMainPanel({
       : [];
 
   const hideCatModalNames = useMemo(
-    () => new Set<string>([UNCATEGORIZED_CATEGORY_NAME]),
+    () =>
+      new Set<string>([
+        UNCATEGORIZED_CATEGORY_NAME,
+        UNIVERSAL_CATEGORY_NAME,
+      ]),
     [],
   );
 
   const categoryLabelForProto = useMemo(() => {
     const c = pickable.find((x) => x.id === categoryId);
-    return c?.name ?? UNCATEGORIZED_CATEGORY_NAME;
+    if (!c) return categoryNameForUi(UNCATEGORIZED_CATEGORY_NAME);
+    return categoryNameForUi(c.name);
   }, [pickable, categoryId]);
 
   const addOpProtoCanSubmit = useMemo(() => {
@@ -1902,7 +1910,7 @@ function FinanceMainPanel({
               aria-modal="true"
               aria-labelledby="fin-settings-title"
             >
-              <div className="finance__modal finance__modal--fin-settings">
+              <div className="finance__modal finance__modal--fullscreen finance__modal--fin-settings">
                 <div className="finance__modal-head">
                   <h2 id="fin-settings-title" className="finance__h2">
                     Настройки
@@ -2150,7 +2158,7 @@ function FinanceMainPanel({
               aria-modal="true"
               aria-label="Добавить операцию"
             >
-              <div className="finance__modal finance__modal--addop finproto-modal--wide">
+              <div className="finance__modal finance__modal--fullscreen finance__modal--addop finproto-modal--wide">
                 <div className="finance__modal-head">
                   <h2 className="finance__h2">Добавить</h2>
                   <button
@@ -2411,7 +2419,7 @@ function FinanceMainPanel({
               aria-modal="true"
               aria-labelledby="del-acc-title"
             >
-              <div className="finance__modal">
+              <div className="finance__modal finance__modal--fullscreen">
                 <div className="finance__modal-head">
                   <h2 id="del-acc-title" className="finance__h2">
                     Удалить счёт
@@ -2516,7 +2524,7 @@ function FinanceMainPanel({
               aria-modal="true"
               aria-label={`Счёт ${selectedAccount.name}`}
             >
-              <div className="finance__modal finance__modal--acc-detail">
+              <div className="finance__modal finance__modal--fullscreen finance__modal--acc-detail">
                 <div className="finance__modal-head finance__modal-head--acc">
                   <div className="finance__modal-head-acc-top">
                     <h2 className="finance__h2 finance__modal-head-acc-title">
@@ -2829,7 +2837,7 @@ function FinanceMainPanel({
               role="dialog"
               aria-modal="true"
             >
-          <div className="finance__modal">
+          <div className="finance__modal finance__modal--fullscreen">
             <div className="finance__modal-head">
               <h2 className="finance__h2">Новый счёт</h2>
               <button
@@ -2914,7 +2922,7 @@ function FinanceMainPanel({
               aria-modal="true"
               aria-labelledby="cat-modal-title"
             >
-          <div className="finance__modal">
+          <div className="finance__modal finance__modal--fullscreen">
             <div className="finance__modal-head">
               <h2 id="cat-modal-title" className="finance__h2">
                 Категории
@@ -3154,14 +3162,15 @@ function FinanceInvestPanel({
             />
             <div
               className="finance-inv__alloc"
-              aria-label="Доли портфеля без карт"
+              aria-label="Доли портфеля без карт и кредитов"
             >
               <h3 className="finance__h3 finance-inv__alloc-title">
                 Структура портфеля
               </h3>
               <p className="finance-inv__alloc-note">
                 Доли считаются по вкладам, накопительным счетам и инвестициям.
-                Карты, наличные и обычные счета в проценты не входят.
+                Кредитные карты, долг по счетам, наличные и карты без %% сюда не
+                входят.
               </p>
               <ul className="finance-inv__alloc-list">
                 <li>
@@ -3216,8 +3225,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  %% по вкладам и счетам (в месяц, с учётом долга по картам и
-                  счетам)
+                  %% по вкладам и счетам (в месяц, без кредиток и долга по счетам)
                 </span>
                 <span
                   className={
@@ -3372,7 +3380,7 @@ function FinanceInvestPanel({
               role="dialog"
               aria-modal="true"
             >
-          <div className="finance__modal">
+          <div className="finance__modal finance__modal--fullscreen">
             <div className="finance__modal-head">
               <h2 className="finance__h2">Новая позиция</h2>
               <button
@@ -3508,7 +3516,7 @@ function FinanceInvestPanel({
               aria-modal="true"
               aria-label="Доход с одной бумаги"
             >
-              <div className="finance__modal">
+              <div className="finance__modal finance__modal--fullscreen">
                 <div className="finance__modal-head">
                   <h2 className="finance__h2">Доход с одной бумаги</h2>
                   <button
@@ -3716,7 +3724,9 @@ function FinanceBudgetPanel({
           </li>
           {lines.map((ln) => (
             <li key={ln.categoryId} className="finance-budget__row">
-              <span className="finance-budget__cat">{ln.name}</span>
+              <span className="finance-budget__cat">
+                {categoryNameForUi(ln.name)}
+              </span>
               <label className="finance-budget__limit">
                 <span className="finance-budget__limit-label">Лимит ₽</span>
                 <input
@@ -3904,7 +3914,7 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
               expenses.map((e) => (
                 <li key={e.categoryName + e.amountMinor} className="finance-an__bar">
                   <div className="finance-an__bar-h">
-                    <span>{e.categoryName}</span>
+                    <span>{categoryNameForUi(e.categoryName)}</span>
                     <span>{formatRubFromMinor(e.amountMinor)}</span>
                   </div>
                   <div className="finance-an__bar-track">
@@ -3926,7 +3936,7 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
             ) : (
               incomes.map((i) => (
                 <li key={i.categoryName} className="finance-an__li">
-                  <span>{i.categoryName}</span>
+                  <span>{categoryNameForUi(i.categoryName)}</span>
                   <span className="finance-an__li-sum">
                     {formatRubFromMinor(i.amountMinor)}
                   </span>

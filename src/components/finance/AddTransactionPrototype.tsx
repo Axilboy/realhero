@@ -1,5 +1,10 @@
 import { type FormEvent, useMemo } from "react";
-import { type AccountRow, type Category } from "../../lib/financeApi";
+import {
+  type AccountRow,
+  type Category,
+  UNIVERSAL_CATEGORY_NAME,
+  categoryNameForUi,
+} from "../../lib/financeApi";
 import { formatRubFromMinor } from "../../lib/money";
 
 export type AddOpTabProto = "expense" | "income" | "transfer";
@@ -145,7 +150,19 @@ export default function AddTransactionPrototype({
             >
               <span className="finproto-tx__row-k">Категория</span>
               <span className="finproto-tx__row-v">
-                <span className="finproto-tx__cat-ic" aria-hidden>
+                <span
+                  className="finproto-tx__cat-ic"
+                  aria-hidden
+                  style={
+                    pickedCat?.accentColor
+                      ? {
+                          borderColor: `${pickedCat.accentColor}88`,
+                          background: `linear-gradient(145deg, ${pickedCat.accentColor}40, ${pickedCat.accentColor}18)`,
+                          opacity: 1,
+                        }
+                      : undefined
+                  }
+                >
                   {pickedCat?.iconEmoji ?? "⊘"}
                 </span>
                 {categoryLabel}
@@ -192,7 +209,7 @@ export default function AddTransactionPrototype({
                         >
                           {c.iconEmoji || "◆"}
                         </span>
-                        {c.name}
+                        {categoryNameForUi(c.name)}
                       </button>
                     </li>
                   ))}

@@ -612,8 +612,8 @@ body {
   inset: 0;
   z-index: 50;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   padding: 0;
   background: rgba(0, 0, 0, 0.55);
 }
@@ -621,13 +621,6 @@ body {
 /* Рендер через createPortal(document.body) — поверх карусели с transform */
 .finance__modal-back.finance__modal-root {
   z-index: 400;
-}
-
-@media (min-height: 520px) {
-  .finance__modal-back {
-    align-items: center;
-    padding: 1rem;
-  }
 }
 
 .finance__modal {
@@ -643,11 +636,35 @@ body {
   border-bottom: none;
 }
 
-@media (min-height: 520px) {
-  .finance__modal {
-    border-radius: 16px;
-    border-bottom: 1px solid #252a33;
-  }
+/* Полноэкранные модалки: настройки, операция, счёт, категории и т.д. */
+.finance__modal--fullscreen {
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  min-height: 100dvh;
+  max-height: none;
+  height: auto;
+  border-radius: 0;
+  border: none;
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: calc(0.75rem + env(safe-area-inset-top, 0px))
+    calc(0.85rem + env(safe-area-inset-right, 0px))
+    calc(1rem + env(safe-area-inset-bottom, 0px))
+    calc(0.85rem + env(safe-area-inset-left, 0px));
+}
+
+.finance__modal--fullscreen .finance-main__settings-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.finance__modal--fin-settings.finance__modal--fullscreen {
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
 }
 
 .finance__modal-head {
@@ -1086,9 +1103,6 @@ body {
 }
 
 .finance__modal--fin-settings {
-  max-width: 22rem;
-  max-height: min(90vh, 32rem);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1961,6 +1975,10 @@ button.finance-acc-row__card:focus-visible {
 
 .finance__modal--acc-detail {
   max-width: min(96vw, 28rem);
+}
+
+.finance__modal--acc-detail.finance__modal--fullscreen {
+  max-width: none;
 }
 
 .finance-dep-carousel__del {

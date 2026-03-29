@@ -30,6 +30,17 @@ export type Category = {
 /** Системная категория, если пользователь не выбрал другую. */
 export const UNCATEGORIZED_CATEGORY_NAME = "Без категории";
 
+/** Встроенная BOTH для внутренних сценариев; в UI не показываем. */
+export const UNIVERSAL_CATEGORY_NAME = "Универсальная";
+
+/** Подпись в интерфейсе для операций без выбранной пользовательской категории. */
+export const UNCATEGORIZED_UI_LABEL = "Нет категории";
+
+export function categoryNameForUi(name: string): string {
+  if (name === UNCATEGORIZED_CATEGORY_NAME) return UNCATEGORIZED_UI_LABEL;
+  return name;
+}
+
 export type AccountRow = {
   id: string;
   name: string;

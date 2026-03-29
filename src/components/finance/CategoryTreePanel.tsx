@@ -9,6 +9,7 @@ import {
   CATEGORY_EMOJI_PRESETS,
   defaultColorForIndex,
   defaultEmojiForName,
+  tintColorForEmojiIndex,
 } from "./categoryPresets";
 
 type CatTab = "EXPENSE" | "INCOME";
@@ -251,20 +252,31 @@ export default function CategoryTreePanel({
                   </span>
                   <div className="finproto-cat__pickers">
                     <div className="finproto-cat__emoji-bar">
-                      {CATEGORY_EMOJI_PRESETS.map((e) => (
-                        <button
-                          key={e}
-                          type="button"
-                          className={
-                            subEmoji === e
-                              ? "finproto-cat__emoji finproto-cat__emoji--on"
-                              : "finproto-cat__emoji"
-                          }
-                          onClick={() => setSubEmoji(e)}
-                        >
-                          {e}
-                        </button>
-                      ))}
+                      {CATEGORY_EMOJI_PRESETS.map((e, ei) => {
+                        const tint = tintColorForEmojiIndex(ei);
+                        return (
+                          <button
+                            key={e}
+                            type="button"
+                            className={
+                              subEmoji === e
+                                ? "finproto-cat__emoji finproto-cat__emoji--on"
+                                : "finproto-cat__emoji"
+                            }
+                            style={{
+                              borderColor:
+                                subEmoji === e ? tint : `${tint}66`,
+                              background:
+                                subEmoji === e
+                                  ? `linear-gradient(145deg, ${tint}44, ${tint}22)`
+                                  : `linear-gradient(145deg, ${tint}22, #14171c)`,
+                            }}
+                            onClick={() => setSubEmoji(e)}
+                          >
+                            {e}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="finproto-cat__colors">
                       {CATEGORY_COLOR_PRESETS.map((c) => (
@@ -347,20 +359,30 @@ export default function CategoryTreePanel({
         </h3>
         <div className="finproto-cat__pickers">
           <div className="finproto-cat__emoji-bar">
-            {CATEGORY_EMOJI_PRESETS.map((e) => (
-              <button
-                key={e}
-                type="button"
-                className={
-                  newEmoji === e
-                    ? "finproto-cat__emoji finproto-cat__emoji--on"
-                    : "finproto-cat__emoji"
-                }
-                onClick={() => setNewEmoji(e)}
-              >
-                {e}
-              </button>
-            ))}
+            {CATEGORY_EMOJI_PRESETS.map((e, ei) => {
+              const tint = tintColorForEmojiIndex(ei);
+              return (
+                <button
+                  key={e}
+                  type="button"
+                  className={
+                    newEmoji === e
+                      ? "finproto-cat__emoji finproto-cat__emoji--on"
+                      : "finproto-cat__emoji"
+                  }
+                  style={{
+                    borderColor: newEmoji === e ? tint : `${tint}66`,
+                    background:
+                      newEmoji === e
+                        ? `linear-gradient(145deg, ${tint}44, ${tint}22)`
+                        : `linear-gradient(145deg, ${tint}22, #14171c)`,
+                  }}
+                  onClick={() => setNewEmoji(e)}
+                >
+                  {e}
+                </button>
+              );
+            })}
           </div>
           <div className="finproto-cat__colors">
             {CATEGORY_COLOR_PRESETS.map((c) => (

@@ -5,7 +5,6 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
-  type TouchEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import InvestQuotePicker from "../components/InvestQuotePicker";
@@ -247,24 +246,9 @@ type TabKey = 0 | 1 | 2;
 
 export default function FinanceModule() {
   const [tab, setTab] = useState<TabKey>(0);
-  const touchY0 = useRef<number | null>(null);
   const [bump, setBump] = useState(0);
   const [mainSettingsOpen, setMainSettingsOpen] = useState(false);
   const refreshAll = useCallback(() => setBump((x) => x + 1), []);
-
-  const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
-    touchY0.current = e.touches[0].clientY;
-  };
-  const onTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
-    const y0 = touchY0.current;
-    touchY0.current = null;
-    if (y0 === null) return;
-    const dy = e.changedTouches[0].clientY - y0;
-    if (Math.abs(dy) < 56) return;
-    /* Свайп вниз — следующий раздел; вверх — предыдущий */
-    if (dy > 0) setTab((t) => (t < 2 ? ((t + 1) as TabKey) : t));
-    else setTab((t) => (t > 0 ? ((t - 1) as TabKey) : t));
-  };
 
   return (
     <div className="finance-mod">
@@ -284,11 +268,7 @@ export default function FinanceModule() {
         )}
       </div>
 
-      <div
-        className="finance-mod__swipe"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
+      <div className="finance-mod__swipe">
         <div
           className="finance-mod__track"
           style={{ transform: `translateY(-${(tab * 100) / 3}%)` }}
@@ -299,6 +279,7 @@ export default function FinanceModule() {
               onRefresh={refreshAll}
               settingsOpen={mainSettingsOpen}
               onSettingsOpenChange={setMainSettingsOpen}
+              fabVisible={tab === 0}
             />
           </div>
           <div className="finance-mod__panel">
@@ -340,16 +321,25 @@ export default function FinanceModule() {
   );
 }
 
+function parseRuSignedDecimal(raw: string): number | null {
+  const t = raw.trim().replace(/\s/g, "").replace(",", ".").replace("−", "-");
+  if (t === "" || t === "-") return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 function FinanceMainPanel({
   bump,
   onRefresh,
   settingsOpen,
   onSettingsOpenChange,
+  fabVisible,
 }: {
   bump: number;
   onRefresh: () => void;
   settingsOpen: boolean;
   onSettingsOpenChange: (open: boolean) => void;
+  fabVisible: boolean;
 }) {
   const [reporting, setReporting] = useState<{
     financeReportingDay: number;
@@ -948,14 +938,15 @@ function FinanceMainPanel({
       setAccDetailErr(errorMessage(pr.data));
       return;
     }
-    const adjRaw = editBalanceAdjStr.trim().replace(",", ".");
-    if (adjRaw !== "" && adjRaw !== "0") {
-      const adj = Number(adjRaw);
-      if (!Number.isFinite(adj) || adj === 0) {
+    const adj = parseRuSignedDecimal(editBalanceAdjStr);
+    const adjStrTrim = editBalanceAdjStr.trim();
+    if (adjStrTrim !== "" && adjStrTrim !== "-" && adjStrTrim !== "−") {
+      if (adj === null || adj === 0) {
         setAccDetailBusy(false);
         setAccDetailErr("Корректировка баланса — число ₽ (можно с минусом)");
         return;
       }
+      const adjRub = adj;
       const uni = categories.find(
         (cat) => cat.name === "Универсальная" && cat.type === "BOTH",
       );
@@ -964,12 +955,12 @@ function FinanceMainPanel({
         setAccDetailErr("Нет категории «Универсальная»");
         return;
       }
-      const kind = adj > 0 ? "INCOME" : "EXPENSE";
+      const kind = adjRub > 0 ? "INCOME" : "EXPENSE";
       const tr = await createTransaction({
         accountId: selectedAccount.id,
         categoryId: uni.id,
         kind,
-        amountRub: Math.abs(adj),
+        amountRub: Math.abs(adjRub),
         note: "Корректировка баланса счёта",
         occurredAt: new Date().toISOString(),
       });
@@ -990,6 +981,17 @@ function FinanceMainPanel({
     })();
   }
 
+  function toggleEditBalanceAdjSign() {
+    setEditBalanceAdjStr((s) => {
+      const t = s.trim();
+      if (t === "" || t === "-" || t === "−") return "−";
+      if (t.startsWith("-") || t.startsWith("−")) {
+        return t.slice(1).trimStart();
+      }
+      return `−${t}`;
+    });
+  }
+
   async function confirmPurgeDelete() {
     if (!delModalAcc) return;
     const goneId = delModalAcc.id;
@@ -1008,7 +1010,11 @@ function FinanceMainPanel({
   }
 
   return (
-    <div className="finance-main">
+    <div
+      className={
+        fabVisible ? "finance-main finance-main--fab-pad" : "finance-main"
+      }
+    >
       {loadError ? <p className="finance__err">{loadError}</p> : null}
       {pending ? <p className="screen__text">Загрузка…</p> : null}
 
@@ -1132,18 +1138,6 @@ function FinanceMainPanel({
             </div>
           </div>
         </section>
-      ) : null}
-
-      {!pending ? (
-        <div className="finance-main__io-btns">
-          <button
-            type="button"
-            className="finance-main__io finance-main__io--add"
-            onClick={() => openAddOp()}
-          >
-            Добавить
-          </button>
-        </div>
       ) : null}
 
       {settingsOpen
@@ -1809,15 +1803,40 @@ function FinanceMainPanel({
               aria-label={`Счёт ${selectedAccount.name}`}
             >
               <div className="finance__modal finance__modal--acc-detail">
-                <div className="finance__modal-head">
-                  <h2 className="finance__h2">{selectedAccount.name}</h2>
-                  <button
-                    type="button"
-                    className="finance__modal-close"
-                    onClick={() => closeAccountDetail()}
-                  >
-                    Закрыть
-                  </button>
+                <div className="finance__modal-head finance__modal-head--acc">
+                  <div className="finance__modal-head-acc-top">
+                    <h2 className="finance__h2 finance__modal-head-acc-title">
+                      {selectedAccount.name}
+                    </h2>
+                    <button
+                      type="button"
+                      className="finance__modal-close"
+                      onClick={() => closeAccountDetail()}
+                    >
+                      Закрыть
+                    </button>
+                  </div>
+                  {!accountEditOpen ? (
+                    <div className="finance-main__acc-head-actions">
+                      <button
+                        type="button"
+                        className="finance__btn-secondary"
+                        onClick={() => {
+                          setAccDetailErr(null);
+                          setAccountEditOpen(true);
+                        }}
+                      >
+                        Редактировать
+                      </button>
+                      <button
+                        type="button"
+                        className="finance-main__acc-del"
+                        onClick={() => openDelModal(selectedAccount)}
+                      >
+                        Удалить счёт
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 {!accountEditOpen ? (
                   <>
@@ -1848,60 +1867,48 @@ function FinanceMainPanel({
                     ) : accountDetailTx.length === 0 ? (
                       <p className="screen__text">Операций нет.</p>
                     ) : (
-                      <ul className="finance-main__acc-detail-tx finance-main__acc-detail-tx--full">
-                        {accountDetailTx.map((tx) => (
-                          <li key={tx.id}>
-                            <span className="finance-main__acc-detail-tx-d">
-                              {new Date(tx.occurredAt).toLocaleDateString(
-                                "ru-RU",
-                              )}
-                            </span>
-                            <span className="finance-main__acc-detail-tx-k">
-                              {tx.kind === "INCOME" ? "Доход" : "Расход"}
-                            </span>
-                            <span className="finance-main__acc-detail-tx-c">
-                              {tx.category.name}
-                            </span>
-                            <span
-                              className={
-                                tx.kind === "INCOME"
-                                  ? "finance-main__acc-detail-tx-a finance-main__acc-detail-tx-a--in"
-                                  : "finance-main__acc-detail-tx-a finance-main__acc-detail-tx-a--out"
-                              }
-                            >
-                              {tx.kind === "INCOME" ? "+" : "−"}
-                              {formatRubFromMinor(tx.amountMinor)}
-                            </span>
-                            <button
-                              type="button"
-                              className="finance-main__acc-detail-tx-del"
-                              onClick={() => void onDeleteAccountDetailTx(tx.id)}
-                            >
-                              ×
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="finance-main__acc-tx-scroll">
+                        <ul className="finance__tx-list finance-main__acc-tx-list">
+                          {accountDetailTx.map((tx) => (
+                            <li key={tx.id} className="finance__tx">
+                              <div className="finance__tx-main">
+                                <span className="finance__tx-date">
+                                  {new Date(tx.occurredAt).toLocaleDateString(
+                                    "ru-RU",
+                                  )}
+                                </span>
+                                <span className="finance__tx-cat">
+                                  {tx.kind === "INCOME" ? "Доход" : "Расход"} ·{" "}
+                                  {tx.category.name}
+                                </span>
+                                <span
+                                  className={
+                                    tx.kind === "INCOME"
+                                      ? "finance__tx-sum finance__tx-sum--in"
+                                      : "finance__tx-sum finance__tx-sum--out"
+                                  }
+                                >
+                                  {tx.kind === "INCOME" ? "+" : "−"}
+                                  {formatRubFromMinor(tx.amountMinor)}
+                                </span>
+                              </div>
+                              {tx.note ? (
+                                <p className="finance__tx-note">{tx.note}</p>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="finance__tx-del"
+                                onClick={() =>
+                                  void onDeleteAccountDetailTx(tx.id)
+                                }
+                              >
+                                Удалить операцию
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
-                    <div className="finance-main__acc-detail-actions">
-                      <button
-                        type="button"
-                        className="finance__btn-secondary"
-                        onClick={() => {
-                          setAccDetailErr(null);
-                          setAccountEditOpen(true);
-                        }}
-                      >
-                        Редактировать
-                      </button>
-                      <button
-                        type="button"
-                        className="finance-main__acc-del"
-                        onClick={() => openDelModal(selectedAccount)}
-                      >
-                        Удалить
-                      </button>
-                    </div>
                   </>
                 ) : (
                   <form
@@ -1933,16 +1940,32 @@ function FinanceMainPanel({
                         />
                       </label>
                     ) : null}
-                    <label className="finance__field">
-                      Корректировка баланса, ₽ (+ доход / − расход)
-                      <input
-                        className="finance__input"
-                        inputMode="decimal"
-                        value={editBalanceAdjStr}
-                        onChange={(e) => setEditBalanceAdjStr(e.target.value)}
-                        placeholder="0 — не менять"
-                      />
-                    </label>
+                    <div className="finance__field">
+                      <span className="finance-main__balance-adj-label">
+                        Корректировка баланса, ₽ (+ доход / − расход)
+                      </span>
+                      <div className="finance-main__signed-row">
+                        <button
+                          type="button"
+                          className="finance-main__sign-btn"
+                          aria-label="Сменить знак"
+                          onClick={() => toggleEditBalanceAdjSign()}
+                        >
+                          ±
+                        </button>
+                        <input
+                          className="finance__input finance-main__signed-input"
+                          type="text"
+                          inputMode="text"
+                          autoComplete="off"
+                          value={editBalanceAdjStr}
+                          onChange={(e) =>
+                            setEditBalanceAdjStr(e.target.value)
+                          }
+                          placeholder="0 — не менять"
+                        />
+                      </div>
+                    </div>
                     {accDetailErr ? (
                       <p className="finance__err">{accDetailErr}</p>
                     ) : null}
@@ -2033,6 +2056,19 @@ function FinanceMainPanel({
             </form>
           </div>
         </div>,
+          )
+        : null}
+
+      {fabVisible && !pending
+        ? modalPortal(
+            <button
+              type="button"
+              className="finance-main__fab"
+              onClick={() => openAddOp()}
+              aria-label="Добавить операцию"
+            >
+              Добавить
+            </button>,
           )
         : null}
 
@@ -2832,13 +2868,14 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
       <h2 className="finance__h2">Аналитика</h2>
       <section
         className="finance-an__forecast"
-        aria-label="Прогноз по отчётному периоду"
+        aria-label="Ожидаемый баланс по отчётному периоду"
       >
-        <h3 className="finance__h3">Ожидаемый бюджет к концу периода</h3>
+        <h3 className="finance__h3">Ожидаемый баланс</h3>
         <p className="finance-an__forecast-hint">
-          Среднедневные доход и расход считаются по операциям с начала текущего
-          отчётного периода (см. главный экран). Прогноз линейный: чистый
-          дневной × оставшиеся дни + уже накопленный баланс периода.
+          Весь доход за отчётный период плюс оценка пассивного дохода до конца
+          периода минус прогноз расходов на весь период: средний дневной расход
+          (расходы с начала периода, делённые на число прошедших дней)
+          умножается на число календарных дней в периоде.
         </p>
         {forecastErr ? <p className="finance__err">{forecastErr}</p> : null}
         {forecast ? (
@@ -2875,16 +2912,27 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
                 Уже (доход − расход):{" "}
                 {formatRubFromMinor(forecast.realizedNetMinor)}
               </li>
+              <li>
+                Пассивный доход до конца периода (оценка):{" "}
+                {formatRubFromMinor(forecast.passiveIncomeToEndMinor)}
+              </li>
+              <li>
+                Прогноз расходов на весь период (по среднему дневному):{" "}
+                {formatRubFromMinor(forecast.expenseProjectedPeriodMinor)}
+              </li>
+              <li>
+                Дней в периоде (календарь): {forecast.totalDaysInPeriod}
+              </li>
             </ul>
             <p className="finance-an__forecast-result">
-              Ожидаемый чистый результат к последнему дню периода:{" "}
+              Ожидаемый баланс (индикатор):{" "}
               <strong>
-                {formatRubFromMinor(forecast.projectedNetEndMinor)}
+                {formatRubFromMinor(forecast.expectedBalanceIndicatorMinor)}
               </strong>
-              {forecast.projectedNetEndMinor > 0
-                ? " — прогноз в плюсе"
-                : forecast.projectedNetEndMinor < 0
-                  ? " — прогноз в минусе"
+              {forecast.expectedBalanceIndicatorMinor > 0
+                ? " — в плюсе"
+                : forecast.expectedBalanceIndicatorMinor < 0
+                  ? " — в минусе"
                   : ""}
             </p>
           </div>

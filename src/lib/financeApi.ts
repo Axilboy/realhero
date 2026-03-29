@@ -279,6 +279,8 @@ export type ReportingForecast = {
   periodEndExclusive: string;
   periodLastDay: string;
   nextReportingDay: string;
+  /** Календарных дней в отчётном периоде (целиком). */
+  totalDaysInPeriod: number;
   daysElapsed: number;
   daysRemaining: number;
   incomeMinor: number;
@@ -287,12 +289,26 @@ export type ReportingForecast = {
   avgDailyIncomeMinor: number;
   avgDailyExpenseMinor: number;
   avgDailyNetMinor: number;
+  /** Линейный прогноз (старый расчёт). */
   projectedNetEndMinor: number;
+  /** Пассивный доход до конца периода (оценка). */
+  passiveIncomeToEndMinor: number;
+  /** Расходы за весь период по среднему дневному. */
+  expenseProjectedPeriodMinor: number;
+  /** Доход за период + пассив до конца − прогноз расходов на весь период. */
+  expectedBalanceIndicatorMinor: number;
 };
 
-export async function fetchReportingForecast() {
+export async function fetchReportingForecast(opts?: {
+  from?: string;
+  to?: string;
+}) {
+  const q = new URLSearchParams();
+  if (opts?.from) q.set("from", opts.from);
+  if (opts?.to) q.set("to", opts.to);
+  const qs = q.toString();
   return json<ReportingForecast>(
-    "/api/v1/finance/analytics/reporting-forecast",
+    `/api/v1/finance/analytics/reporting-forecast${qs ? `?${qs}` : ""}`,
   );
 }
 

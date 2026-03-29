@@ -804,7 +804,6 @@ body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  touch-action: pan-y;
 }
 
 .finance-mod__track {
@@ -1346,8 +1345,87 @@ button.finance-acc-row__card:focus-visible {
   margin-top: 0.85rem;
 }
 
+.finance__modal-head--acc {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+}
+
+.finance__modal-head-acc-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.finance__modal-head-acc-title {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.finance-main__acc-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.finance-main__acc-head-actions .finance__btn-secondary {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.finance-main__acc-tx-scroll {
+  max-height: min(48vh, 26rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -0.15rem;
+  padding: 0 0.15rem 0.25rem;
+}
+
+.finance-main__acc-tx-list {
+  gap: 0.75rem;
+}
+
+.finance-main__balance-adj-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.82rem;
+  color: #9aa0a6;
+}
+
+.finance-main__signed-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.finance-main__sign-btn {
+  flex-shrink: 0;
+  min-width: 2.75rem;
+  border-radius: 10px;
+  border: 1px solid #3c4a62;
+  background: #1e2430;
+  color: #e8eaed;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.finance-main__sign-btn:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
+}
+
+.finance-main__signed-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .finance__modal--acc-detail {
-  max-width: 22rem;
+  max-width: min(96vw, 28rem);
 }
 
 .finance-dep-carousel__del {
@@ -1418,6 +1496,35 @@ button.finance-dep-carousel__card:focus-visible {
 
 .finance__tiles--compact .finance__tile-val {
   font-size: 0.92rem;
+}
+
+/* Плавающая «Добавить» (портал в body — поверх transform-карусели) */
+.finance-main--fab-pad {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+.finance-main__fab {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(3.35rem + env(safe-area-inset-bottom, 0px));
+  z-index: 350;
+  min-width: min(92vw, 20rem);
+  min-height: 48px;
+  padding: 0.65rem 1.75rem;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #3d4f7a 0%, #2a3448 100%);
+  color: #e8eaed;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.finance-main__fab:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 3px;
 }
 
 .finance-main__io-btns {

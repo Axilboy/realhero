@@ -134,6 +134,21 @@ export function getActiveReportingPeriod(
   return getReportingPeriodContaining(anchorDay, ref);
 }
 
+/** Календарных дней в периоде (от начала до последнего дня включительно). */
+export function totalCalendarDaysInPeriod(period: ReportingPeriod): number {
+  const a = Date.UTC(
+    period.start.getUTCFullYear(),
+    period.start.getUTCMonth(),
+    period.start.getUTCDate(),
+  );
+  const b = Date.UTC(
+    period.lastDayInclusive.getUTCFullYear(),
+    period.lastDayInclusive.getUTCMonth(),
+    period.lastDayInclusive.getUTCDate(),
+  );
+  return Math.max(1, Math.floor((b - a) / 86400000) + 1);
+}
+
 /** Дней с начала периода по ref (включительно), минимум 1. */
 export function daysElapsedInPeriod(period: ReportingPeriod, ref: Date): number {
   const a = Date.UTC(

@@ -21,6 +21,7 @@ import {
   getActiveReportingPeriod,
   getCustomReportingPeriod,
   parseISODateUTC,
+  totalCalendarDaysInPeriod,
 } from "../lib/reportingPeriod.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
@@ -268,6 +269,30 @@ function holdingAnnualCashflowTotalMinor(h: {
     return h.annualCouponDividendMinor;
   }
   return 0;
+}
+
+/** Вклады/накопительные по ставке + бумаги (купоны/дивиденды), оценка ₽/мес, коп. */
+async function monthlyPassiveIncomeMinor(userId: string): Promise<number> {
+  const holdings = await prisma.investmentPosition.findMany({
+    where: { userId },
+  });
+  const accounts = await prisma.account.findMany({ where: { userId } });
+  const bal = await accountBalancesMap(userId);
+  let totalAnnualMinor = 0;
+  let invValueMinor = 0;
+  for (const h of holdings) {
+    invValueMinor += holdingValueMinor(h.units, h.pricePerUnitMinor);
+    totalAnnualMinor += holdingAnnualCashflowTotalMinor(h);
+  }
+  let depMonth = 0;
+  for (const a of accounts) {
+    if (!accountUsesInterestRate(a)) continue;
+    const b = bal.get(a.id) ?? 0;
+    depMonth += interestIncomeMonthMinor(b, a.annualInterestPercent);
+  }
+  const hasFlow = totalAnnualMinor > 0 && invValueMinor > 0;
+  const couponMonth = hasFlow ? Math.round(totalAnnualMinor / 12) : 0;
+  return depMonth + couponMonth;
 }
 
 async function refreshInvestmentQuotes(userId: string): Promise<void> {
@@ -1740,12 +1765,20 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     const elapsed = daysElapsedInPeriod(period, now);
     const remaining = daysRemainingInPeriod(period, now);
+    const totalDays = totalCalendarDaysInPeriod(period);
     const avgIncome = Math.round(incomeMinor / elapsed);
     const avgExpense = Math.round(expenseMinor / elapsed);
     const avgNet = avgIncome - avgExpense;
     const realizedNet = incomeMinor - expenseMinor;
     const projectedExtra = Math.round(avgNet * remaining);
     const projectedNetEndMinor = realizedNet + projectedExtra;
+    const passiveMonthly = await monthlyPassiveIncomeMinor(userId);
+    const passiveIncomeToEndMinor = Math.round((passiveMonthly / 30) * remaining);
+    const expenseProjectedPeriodMinor = Math.round(
+      (expenseMinor / elapsed) * totalDays,
+    );
+    const expectedBalanceIndicatorMinor =
+      incomeMinor + passiveIncomeToEndMinor - expenseProjectedPeriodMinor;
     return {
       financeReportingDay: day,
       financeReportingGranularity:
@@ -1754,6 +1787,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       periodEndExclusive: period.endExclusive.toISOString(),
       periodLastDay: period.lastDayInclusive.toISOString().slice(0, 10),
       nextReportingDay: period.endExclusive.toISOString().slice(0, 10),
+      totalDaysInPeriod: totalDays,
       daysElapsed: elapsed,
       daysRemaining: remaining,
       incomeMinor,
@@ -1763,6 +1797,9 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       avgDailyExpenseMinor: avgExpense,
       avgDailyNetMinor: avgNet,
       projectedNetEndMinor,
+      passiveIncomeToEndMinor,
+      expenseProjectedPeriodMinor,
+      expectedBalanceIndicatorMinor,
     };
   });
 };

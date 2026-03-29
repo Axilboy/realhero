@@ -1105,6 +1105,65 @@ body {
   gap: 0.45rem;
 }
 
+.finance-main__acc-order-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: #7c8088;
+  line-height: 1.35;
+}
+
+.finance-main__acc-order {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.finance-main__acc-order-li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  background: #14171c;
+  border: 1px solid #2a2f38;
+  font-size: 0.82rem;
+}
+
+.finance-main__acc-order-name {
+  min-width: 0;
+  flex: 1;
+  color: #e8eaed;
+}
+
+.finance-main__acc-order-btns {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.finance-main__acc-order-btn {
+  min-width: 2rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid #3d4a5c;
+  background: #1a1d24;
+  color: #e8eaed;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.finance-main__acc-order-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .finance-acc-row-wrap {
   margin-bottom: 0.75rem;
 }

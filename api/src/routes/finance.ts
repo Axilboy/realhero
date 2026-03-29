@@ -140,7 +140,10 @@ function accountUsesInterestRate(a: {
   annualInterestPercent: number | null;
 }): boolean {
   if (a.type === "DEPOSIT" || a.type === "SAVINGS") return true;
-  if (a.type === "BANK" && coerceAnnualPercent(a.annualInterestPercent) != null)
+  if (
+    (a.type === "BANK" || a.type === "CREDIT_CARD") &&
+    coerceAnnualPercent(a.annualInterestPercent) != null
+  )
     return true;
   return false;
 }
@@ -237,7 +240,9 @@ async function resolveAccountId(
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
   if (!first) {
-    reply.status(500).send({ error: { message: "Нет счёта" } });
+    reply.status(400).send({
+      error: { message: "Сначала создайте счёт в разделе Финансы" },
+    });
     return undefined;
   }
   return first.id;
@@ -378,11 +383,14 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         const year = useInt
           ? interestIncomeYearMinor(balanceMinor, a.annualInterestPercent)
           : 0;
+        const day =
+          useInt && year > 0 ? Math.max(0, Math.round(year / 365)) : 0;
         return {
           ...a,
           balanceMinor,
           interestIncomeMonthMinor: month,
           interestIncomeYearMinor: year,
+          interestIncomeDayMinor: day,
         };
       }),
       investmentsTotalMinor: inv,
@@ -405,7 +413,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     }
     const t = body.type;
     if (
-      t !== "CARD" &&
+      t !== "DEBIT_CARD" &&
+      t !== "CREDIT_CARD" &&
       t !== "CASH" &&
       t !== "BANK" &&
       t !== "DEPOSIT" &&
@@ -415,7 +424,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({
         error: {
           message:
-            "Тип: CARD, CASH, BANK, DEPOSIT (вклад), SAVINGS (накопительный), OTHER",
+            "Тип: DEBIT_CARD, CREDIT_CARD, CASH, BANK, DEPOSIT, SAVINGS, OTHER",
         },
       });
     }
@@ -427,7 +436,12 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       }
       annualInterestPercent = p.value;
     }
-    if (t !== "DEPOSIT" && t !== "SAVINGS" && t !== "BANK") {
+    if (
+      t !== "DEPOSIT" &&
+      t !== "SAVINGS" &&
+      t !== "BANK" &&
+      t !== "CREDIT_CARD"
+    ) {
       annualInterestPercent = null;
     }
     const maxSort = await prisma.account.aggregate({
@@ -465,7 +479,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     if (body.type !== undefined) {
       const k = body.type;
       if (
-        k !== "CARD" &&
+        k !== "DEBIT_CARD" &&
+        k !== "CREDIT_CARD" &&
         k !== "CASH" &&
         k !== "BANK" &&
         k !== "DEPOSIT" &&
@@ -489,7 +504,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     if (
       nextType !== "DEPOSIT" &&
       nextType !== "SAVINGS" &&
-      nextType !== "BANK"
+      nextType !== "BANK" &&
+      nextType !== "CREDIT_CARD"
     ) {
       annualInterestPercent = null;
     }
@@ -771,6 +787,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           balanceMinor,
           a.annualInterestPercent,
         );
+        const incDay =
+          incYear > 0 ? Math.max(0, Math.round(incYear / 365)) : 0;
         return {
           id: a.id,
           name: a.name,
@@ -779,6 +797,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           annualInterestPercent: a.annualInterestPercent,
           interestIncomeMonthMinor: incMonth,
           interestIncomeYearMinor: incYear,
+          interestIncomeDayMinor: incDay,
         };
       })
       .sort((x, y) => x.name.localeCompare(y.name, "ru"));

@@ -20,6 +20,8 @@ enum TransactionKind {
 
 enum AccountType {
   CARD
+  DEBIT_CARD
+  CREDIT_CARD
   CASH
   BANK
   DEPOSIT

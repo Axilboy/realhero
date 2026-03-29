@@ -352,19 +352,29 @@ export async function moexDividendsLastYearSumRubPerShare(
 }
 
 function couponPaymentRub(row: Record<string, unknown>): number {
+  const fv = Number(
+    row.facevalue ?? row.initialfacevalue ?? row.nominal ?? row.face_value ?? 0,
+  );
+  const vp = Number(row.valueprc ?? row.couponpercent ?? row.coupon_percent ?? 0);
+  if (vp > 0 && fv > 0) return (vp / 100) * fv;
+
   const vr = row.value_rub;
   if (vr != null && vr !== "") {
     const n = typeof vr === "number" ? vr : Number(vr);
     if (Number.isFinite(n) && n > 0) return n;
   }
+
   const v = row.value;
   if (v != null && v !== "") {
     const n = typeof v === "number" ? v : Number(v);
-    if (Number.isFinite(n) && n > 0) return n;
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    // MOEX часто отдаёт в value ставку купона в % номинала; без номинала value
+    // ошибочно читали как рубли (10 вместо 10% от 1000 ₽ = 100 ₽).
+    if (fv > 0 && n > 0 && n <= 25) {
+      return Math.round(((n / 100) * fv) * 100) / 100;
+    }
+    return n;
   }
-  const vp = Number(row.valueprc ?? 0);
-  const fv = Number(row.facevalue ?? row.initialfacevalue ?? 0);
-  if (vp > 0 && fv > 0) return (vp / 100) * fv;
   return 0;
 }
 

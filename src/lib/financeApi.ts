@@ -4,6 +4,8 @@ export type CategoryType = "EXPENSE" | "INCOME" | "BOTH";
 export type TransactionKind = "EXPENSE" | "INCOME";
 export type AccountType =
   | "CARD"
+  | "DEBIT_CARD"
+  | "CREDIT_CARD"
   | "CASH"
   | "BANK"
   | "DEPOSIT"
@@ -33,6 +35,8 @@ export type AccountRow = {
   interestIncomeMonthMinor: number;
   /** Оценка дохода по ставке за год, коп. */
   interestIncomeYearMinor: number;
+  /** Оценка дохода по ставке за день (год/365), коп. */
+  interestIncomeDayMinor: number;
 };
 
 export type TransactionAccount = {
@@ -106,6 +110,7 @@ export type DepositSavingsAccountRow = {
   annualInterestPercent: number | null;
   interestIncomeMonthMinor: number;
   interestIncomeYearMinor: number;
+  interestIncomeDayMinor: number;
 };
 
 /** Абсолютный URL к API (надёжнее для cookie при нестандартном base / PWA). */

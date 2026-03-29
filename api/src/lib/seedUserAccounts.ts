@@ -46,8 +46,8 @@ async function dedupeDefaultCashAccounts(
 }
 
 /**
- * Гарантирует хотя бы один счёт и привязывает операции без счёта.
- * Регистрация должна вызывать только эту функцию (не дублировать создание счёта).
+ * Дедупликация и миграция типов; счёт «с нуля» не создаём — только карточка «+».
+ * Операции без счёта привязываем к первому счёту, если он есть.
  */
 export async function ensureUserHasAccounts(
   prisma: PrismaClient,
@@ -55,18 +55,9 @@ export async function ensureUserHasAccounts(
 ): Promise<void> {
   await dedupeDefaultCashAccounts(prisma, userId);
 
-  await prisma.$transaction(async (tx) => {
-    const cnt = await tx.account.count({ where: { userId } });
-    if (cnt === 0) {
-      await tx.account.create({
-        data: {
-          userId,
-          name: "Основной",
-          type: "CASH",
-          sortOrder: 0,
-        },
-      });
-    }
+  await prisma.account.updateMany({
+    where: { userId, type: "CARD" },
+    data: { type: "DEBIT_CARD" },
   });
 
   const main = await prisma.account.findFirst({

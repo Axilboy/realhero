@@ -86,6 +86,8 @@ function mergeAccountMovements(
 
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   CARD: "Карта",
+  DEBIT_CARD: "Дебетовая карта",
+  CREDIT_CARD: "Кредитная карта",
   CASH: "Наличные",
   BANK: "Счёт",
   DEPOSIT: "Вклад",
@@ -106,10 +108,11 @@ type AccountCardLike = Pick<
   | "annualInterestPercent"
   | "interestIncomeMonthMinor"
   | "interestIncomeYearMinor"
+  | "interestIncomeDayMinor"
 >;
 
 function accountSupportsInterestField(t: AccountType): boolean {
-  return isDepositOrSavings(t) || t === "BANK";
+  return isDepositOrSavings(t) || t === "BANK" || t === "CREDIT_CARD";
 }
 
 const GRANULARITY_LABEL: Record<FinanceReportingGranularity, string> = {
@@ -160,6 +163,7 @@ function accountShowsInterestLines(a: AccountCardLike): boolean {
   return (
     a.type === "DEPOSIT" ||
     a.type === "SAVINGS" ||
+    a.type === "CREDIT_CARD" ||
     (a.type === "BANK" &&
       a.annualInterestPercent != null &&
       Number(a.annualInterestPercent) > 0)
@@ -211,6 +215,12 @@ function FinanceAccountsRow({
             <div className="finance-acc-row__inc">
               ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
               {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
+              {a.interestIncomeDayMinor > 0 ? (
+                <>
+                  {" "}
+                  · ~{formatRubFromMinor(a.interestIncomeDayMinor)}/день
+                </>
+              ) : null}
             </div>
           </>
         ) : null}
@@ -439,6 +449,7 @@ function FinanceMainPanel({
     }
   });
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [orderBusy, setOrderBusy] = useState(false);
   const [delModalAcc, setDelModalAcc] = useState<AccountRow | null>(null);
   const [delTargetId, setDelTargetId] = useState("");
   const [delBusy, setDelBusy] = useState(false);
@@ -503,7 +514,7 @@ function FinanceMainPanel({
 
   const [accModal, setAccModal] = useState(false);
   const [newAccName, setNewAccName] = useState("");
-  const [newAccType, setNewAccType] = useState<AccountType>("CARD");
+  const [newAccType, setNewAccType] = useState<AccountType>("DEBIT_CARD");
   const [newAccInterestStr, setNewAccInterestStr] = useState("");
   const [accBusy, setAccBusy] = useState(false);
   const [accError, setAccError] = useState<string | null>(null);
@@ -955,6 +966,33 @@ function FinanceMainPanel({
     onRefresh();
   }
 
+  async function moveAccountOrder(id: string, dir: -1 | 1) {
+    const sorted = [...accounts].sort((a, b) =>
+      a.sortOrder !== b.sortOrder
+        ? a.sortOrder - b.sortOrder
+        : a.name.localeCompare(b.name, "ru"),
+    );
+    const i = sorted.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sorted.length) return;
+    const reordered = [...sorted];
+    const [item] = reordered.splice(i, 1);
+    reordered.splice(j, 0, item!);
+    setOrderBusy(true);
+    setLoadError(null);
+    const results = await Promise.all(
+      reordered.map((acc, idx) => patchAccount(acc.id, { sortOrder: idx })),
+    );
+    setOrderBusy(false);
+    const bad = results.find((r) => !r.ok);
+    if (bad) {
+      setLoadError(errorMessage(bad.data));
+      return;
+    }
+    await refresh();
+    onRefresh();
+  }
+
   const selectedAccount = selectedAccountId
     ? accounts.find((x) => x.id === selectedAccountId) ?? null
     : null;
@@ -1396,6 +1434,57 @@ function FinanceMainPanel({
                       Новый счёт
                     </button>
                   </div>
+                  <h3 className="finance__h3 finance-main__settings-h3">
+                    Порядок счетов
+                  </h3>
+                  <p className="finance-main__acc-order-hint">
+                    Первым в карусели будет верхний в списке.
+                  </p>
+                  {accounts.length === 0 ? (
+                    <p className="screen__text">Счетов пока нет.</p>
+                  ) : (
+                    <ul className="finance-main__acc-order" role="list">
+                      {[...accounts]
+                        .sort((a, b) =>
+                          a.sortOrder !== b.sortOrder
+                            ? a.sortOrder - b.sortOrder
+                            : a.name.localeCompare(b.name, "ru"),
+                        )
+                        .map((a, idx, arr) => (
+                          <li key={a.id} className="finance-main__acc-order-li">
+                            <span className="finance-main__acc-order-name">
+                              {ACCOUNT_TYPE_LABEL[a.type]} · {a.name}
+                            </span>
+                            <span className="finance-main__acc-order-btns">
+                              <button
+                                type="button"
+                                className="finance-main__acc-order-btn"
+                                disabled={orderBusy || idx === 0}
+                                aria-label="Выше"
+                                onClick={() =>
+                                  void moveAccountOrder(a.id, -1)
+                                }
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                className="finance-main__acc-order-btn"
+                                disabled={
+                                  orderBusy || idx >= arr.length - 1
+                                }
+                                aria-label="Ниже"
+                                onClick={() =>
+                                  void moveAccountOrder(a.id, 1)
+                                }
+                              >
+                                ↓
+                              </button>
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
                 </div>
               </div>
             </div>,
@@ -1984,7 +2073,10 @@ function FinanceMainPanel({
                     </p>
                     {accountSupportsInterestField(selectedAccount.type) ? (
                       <p className="finance-main__acc-detail-meta">
-                        Ставка:{" "}
+                        {selectedAccount.type === "CREDIT_CARD"
+                          ? "Процент на остаток"
+                          : "Ставка"}
+                        :{" "}
                         {selectedAccount.annualInterestPercent != null
                           ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
                           : "не задана"}
@@ -1995,6 +2087,15 @@ function FinanceMainPanel({
                           selectedAccount.interestIncomeYearMinor ?? 0,
                         )}
                         /год
+                        {selectedAccount.interestIncomeDayMinor > 0 ? (
+                          <>
+                            , ~
+                            {formatRubFromMinor(
+                              selectedAccount.interestIncomeDayMinor,
+                            )}
+                            /день
+                          </>
+                        ) : null}
                       </p>
                     ) : null}
                     <h3 className="finance__h3 finance-main__acc-detail-h3">
@@ -2116,13 +2217,19 @@ function FinanceMainPanel({
                     </label>
                     {accountSupportsInterestField(selectedAccount.type) ? (
                       <label className="finance__field">
-                        Ставка, % годовых (пусто — без ставки)
+                        {selectedAccount.type === "CREDIT_CARD"
+                          ? "Процент на остаток, % годовых (пусто — без ставки)"
+                          : "Ставка, % годовых (пусто — без ставки)"}
                         <input
                           className="finance__input"
                           inputMode="decimal"
                           value={editAccInterestStr}
                           onChange={(e) => setEditAccInterestStr(e.target.value)}
-                          placeholder="например 9"
+                          placeholder={
+                            selectedAccount.type === "CREDIT_CARD"
+                              ? "например 29,9"
+                              : "например 9"
+                          }
                         />
                       </label>
                     ) : null}
@@ -2212,7 +2319,8 @@ function FinanceMainPanel({
                   setNewAccInterestStr("");
                 }}
               >
-                <option value="CARD">Карта</option>
+                <option value="DEBIT_CARD">Дебетовая карта</option>
+                <option value="CREDIT_CARD">Кредитная карта</option>
                 <option value="CASH">Наличные</option>
                 <option value="BANK">Счёт</option>
                 <option value="DEPOSIT">Вклад</option>
@@ -2221,11 +2329,17 @@ function FinanceMainPanel({
               </select>
               {accountSupportsInterestField(newAccType) ? (
                 <label className="finance__field">
-                  Ставка, % годовых
+                  {newAccType === "CREDIT_CARD"
+                    ? "Процент на остаток, % годовых (необязательно)"
+                    : "Ставка, % годовых"}
                   <input
                     className="finance__input"
                     inputMode="decimal"
-                    placeholder="например 16 (необязательно)"
+                    placeholder={
+                      newAccType === "CREDIT_CARD"
+                        ? "например 29,9"
+                        : "например 16 (необязательно)"
+                    }
                     value={newAccInterestStr}
                     onChange={(e) => setNewAccInterestStr(e.target.value)}
                   />
@@ -2540,7 +2654,7 @@ function FinanceInvestPanel({
                 ...d,
                 sortOrder: i,
               })) as AccountRow[]}
-              title="Вклады и накопительные"
+              title="Вклады, накопительные и карты с %"
             />
             <div
               className="finance-inv__alloc"
@@ -2606,7 +2720,7 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Вклады и накопительные (в месяц, по ставке)
+                  Вклады, накопительные и карты с % (в месяц, по ставке)
                 </span>
                 <span className="finance-inv__metric-val">
                   {data.metrics.depositSavingsIncomeMonthMinor > 0

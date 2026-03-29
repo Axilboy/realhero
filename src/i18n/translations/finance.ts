@@ -89,6 +89,8 @@ export const financeRu = {
     total: "Всего",
     passiveEst: "Оценка пассивного потока (~в месяц)",
     budgetLeft: "Осталось: {{v}} из {{lim}}",
+    budgetPrefix: "Осталось: ",
+    budgetBetween: " из ",
     budgetHint:
       "Лимиты по категориям — во вкладке «Бюджет» (календарный месяц).",
     capitalSplit: "Разбивка капитала",
@@ -417,6 +419,8 @@ export const financeEn = {
     total: "Total",
     passiveEst: "Estimated passive flow (~per month)",
     budgetLeft: "Left: {{v}} of {{lim}}",
+    budgetPrefix: "Left: ",
+    budgetBetween: " of ",
     budgetHint: "Category limits are on the Budget tab (calendar month).",
     capitalSplit: "Capital breakdown",
     capDeposits: "Deposits",

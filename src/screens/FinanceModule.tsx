@@ -69,6 +69,7 @@ import {
 } from "../lib/financeApi";
 import { currentMonthYm, formatRubFromMinor } from "../lib/money";
 import { useI18n } from "../i18n/I18nContext";
+import type { Locale } from "../i18n/locale";
 
 type AccountDetailItem =
   | { kind: "tx"; at: string; tx: TransactionRow }
@@ -96,12 +97,6 @@ function mergeAccountMovements(
   return items;
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  EXPENSE: "Расход",
-  INCOME: "Доход",
-  BOTH: "Оба",
-};
-
 function MainRecentMovementRow({
   item,
   onOpenAccount,
@@ -109,25 +104,27 @@ function MainRecentMovementRow({
   item: AccountDetailItem;
   onOpenAccount: (id: string) => void;
 }) {
+  const { t, locale } = useI18n();
   const openTarget =
     item.kind === "tx"
       ? item.tx.account?.id
       : item.tr.fromAccountId;
   const interactive = openTarget != null;
+  const dateLoc = locale === "en" ? "en-GB" : "ru-RU";
   const inner =
     item.kind === "tx" ? (
       <>
         <div className="finance__tx-main">
           <span className="finance__tx-date">
-            {new Date(item.tx.occurredAt).toLocaleDateString("ru-RU")}
+            {new Date(item.tx.occurredAt).toLocaleDateString(dateLoc)}
           </span>
           <span className="finance__tx-cat">
             {item.tx.account ? `${item.tx.account.name} · ` : null}
             {item.tx.category.excludeFromReporting
-              ? "Корректировка"
+              ? t("fin.adjustment")
               : item.tx.kind === "INCOME"
-                ? "Доход"
-                : "Расход"}{" "}
+                ? t("fin.typeIncome")
+                : t("fin.typeExpense")}{" "}
             · {item.tx.category.name}
           </span>
           <span
@@ -151,10 +148,13 @@ function MainRecentMovementRow({
       <>
         <div className="finance__tx-main">
           <span className="finance__tx-date">
-            {new Date(item.tr.occurredAt).toLocaleDateString("ru-RU")}
+            {new Date(item.tr.occurredAt).toLocaleDateString(dateLoc)}
           </span>
           <span className="finance__tx-cat">
-            Перевод · {item.tr.fromAccount.name} → {item.tr.toAccount.name}
+            {t("fin.transferLine", {
+              from: item.tr.fromAccount.name,
+              to: item.tr.toAccount.name,
+            })}
           </span>
           <span className="finance__tx-sum finance__tx-sum--transfer-glob">
             {formatRubFromMinor(item.tr.amountMinor)}
@@ -181,16 +181,22 @@ function MainRecentMovementRow({
   return <li className="finance__tx">{inner}</li>;
 }
 
-const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
-  CARD: "Карта",
-  DEBIT_CARD: "Дебетовая карта",
-  CREDIT_CARD: "Кредитная карта",
-  CASH: "Наличные",
-  BANK: "Счёт",
-  DEPOSIT: "Вклад",
-  SAVINGS: "Накопительный счёт",
-  OTHER: "Другое",
-};
+function accountTypeLabel(
+  tr: (key: string, vars?: Record<string, string | number>) => string,
+  type: AccountType,
+): string {
+  const key: Record<AccountType, string> = {
+    CARD: "fin.accCard",
+    DEBIT_CARD: "fin.accDebit",
+    CREDIT_CARD: "fin.accCredit",
+    CASH: "fin.accCash",
+    BANK: "fin.accBank",
+    DEPOSIT: "fin.accDeposit",
+    SAVINGS: "fin.accSavings",
+    OTHER: "fin.accOther",
+  };
+  return tr(key[type]);
+}
 
 function isDepositOrSavings(t: AccountType): boolean {
   return t === "DEPOSIT" || t === "SAVINGS";
@@ -212,13 +218,25 @@ function accountSupportsInterestField(t: AccountType): boolean {
   return isDepositOrSavings(t) || t === "BANK" || t === "CREDIT_CARD";
 }
 
-const GRANULARITY_LABEL: Record<FinanceReportingGranularity, string> = {
-  DAY: "День",
-  WEEK: "Неделя",
-  MONTH: "Месяц",
-  YEAR: "Год",
-  CUSTOM: "Своя",
-};
+function finGranularityLabel(
+  tr: (key: string, vars?: Record<string, string | number>) => string,
+  g: FinanceReportingGranularity,
+): string {
+  switch (g) {
+    case "DAY":
+      return tr("fin.granDay");
+    case "WEEK":
+      return tr("fin.granWeek");
+    case "MONTH":
+      return tr("fin.granMonth");
+    case "YEAR":
+      return tr("fin.granYear");
+    case "CUSTOM":
+      return tr("fin.granCustom");
+    default:
+      return tr("fin.granMonth");
+  }
+}
 
 const REP_CUSTOM_FROM_LS = "rh_fin_rep_custom_from";
 const REP_CUSTOM_TO_LS = "rh_fin_rep_custom_to";
@@ -246,10 +264,10 @@ function reportingCustomRangeOpts(st: {
 /** Индекс вкладки «Финансы» в AppShell.TABS */
 const SHELL_TAB_FINANCE = 1;
 
-function formatRuDateShort(iso: string): string {
+function formatFinanceDateShort(iso: string, locale: Locale): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("ru-RU", {
+  return d.toLocaleDateString(locale === "en" ? "en-GB" : "ru-RU", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -391,11 +409,14 @@ function FinanceAccountsRow({
   carouselFullWidth?: boolean;
   cardYieldDisplay?: FinanceCardYieldDisplay;
 }) {
+  const { t, locale } = useI18n();
+  const sortLoc = locale === "en" ? "en" : "ru";
+  const numLoc = locale === "en" ? "en-GB" : "ru-RU";
   const scrollRef = useRef<HTMLDivElement>(null);
   const sorted = [...accounts].sort((a, b) =>
     a.sortOrder !== b.sortOrder
       ? a.sortOrder - b.sortOrder
-      : a.name.localeCompare(b.name, "ru"),
+      : a.name.localeCompare(b.name, sortLoc),
   );
   const showAdd = onAddAccount != null;
   const overlayCarousel = variant === "carousel" && carouselFullWidth;
@@ -459,7 +480,7 @@ function FinanceAccountsRow({
     const interest = accountShowsInterestLines(a);
     const inner = (
       <>
-        <div className="finance-acc-row__type">{ACCOUNT_TYPE_LABEL[a.type]}</div>
+        <div className="finance-acc-row__type">{accountTypeLabel(t, a.type)}</div>
         <div className="finance-acc-row__name">{a.name}</div>
         <div
           className={
@@ -476,14 +497,14 @@ function FinanceAccountsRow({
             {a.annualInterestPercent != null &&
             Number(a.annualInterestPercent) > 0 ? (
               <div className="finance-acc-row__rate">
-                {Number(a.annualInterestPercent).toLocaleString("ru-RU", {
+                {Number(a.annualInterestPercent).toLocaleString(numLoc, {
                   maximumFractionDigits: 2,
                 })}
-                % годовых
+                {t("fin.pctYear")}
               </div>
             ) : (
               <div className="finance-acc-row__rate finance-acc-row__rate--muted">
-                Ставка не задана
+                {t("fin.rateUnset")}
               </div>
             )}
             {accountDebtInterestExpense(a)
@@ -520,7 +541,7 @@ function FinanceAccountsRow({
         <span className="finance-acc-row__plus" aria-hidden>
           +
         </span>
-        <span className="finance-acc-row__add-tx">Новый счёт</span>
+        <span className="finance-acc-row__add-tx">{t("fin.newAccountBtn")}</span>
       </button>
     ) : (
       <>
@@ -530,7 +551,7 @@ function FinanceAccountsRow({
             type="button"
             className="finance-acc-row__card finance-acc-row__card--add"
             onClick={onAddAccount}
-            aria-label="Новый счёт"
+            aria-label={t("fin.newAccountBtn")}
           >
             <span className="finance-acc-row__plus" aria-hidden>
               +
@@ -571,7 +592,7 @@ function FinanceAccountsRow({
               <button
                 type="button"
                 className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--prev"
-                aria-label="Предыдущий счёт"
+                aria-label={t("fin.prevAcc")}
                 onClick={() => scrollAccountCarousel(-1)}
               >
                 ‹
@@ -579,7 +600,7 @@ function FinanceAccountsRow({
               <button
                 type="button"
                 className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--next"
-                aria-label="Следующий счёт"
+                aria-label={t("fin.nextAcc")}
                 onClick={() => scrollAccountCarousel(1)}
               >
                 ›
@@ -589,7 +610,7 @@ function FinanceAccountsRow({
               <div
                 className="finance-acc-row__dots"
                 role="tablist"
-                aria-label="Счета"
+                aria-label={t("fin.accountsAria")}
               >
                 {Array.from({ length: slideCount }, (_, i) => (
                   <button
@@ -597,7 +618,10 @@ function FinanceAccountsRow({
                     type="button"
                     role="tab"
                     aria-selected={carouselDotIndex === i}
-                    aria-label={`Счёт ${i + 1} из ${slideCount}`}
+                    aria-label={t("fin.accountDot", {
+                      i: i + 1,
+                      n: slideCount,
+                    })}
                     className={
                       carouselDotIndex === i
                         ? "finance-acc-row__dot finance-acc-row__dot--on"
@@ -614,7 +638,7 @@ function FinanceAccountsRow({
             <button
               type="button"
               className="finance-acc-row__nav finance-acc-row__nav--prev"
-              aria-label="Предыдущий счёт"
+              aria-label={t("fin.prevAcc")}
               onClick={() => scrollAccountCarousel(-1)}
             >
               ‹
@@ -625,7 +649,7 @@ function FinanceAccountsRow({
             <button
               type="button"
               className="finance-acc-row__nav finance-acc-row__nav--next"
-              aria-label="Следующий счёт"
+              aria-label={t("fin.nextAcc")}
               onClick={() => scrollAccountCarousel(1)}
             >
               ›
@@ -643,7 +667,7 @@ function FinanceAccountsRow({
               <span className="finance-acc-row__plus" aria-hidden>
                 +
               </span>
-              <span className="finance-acc-row__add-tx">Новый счёт</span>
+              <span className="finance-acc-row__add-tx">{t("fin.newAccountBtn")}</span>
             </button>
           ) : (
             <>
@@ -653,7 +677,7 @@ function FinanceAccountsRow({
                   type="button"
                   className="finance-acc-row__card finance-acc-row__card--add"
                   onClick={onAddAccount}
-                  aria-label="Новый счёт"
+                  aria-label={t("fin.newAccountBtn")}
                 >
                   <span className="finance-acc-row__plus" aria-hidden>
                     +
@@ -676,15 +700,7 @@ const ASSET_LABEL: Record<InvestmentAssetKind, string> = {
   OTHER: "Другое",
 };
 
-const ADD_OP_TABS = [
-  { key: "expense", label: "Расходы" },
-  { key: "income", label: "Доходы" },
-  { key: "transfer", label: "Перевод" },
-  { key: "debt", label: "Долг" },
-  { key: "invest", label: "Инвестиции" },
-] as const;
-
-type AddOpTab = (typeof ADD_OP_TABS)[number]["key"];
+type AddOpTab = "expense" | "income" | "transfer" | "debt" | "invest";
 
 function categoryOptionsForKind(cats: Category[], kind: TransactionKind) {
   return cats.filter(
@@ -719,7 +735,59 @@ function parseAmountInput(raw: string): number | null {
 
 type TabKey = 0 | 1 | 2 | 3;
 
+type FinNavIconId = "home" | "invest" | "analytics" | "budget";
+
+function FinSubnavIcon({ id }: { id: FinNavIconId }) {
+  const svg = {
+    xmlns: "http://www.w3.org/2000/svg",
+    width: 20,
+    height: 20,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true as const,
+  };
+  switch (id) {
+    case "home":
+      return (
+        <svg {...svg}>
+          <path d="M3 9.5 12 3l9 6.5V20a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1V9.5z" />
+        </svg>
+      );
+    case "invest":
+      return (
+        <svg {...svg}>
+          <path d="M12 20V10" />
+          <path d="M18 20V4" />
+          <path d="M6 20v-4" />
+        </svg>
+      );
+    case "analytics":
+      return (
+        <svg {...svg}>
+          <path d="M18 20V10" />
+          <path d="M12 20V4" />
+          <path d="M6 20v-7" />
+        </svg>
+      );
+    case "budget":
+      return (
+        <svg {...svg}>
+          <path d="M21 12V7H5a2 2 0 010-4h14v4" />
+          <path d="M3 5v14a2 2 0 002 2h16v-5" />
+          <path d="M18 12a2 2 0 100 4 2 2 0 000-4z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 export default function FinanceModule() {
+  const { t } = useI18n();
   const shellTab = useShellTabIndex();
   const [tab, setTab] = useState<TabKey>(0);
   const [bump, setBump] = useState(0);
@@ -744,12 +812,12 @@ export default function FinanceModule() {
   return (
     <div className="finance-mod">
       <div className="finance-mod__head finance-mod__head--row">
-        <h1 className="screen__title finance-mod__title">Финансы</h1>
+        <h1 className="screen__title finance-mod__title">{t("fin.title")}</h1>
         {tab === 0 ? (
           <button
             type="button"
             className="finance-mod__gear"
-            aria-label="Настройки"
+            aria-label={t("fin.settingsAria")}
             onClick={() => setMainSettingsOpen(true)}
           >
             ⚙
@@ -798,26 +866,29 @@ export default function FinanceModule() {
         </div>
       </div>
 
-      <nav className="finance-mod__subnav" aria-label="Разделы финансов">
+      <nav className="finance-mod__subnav" aria-label={t("fin.subnavAria")}>
         {(
           [
-            ["Главная", 0],
-            ["Инвестиции", 1],
-            ["Аналитика", 2],
-            ["Бюджет", 3],
+            { labelKey: "fin.tabMain" as const, i: 0 as TabKey, icon: "home" as const },
+            { labelKey: "fin.tabInvest", i: 1, icon: "invest" },
+            { labelKey: "fin.tabAnalytics", i: 2, icon: "analytics" },
+            { labelKey: "fin.tabBudget", i: 3, icon: "budget" },
           ] as const
-        ).map(([label, i]) => (
+        ).map(({ labelKey, i, icon }) => (
           <button
-            key={label}
+            key={labelKey}
             type="button"
             className={
               tab === i
                 ? "finance-mod__subbtn finance-mod__subbtn--on"
                 : "finance-mod__subbtn"
             }
-            onClick={() => setTab(i as TabKey)}
+            onClick={() => setTab(i)}
           >
-            {label}
+            <span className="finance-mod__subbtn-ic">
+              <FinSubnavIcon id={icon} />
+            </span>
+            <span className="finance-mod__subbtn-tx">{t(labelKey)}</span>
           </button>
         ))}
       </nav>
@@ -862,6 +933,18 @@ function FinanceMainPanel({
   setCardYieldDisplay: Dispatch<SetStateAction<FinanceCardYieldDisplay>>;
 }) {
   const { t, locale, setLocale } = useI18n();
+  const sortLocale = locale === "en" ? "en" : "ru";
+  const addOpTabs = useMemo(
+    () =>
+      [
+        { key: "expense" as const, label: t("fin.addOpTabExpense") },
+        { key: "income" as const, label: t("fin.addOpTabIncome") },
+        { key: "transfer" as const, label: t("fin.addOpTabTransfer") },
+        { key: "debt" as const, label: t("fin.addOpTabDebt") },
+        { key: "invest" as const, label: t("fin.addOpTabInvest") },
+      ] as const,
+    [t],
+  );
   const [reporting, setReporting] = useState<{
     financeReportingDay: number;
     financeReportingGranularity: FinanceReportingGranularity;
@@ -1513,7 +1596,7 @@ function FinanceMainPanel({
     const sorted = [...accounts].sort((a, b) =>
       a.sortOrder !== b.sortOrder
         ? a.sortOrder - b.sortOrder
-        : a.name.localeCompare(b.name, "ru"),
+        : a.name.localeCompare(b.name, sortLocale),
     );
     const i = sorted.findIndex((x) => x.id === id);
     const j = i + dir;
@@ -1710,13 +1793,13 @@ function FinanceMainPanel({
       }
     >
       {loadError ? <p className="finance__err">{loadError}</p> : null}
-      {pending ? <p className="screen__text">Загрузка…</p> : null}
+      {pending ? <p className="screen__text">{t("fin.loading")}</p> : null}
 
       {!pending ? (
         <FinanceAccountsRow
           carouselFullWidth
           accounts={accounts}
-          title="Счета"
+          title={t("fin.accountsTitle")}
           cardYieldDisplay={cardYieldDisplay}
           onOpenAccount={openAccountDetail}
           onAddAccount={() => {
@@ -1730,14 +1813,17 @@ function FinanceMainPanel({
       {!pending && reporting ? (
         <section
           className="finance__summary finance-main__month"
-          aria-label="Отчётный период"
+          aria-label={t("fin.reportAria")}
         >
           <p className="finance-main__period-label">
-            Отчёт (
-            {GRANULARITY_LABEL[reporting.financeReportingGranularity]}):{" "}
+            {t("fin.report")}
+            {finGranularityLabel(t, reporting.financeReportingGranularity)}):{" "}
             <strong>
-              {formatRuDateShort(reporting.periodStart)} —{" "}
-              {formatRuDateShort(`${reporting.periodLastDay}T12:00:00.000Z`)}
+              {formatFinanceDateShort(reporting.periodStart, locale)} —{" "}
+              {formatFinanceDateShort(
+                `${reporting.periodLastDay}T12:00:00.000Z`,
+                locale,
+              )}
             </strong>
             .{" "}
             <button
@@ -1745,48 +1831,46 @@ function FinanceMainPanel({
               className="finance-main__linkish"
               onClick={() => onSettingsOpenChange(true)}
             >
-              Изменить в настройках
+              {t("fin.changeInSettings")}
             </button>
           </p>
           <div className="finance__tiles finance__tiles--compact">
             <div className="finance__tile finance__tile--in">
-              <span className="finance__tile-label">Доходы (период)</span>
+              <span className="finance__tile-label">{t("fin.tileIncome")}</span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.incomeMinor)}
               </span>
             </div>
             <div className="finance__tile finance__tile--out">
               <span className="finance__tile-label">
-                Расходы и переводы (период)
+                {t("fin.tileExpenseTransfer")}
               </span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.outflowMinor)}
               </span>
               {reporting.expenseMinor > 0 && reporting.transferOutMinor > 0 ? (
                 <span className="finance__tile-sub">
-                  операции {formatRubFromMinor(reporting.expenseMinor)} ·
-                  переводы {formatRubFromMinor(reporting.transferOutMinor)}
+                  {t("fin.tileOps", {
+                    ops: formatRubFromMinor(reporting.expenseMinor),
+                    tr: formatRubFromMinor(reporting.transferOutMinor),
+                  })}
                 </span>
               ) : reporting.transferOutMinor > 0 &&
                 reporting.expenseMinor === 0 ? (
                 <span className="finance__tile-sub">
-                  только переводы между счетами
+                  {t("fin.tileTransfersOnly")}
                 </span>
               ) : null}
             </div>
             <div className="finance__tile finance__tile--bal">
-              <span className="finance__tile-label">Баланс (период)</span>
+              <span className="finance__tile-label">{t("fin.tileBalance")}</span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.balanceMinor)}
               </span>
             </div>
           </div>
           {reporting.outflowMinor === 0 ? (
-            <p className="finance-main__period-hint">
-              В отчёт попадают только операции и переводы, у которых дата
-              попадает в указанный период. Если расходы или переводы были
-              раньше или позже — здесь будет 0 ₽.
-            </p>
+            <p className="finance-main__period-hint">{t("fin.reportHint")}</p>
           ) : null}
         </section>
       ) : null}
@@ -1802,19 +1886,19 @@ function FinanceMainPanel({
       {!pending ? (
         <section
           className="finance-main__detail-block"
-          aria-label="Подробная сводка"
+          aria-label={t("fin.detailAria")}
         >
         <div className="finance-main__totals">
           <div className="finance-main__total-row">
-            <span>На счетах</span>
+            <span>{t("fin.onAccounts")}</span>
             <strong>{formatRubFromMinor(accountsTotalMinor)}</strong>
           </div>
           <div className="finance-main__total-row">
-            <span>Инвестиции (оценка)</span>
+            <span>{t("fin.investmentsEst")}</span>
             <strong>{formatRubFromMinor(investmentsTotal)}</strong>
           </div>
           <div className="finance-main__total-row finance-main__total-row--all">
-            <span>Всего</span>
+            <span>{t("fin.total")}</span>
             <strong>{formatRubFromMinor(grandTotalMinor)}</strong>
           </div>
           {monthlyPassiveMinor !== 0 ? (
@@ -1825,7 +1909,7 @@ function FinanceMainPanel({
                   : "finance-main__total-row finance-main__total-row--passive"
               }
             >
-              <span>Оценка пассивного потока (~в месяц)</span>
+              <span>{t("fin.passiveEst")}</span>
               <strong>{formatRubFromMinor(monthlyPassiveMinor)}</strong>
             </div>
           ) : null}
@@ -1838,51 +1922,49 @@ function FinanceMainPanel({
               }
             >
               <span className="finance-main__budget-strip-label">
-                Осталось:{" "}
+                {t("fin.budgetPrefix")}
               </span>
               <strong className="finance-main__budget-strip-val">
                 {formatRubFromMinor(budgetSummary.remainingTotalMinor)}
               </strong>
               <span className="finance-main__budget-strip-of">
-                {" "}
-                из {formatRubFromMinor(budgetSummary.limitTotalMinor)}
+                {t("fin.budgetBetween")}
+                {formatRubFromMinor(budgetSummary.limitTotalMinor)}
               </span>
             </div>
           ) : !pending ? (
-            <p className="finance-main__budget-hint">
-              Лимиты по категориям — во вкладке «Бюджет» (календарный месяц).
-            </p>
+            <p className="finance-main__budget-hint">{t("fin.budgetHint")}</p>
           ) : null}
           {capAlloc ? (
             <div className="finance-main__cap-split">
               <h3 className="finance__h3 finance-main__cap-split-title">
-                Разбивка капитала
+                {t("fin.capitalSplit")}
               </h3>
               <ul className="finance-main__cap-split-list">
                 <li>
-                  <span>Вклады</span>
+                  <span>{t("fin.capDeposits")}</span>
                   <span>{formatRubFromMinor(capAlloc.depositsMinor)}</span>
                 </li>
                 <li>
-                  <span>Накопительные счета</span>
+                  <span>{t("fin.capSavings")}</span>
                   <span>{formatRubFromMinor(capAlloc.savingsMinor)}</span>
                 </li>
                 <li>
-                  <span>Акции</span>
+                  <span>{t("fin.capStocks")}</span>
                   <span>{formatRubFromMinor(capAlloc.stocksMinor)}</span>
                 </li>
                 <li>
-                  <span>Облигации</span>
+                  <span>{t("fin.capBonds")}</span>
                   <span>{formatRubFromMinor(capAlloc.bondsMinor)}</span>
                 </li>
                 <li>
-                  <span>Прочие инструменты</span>
+                  <span>{t("fin.capOther")}</span>
                   <span>
                     {formatRubFromMinor(capAlloc.otherInstrumentsMinor)}
                   </span>
                 </li>
                 <li className="finance-main__cap-split-muted">
-                  <span>Карты, наличные, счета вне структуры</span>
+                  <span>{t("fin.capRest")}</span>
                   <span>
                     {formatRubFromMinor(
                       Math.max(
@@ -1902,14 +1984,14 @@ function FinanceMainPanel({
       {!pending ? (
         <section
           className="finance-main__recent"
-          aria-label="Последние операции по всем счетам"
+          aria-label={t("fin.recentOpsAria")}
         >
           <h3 className="finance__h3 finance-main__recent-title">
-            Последние операции
+            {t("fin.recentOps")}
           </h3>
           {mainRecentItems.length === 0 ? (
             <p className="screen__text finance-main__recent-empty">
-              Операций и переводов за последнее время нет.
+              {t("fin.recentOpsEmpty")}
             </p>
           ) : (
             <ul className="finance__tx-list">
@@ -1940,14 +2022,14 @@ function FinanceMainPanel({
               <div className="finance__modal finance__modal--fullscreen finance__modal--fin-settings">
                 <div className="finance__modal-head">
                   <h2 id="fin-settings-title" className="finance__h2">
-                    Настройки
+                    {t("fin.settings")}
                   </h2>
                   <button
                     type="button"
                     className="finance__modal-close"
                     onClick={() => onSettingsOpenChange(false)}
                   >
-                    Закрыть
+                    {t("fin.close")}
                   </button>
                 </div>
                 <div className="finance-main__settings-body">
@@ -1977,7 +2059,7 @@ function FinanceMainPanel({
                     </button>
                   </div>
                   <h3 className="finance__h3 finance-main__settings-h3">
-                    Отчётность
+                    {t("fin.reportingTitle")}
                   </h3>
                   <form
                     className="finance-main__reporting-settings"
@@ -1986,7 +2068,7 @@ function FinanceMainPanel({
                     <div
                       className="finance-main__gran-chips"
                       role="group"
-                      aria-label="Шаг отчётности"
+                      aria-label={t("fin.reportingStepAria")}
                     >
                       {(
                         [
@@ -2007,13 +2089,13 @@ function FinanceMainPanel({
                           }
                           onClick={() => setGranularityDraft(g)}
                         >
-                          {GRANULARITY_LABEL[g]}
+                          {finGranularityLabel(t, g)}
                         </button>
                       ))}
                     </div>
                     {granularityDraft === "MONTH" ? (
                       <label className="finance__field finance-main__reporting-day-field">
-                        Отчётное число месяца (1–28)
+                        {t("fin.reportDayLabel")}
                         <input
                           className="finance__input"
                           type="number"
@@ -2027,7 +2109,7 @@ function FinanceMainPanel({
                     {granularityDraft === "CUSTOM" ? (
                       <div className="finance-main__custom-range">
                         <label className="finance__field">
-                          С даты
+                          {t("fin.fromDate")}
                           <input
                             className="finance__input"
                             type="date"
@@ -2036,7 +2118,7 @@ function FinanceMainPanel({
                           />
                         </label>
                         <label className="finance__field">
-                          По дату
+                          {t("fin.toDate")}
                           <input
                             className="finance__input"
                             type="date"
@@ -2047,16 +2129,15 @@ function FinanceMainPanel({
                       </div>
                     ) : null}
                     <h3 className="finance__h3 finance-main__settings-h3">
-                      Доходность на карточках
+                      {t("fin.yieldOnCards")}
                     </h3>
                     <p className="screen__text finance-main__yield-card-hint">
-                      Оценки по %% для активов и пассивов (зелёные и красные
-                      суммы):
+                      {t("fin.yieldDesc")}
                     </p>
                     <div
                       className="finance-main__yield-card-checks"
                       role="group"
-                      aria-label="Периоды доходности"
+                      aria-label={t("fin.yieldPeriodsAria")}
                     >
                       <label className="finance__check">
                         <input
@@ -2069,7 +2150,7 @@ function FinanceMainPanel({
                             }))
                           }
                         />
-                        За день
+                        {t("fin.yieldDayLbl")}
                       </label>
                       <label className="finance__check">
                         <input
@@ -2082,7 +2163,7 @@ function FinanceMainPanel({
                             }))
                           }
                         />
-                        За неделю
+                        {t("fin.yieldWeekLbl")}
                       </label>
                       <label className="finance__check">
                         <input
@@ -2095,7 +2176,7 @@ function FinanceMainPanel({
                             }))
                           }
                         />
-                        За месяц
+                        {t("fin.yieldMonthLbl")}
                       </label>
                       <label className="finance__check">
                         <input
@@ -2108,7 +2189,7 @@ function FinanceMainPanel({
                             }))
                           }
                         />
-                        За год
+                        {t("fin.yieldYearLbl")}
                       </label>
                     </div>
                     <button
@@ -2116,11 +2197,11 @@ function FinanceMainPanel({
                       className="finance__submit"
                       disabled={settingsBusy}
                     >
-                      {settingsBusy ? "…" : "Сохранить настройки"}
+                      {settingsBusy ? "…" : t("fin.saveSettings")}
                     </button>
                   </form>
                   <h3 className="finance__h3 finance-main__settings-h3">
-                    Категории и счета
+                    {t("fin.catsAndAccounts")}
                   </h3>
                   <div className="finance-main__settings-actions">
                     <button
@@ -2131,7 +2212,7 @@ function FinanceMainPanel({
                         setCatModal(true);
                       }}
                     >
-                      Категории операций
+                      {t("fin.txCategories")}
                     </button>
                     <button
                       type="button"
@@ -2142,36 +2223,36 @@ function FinanceMainPanel({
                         setAccModal(true);
                       }}
                     >
-                      Новый счёт
+                      {t("fin.newAccountBtn")}
                     </button>
                   </div>
                   <h3 className="finance__h3 finance-main__settings-h3">
-                    Порядок счетов
+                    {t("fin.accountOrder")}
                   </h3>
                   <p className="finance-main__acc-order-hint">
-                    Первым в карусели будет верхний в списке.
+                    {t("fin.accountOrderHint")}
                   </p>
                   {accounts.length === 0 ? (
-                    <p className="screen__text">Счетов пока нет.</p>
+                    <p className="screen__text">{t("fin.noAccounts")}</p>
                   ) : (
                     <ul className="finance-main__acc-order" role="list">
                       {[...accounts]
                         .sort((a, b) =>
                           a.sortOrder !== b.sortOrder
                             ? a.sortOrder - b.sortOrder
-                            : a.name.localeCompare(b.name, "ru"),
+                            : a.name.localeCompare(b.name, sortLocale),
                         )
                         .map((a, idx, arr) => (
                           <li key={a.id} className="finance-main__acc-order-li">
                             <span className="finance-main__acc-order-name">
-                              {ACCOUNT_TYPE_LABEL[a.type]} · {a.name}
+                              {accountTypeLabel(t, a.type)} · {a.name}
                             </span>
                             <span className="finance-main__acc-order-btns">
                               <button
                                 type="button"
                                 className="finance-main__acc-order-btn"
                                 disabled={orderBusy || idx === 0}
-                                aria-label="Выше"
+                                aria-label={t("fin.moveUp")}
                                 onClick={() =>
                                   void moveAccountOrder(a.id, -1)
                                 }
@@ -2184,7 +2265,7 @@ function FinanceMainPanel({
                                 disabled={
                                   orderBusy || idx >= arr.length - 1
                                 }
-                                aria-label="Ниже"
+                                aria-label={t("fin.moveDown")}
                                 onClick={() =>
                                   void moveAccountOrder(a.id, 1)
                                 }
@@ -2227,23 +2308,23 @@ function FinanceMainPanel({
                     role="tablist"
                     aria-label="Тип операции"
                   >
-                    {ADD_OP_TABS.map((t) => (
+                    {addOpTabs.map((tab) => (
                       <button
-                        key={t.key}
+                        key={tab.key}
                         type="button"
                         role="tab"
-                        aria-selected={opTab === t.key}
+                        aria-selected={opTab === tab.key}
                         className={
-                          opTab === t.key
+                          opTab === tab.key
                             ? "finance-addop__chip finance-addop__chip--on"
                             : "finance-addop__chip"
                         }
                         onClick={() => {
                           setFormError(null);
-                          setOpTab(t.key);
+                          setOpTab(tab.key);
                         }}
                       >
-                        {t.label}
+                        {tab.label}
                       </button>
                     ))}
                   </div>
@@ -2265,7 +2346,7 @@ function FinanceMainPanel({
                       accountId={accountId}
                       onAccountId={setAccountId}
                       accountLabel={(a) =>
-                        `${ACCOUNT_TYPE_LABEL[a.type]} · ${a.name}`
+                        `${accountTypeLabel(t, a.type)} · ${a.name}`
                       }
                       fromAccountId={fromAccountId}
                       toAccountId={toAccountId}
@@ -2525,7 +2606,7 @@ function FinanceMainPanel({
                           .filter((x) => x.id !== delModalAcc.id)
                           .map((x) => (
                             <option key={x.id} value={x.id}>
-                              {x.name} ({ACCOUNT_TYPE_LABEL[x.type]})
+                              {x.name} ({accountTypeLabel(t, x.type)})
                             </option>
                           ))}
                       </select>
@@ -2623,7 +2704,8 @@ function FinanceMainPanel({
                 {!accountEditOpen ? (
                   <>
                     <p className="finance-main__acc-detail-meta">
-                      {ACCOUNT_TYPE_LABEL[selectedAccount.type]} · баланс{" "}
+                      {accountTypeLabel(t, selectedAccount.type)} ·{" "}
+                      {t("fin.balanceWord")}{" "}
                       {formatRubFromMinor(selectedAccount.balanceMinor)}
                     </p>
                     {accountSupportsInterestField(selectedAccount.type) ? (
@@ -3835,6 +3917,7 @@ function FinanceBudgetPanel({
 }
 
 function FinanceAnalyticsPanel({ bump }: { bump: number }) {
+  const { locale } = useI18n();
   const [month, setMonth] = useState(currentMonthYm);
   const [expenses, setExpenses] = useState<
     { categoryName: string; amountMinor: number }[]
@@ -3902,12 +3985,18 @@ function FinanceAnalyticsPanel({ bump }: { bump: number }) {
             <p className="finance-an__forecast-period">
               До{" "}
               <strong>
-                {formatRuDateShort(`${forecast.periodLastDay}T12:00:00.000Z`)}
+                {formatFinanceDateShort(
+                  `${forecast.periodLastDay}T12:00:00.000Z`,
+                  locale,
+                )}
               </strong>
               {" · "}
               следующая отчётная дата:{" "}
               <strong>
-                {formatRuDateShort(`${forecast.nextReportingDay}T12:00:00.000Z`)}
+                {formatFinanceDateShort(
+                  `${forecast.nextReportingDay}T12:00:00.000Z`,
+                  locale,
+                )}
               </strong>
             </p>
             <ul className="finance-an__forecast-stats">

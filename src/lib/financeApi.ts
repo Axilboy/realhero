@@ -268,6 +268,8 @@ export async function fetchReportingSummary(opts?: {
     periodLastDay: string;
     incomeMinor: number;
     expenseMinor: number;
+    /** Сумма исходящих переводов за период (не входит в balanceMinor). */
+    transferOutMinor: number;
     balanceMinor: number;
   }>(`/api/v1/finance/summary/reporting${q ? `?${q}` : ""}`);
 }

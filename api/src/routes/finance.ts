@@ -20,6 +20,7 @@ import {
   daysRemainingInPeriod,
   getActiveReportingPeriod,
   getCustomReportingPeriod,
+  occurredAtBoundsForReporting,
   parseISODateUTC,
   totalCalendarDaysInPeriod,
 } from "../lib/reportingPeriod.js";
@@ -1705,21 +1706,28 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         u?.financeReportingGranularity ?? "MONTH",
     }, now);
     const day = clampReportingDay(u?.financeReportingDay ?? 1);
-    const rows = await prisma.transaction.groupBy({
-      by: ["kind"],
-      where: {
-        userId,
-        occurredAt: { gte: period.start, lte: now },
-      },
-      _sum: { amountMinor: true },
-    });
-    let incomeMinor = 0;
-    let expenseMinor = 0;
-    for (const r of rows) {
-      const s = r._sum.amountMinor ?? 0;
-      if (r.kind === "INCOME") incomeMinor = s;
-      if (r.kind === "EXPENSE") expenseMinor = s;
-    }
+    const { gte: occGte, lte: occLte } = occurredAtBoundsForReporting(
+      period,
+      now,
+    );
+    const occWhere = { gte: occGte, lte: occLte };
+    const [incAgg, expAgg, trAgg] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { userId, kind: "INCOME", occurredAt: occWhere },
+        _sum: { amountMinor: true },
+      }),
+      prisma.transaction.aggregate({
+        where: { userId, kind: "EXPENSE", occurredAt: occWhere },
+        _sum: { amountMinor: true },
+      }),
+      prisma.transfer.aggregate({
+        where: { userId, occurredAt: occWhere },
+        _sum: { amountMinor: true },
+      }),
+    ]);
+    const incomeMinor = incAgg._sum.amountMinor ?? 0;
+    const expenseMinor = expAgg._sum.amountMinor ?? 0;
+    const transferOutMinor = trAgg._sum.amountMinor ?? 0;
     return {
       financeReportingDay: day,
       financeReportingGranularity:
@@ -1729,6 +1737,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       periodLastDay: period.lastDayInclusive.toISOString().slice(0, 10),
       incomeMinor,
       expenseMinor,
+      transferOutMinor,
       balanceMinor: incomeMinor - expenseMinor,
     };
   });
@@ -1748,21 +1757,23 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         u?.financeReportingGranularity ?? "MONTH",
     }, now);
     const day = clampReportingDay(u?.financeReportingDay ?? 1);
-    const rows = await prisma.transaction.groupBy({
-      by: ["kind"],
-      where: {
-        userId,
-        occurredAt: { gte: period.start, lte: now },
-      },
-      _sum: { amountMinor: true },
-    });
-    let incomeMinor = 0;
-    let expenseMinor = 0;
-    for (const r of rows) {
-      const s = r._sum.amountMinor ?? 0;
-      if (r.kind === "INCOME") incomeMinor = s;
-      if (r.kind === "EXPENSE") expenseMinor = s;
-    }
+    const { gte: occGte, lte: occLte } = occurredAtBoundsForReporting(
+      period,
+      now,
+    );
+    const occWhere = { gte: occGte, lte: occLte };
+    const [incAgg, expAgg] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { userId, kind: "INCOME", occurredAt: occWhere },
+        _sum: { amountMinor: true },
+      }),
+      prisma.transaction.aggregate({
+        where: { userId, kind: "EXPENSE", occurredAt: occWhere },
+        _sum: { amountMinor: true },
+      }),
+    ]);
+    const incomeMinor = incAgg._sum.amountMinor ?? 0;
+    const expenseMinor = expAgg._sum.amountMinor ?? 0;
     const elapsed = daysElapsedInPeriod(period, now);
     const remaining = daysRemainingInPeriod(period, now);
     const totalDays = totalCalendarDaysInPeriod(period);

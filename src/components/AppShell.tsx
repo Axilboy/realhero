@@ -5,6 +5,7 @@ import {
   useState,
   type ComponentType,
 } from "react";
+import { ShellTabIndexContext } from "../context/ShellTabContext";
 import { useAuth } from "../auth/AuthContext";
 import HubScreen from "../screens/HubScreen";
 import FinanceScreen from "../screens/FinanceScreen";
@@ -49,7 +50,8 @@ export default function AppShell() {
   }, []);
 
   return (
-    <div className="shell">
+    <ShellTabIndexContext.Provider value={active}>
+      <div className="shell">
       <header className="shell__bar">
         <span className="shell__bar-email" title={user?.email}>
           {user?.email}
@@ -93,5 +95,6 @@ export default function AppShell() {
         ))}
       </nav>
     </div>
+    </ShellTabIndexContext.Provider>
   );
 }

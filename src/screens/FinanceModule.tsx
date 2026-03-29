@@ -8,6 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import InvestQuotePicker from "../components/InvestQuotePicker";
+import { useShellTabIndex } from "../context/ShellTabContext";
 
 function modalPortal(node: ReactNode) {
   return createPortal(node, document.body);
@@ -93,6 +94,9 @@ const GRANULARITY_LABEL: Record<FinanceReportingGranularity, string> = {
 
 const REP_CUSTOM_FROM_LS = "rh_fin_rep_custom_from";
 const REP_CUSTOM_TO_LS = "rh_fin_rep_custom_to";
+
+/** Индекс вкладки «Финансы» в AppShell.TABS */
+const SHELL_TAB_FINANCE = 1;
 
 function formatRuDateShort(iso: string): string {
   const d = new Date(iso);
@@ -245,10 +249,12 @@ function categoryOptionsForKind(cats: Category[], kind: TransactionKind) {
 type TabKey = 0 | 1 | 2;
 
 export default function FinanceModule() {
+  const shellTab = useShellTabIndex();
   const [tab, setTab] = useState<TabKey>(0);
   const [bump, setBump] = useState(0);
   const [mainSettingsOpen, setMainSettingsOpen] = useState(false);
   const refreshAll = useCallback(() => setBump((x) => x + 1), []);
+  const financeScreenActive = shellTab === SHELL_TAB_FINANCE;
 
   return (
     <div className="finance-mod">
@@ -279,7 +285,7 @@ export default function FinanceModule() {
               onRefresh={refreshAll}
               settingsOpen={mainSettingsOpen}
               onSettingsOpenChange={setMainSettingsOpen}
-              fabVisible={tab === 0}
+              fabVisible={financeScreenActive && tab === 0}
             />
           </div>
           <div className="finance-mod__panel">
@@ -348,6 +354,7 @@ function FinanceMainPanel({
     periodLastDay: string;
     incomeMinor: number;
     expenseMinor: number;
+    transferOutMinor: number;
     balanceMinor: number;
   } | null>(null);
   const [capAlloc, setCapAlloc] = useState<InvestAllocation | null>(null);
@@ -486,6 +493,7 @@ function FinanceMainPanel({
         periodLastDay: rep.data.periodLastDay,
         incomeMinor: rep.data.incomeMinor,
         expenseMinor: rep.data.expenseMinor,
+        transferOutMinor: rep.data.transferOutMinor ?? 0,
         balanceMinor: rep.data.balanceMinor,
       });
     } else {
@@ -1129,6 +1137,11 @@ function FinanceMainPanel({
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.expenseMinor)}
               </span>
+              {reporting.transferOutMinor > 0 ? (
+                <span className="finance__tile-sub">
+                  Переводы: {formatRubFromMinor(reporting.transferOutMinor)}
+                </span>
+              ) : null}
             </div>
             <div className="finance__tile finance__tile--bal">
               <span className="finance__tile-label">Баланс (период)</span>

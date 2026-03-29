@@ -135,6 +135,19 @@ export function getActiveReportingPeriod(
 }
 
 /** Календарных дней в периоде (от начала до последнего дня включительно). */
+/**
+ * Диапазон occurredAt для отчёта: от начала периода до min(сейчас, конец периода).
+ * Убирает расхождения groupBy и гарантирует, что операции не «выпадают» из окна.
+ */
+export function occurredAtBoundsForReporting(
+  period: ReportingPeriod,
+  ref: Date,
+): { gte: Date; lte: Date } {
+  const lastInPeriodMs = period.endExclusive.getTime() - 1;
+  const capMs = Math.min(ref.getTime(), lastInPeriodMs);
+  return { gte: period.start, lte: new Date(capMs) };
+}
+
 export function totalCalendarDaysInPeriod(period: ReportingPeriod): number {
   const a = Date.UTC(
     period.start.getUTCFullYear(),

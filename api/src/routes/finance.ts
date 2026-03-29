@@ -1357,24 +1357,38 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     };
     let fromD: Date;
     let toD: Date;
+    let occurredAt: Prisma.DateTimeFilter;
     if (q.from && q.to) {
-      fromD = new Date(q.from);
-      toD = new Date(q.to);
+      const fs = q.from.trim();
+      const ts = q.to.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(fs)) {
+        fromD = new Date(`${fs}T00:00:00.000Z`);
+      } else {
+        fromD = new Date(fs);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ts)) {
+        toD = new Date(`${ts}T23:59:59.999Z`);
+      } else {
+        toD = new Date(ts);
+      }
       if (Number.isNaN(fromD.getTime()) || Number.isNaN(toD.getTime())) {
         return reply.status(400).send({
           error: { message: "Некорректные даты from/to" },
         });
       }
+      occurredAt = { gte: fromD, lte: toD };
     } else {
-      toD = new Date();
-      fromD = new Date(toD);
+      const now = new Date();
+      fromD = new Date(now);
       const back = q.accountId ? 365 : 60;
       fromD.setUTCDate(fromD.getUTCDate() - back);
+      // Без lte: операции «на сегодня» часто как полдень UTC и оказываются после now().
+      occurredAt = { gte: fromD };
     }
 
     const where: Prisma.TransactionWhereInput = {
       userId,
-      occurredAt: { gte: fromD, lte: toD },
+      occurredAt,
     };
     if (q.kind === "INCOME" || q.kind === "EXPENSE") {
       where.kind = q.kind;
@@ -1851,9 +1865,11 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         u?.financeReportingGranularity ?? "MONTH",
     }, now);
     const day = clampReportingDay(u?.financeReportingDay ?? 1);
+    const tzOffsetMin = parseTzOffsetMin(q);
     const { gte: occGte, lte: occLte } = occurredAtBoundsForReporting(
       period,
       now,
+      tzOffsetMin,
     );
     const occWhere = { gte: occGte, lte: occLte };
     const [incAgg, expAgg, trAgg] = await Promise.all([
@@ -1919,6 +1935,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
     const { gte: occGte, lte: occLte } = occurredAtBoundsForReporting(
       period,
       now,
+      tzOffsetMin,
     );
     const occWhere = { gte: occGte, lte: occLte };
     const [incAgg, expAgg] = await Promise.all([

@@ -964,6 +964,7 @@ function FinanceMainPanel({
       setAccountDetailItems([]);
       return;
     }
+    setAccDetailErr(null);
     setAccountDetailPending(true);
     void (async () => {
       const [rTx, rTr] = await Promise.all([
@@ -972,11 +973,17 @@ function FinanceMainPanel({
       ]);
       setAccountDetailPending(false);
       if (rTx.ok && rTr.ok) {
+        setAccDetailErr(null);
         setAccountDetailItems(
           mergeAccountMovements(rTx.data.transactions, rTr.data.transfers),
         );
       } else {
         setAccountDetailItems([]);
+        setAccDetailErr(
+          !rTx.ok
+            ? errorMessage(rTx.data)
+            : errorMessage(rTr.data),
+        );
       }
     })();
   }, [selectedAccountId, bump]);
@@ -1250,10 +1257,6 @@ function FinanceMainPanel({
               <span className="finance__tile-label">Баланс (период)</span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.balanceMinor)}
-              </span>
-              <span className="finance__tile-sub finance__tile-sub--muted">
-                доход минус расходы по категориям; переводы между своими
-                счетами общий капитал не меняют
               </span>
             </div>
           </div>
@@ -1999,6 +2002,8 @@ function FinanceMainPanel({
                     </h3>
                     {accountDetailPending ? (
                       <p className="screen__text">Загрузка…</p>
+                    ) : accDetailErr && !accountEditOpen ? (
+                      <p className="finance__err">{accDetailErr}</p>
                     ) : accountDetailItems.length === 0 ? (
                       <p className="screen__text">Операций и переводов нет.</p>
                     ) : (

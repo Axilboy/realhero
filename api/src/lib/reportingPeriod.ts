@@ -255,14 +255,27 @@ export function getActiveReportingPeriodTz(
 }
 
 /**
- * Диапазон occurredAt для отчёта: от начала периода до min(сейчас, конец периода).
+ * Диапазон occurredAt для отчёта: от начала периода до верхней границы.
+ * При переданном tzOffset (как у Date.getTimezoneOffset()) верхняя граница —
+ * конец **локального** календарного дня ref, но не позже конца периода.
+ * Так операции с датой «сегодня» (часто сохранённые как полдень UTC) не пропадают
+ * из отчёта утром по UTC. Без tz — по-прежнему min(сейчас, конец периода).
  */
 export function occurredAtBoundsForReporting(
   period: ReportingPeriod,
   ref: Date,
+  tzOffsetMin?: number | null,
 ): { gte: Date; lte: Date } {
   const lastInPeriodMs = period.endExclusive.getTime() - 1;
-  const capMs = Math.min(ref.getTime(), lastInPeriodMs);
+  let capMs: number;
+  if (tzOffsetMin !== null && tzOffsetMin !== undefined && Number.isFinite(tzOffsetMin)) {
+    const { y, m, d } = getLocalCalendarParts(ref, tzOffsetMin);
+    const dayStart = localDayStartUtc(y, m, d, tzOffsetMin);
+    const endOfLocalDayMs = dayStart.getTime() + 86400000 - 1;
+    capMs = Math.min(endOfLocalDayMs, lastInPeriodMs);
+  } else {
+    capMs = Math.min(ref.getTime(), lastInPeriodMs);
+  }
   return { gte: period.start, lte: new Date(capMs) };
 }
 

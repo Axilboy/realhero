@@ -170,6 +170,16 @@ function accountShowsInterestLines(a: AccountCardLike): boolean {
   );
 }
 
+/** Долг по кредитке или счёту «банк» — показываем расход по %% (красным, мес + день). */
+function accountDebtInterestExpense(a: AccountCardLike): boolean {
+  return (
+    (a.type === "CREDIT_CARD" || a.type === "BANK") &&
+    a.balanceMinor < 0 &&
+    a.annualInterestPercent != null &&
+    Number(a.annualInterestPercent) > 0
+  );
+}
+
 /** Одна горизонтальная карусель: все счета одного размера + опционально карточка «+». */
 function FinanceAccountsRow({
   accounts,
@@ -212,25 +222,28 @@ function FinanceAccountsRow({
                 Ставка не задана
               </div>
             )}
-            <div className="finance-acc-row__inc">
-              {a.type === "CREDIT_CARD" && a.balanceMinor < 0 ? (
-                <>
-                  расход {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес ·{" "}
-                  {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
-                </>
-              ) : (
-                <>
-                  ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
-                  {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
-                </>
-              )}
-              {a.interestIncomeDayMinor !== 0 ? (
-                <>
-                  {" "}
-                  · ~{formatRubFromMinor(a.interestIncomeDayMinor)}/день
-                </>
-              ) : null}
-            </div>
+            {accountDebtInterestExpense(a) ? (
+              <div className="finance-acc-row__inc finance-acc-row__inc--debt">
+                расход {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес
+                {a.interestIncomeDayMinor !== 0 ? (
+                  <>
+                    {" "}
+                    · {formatRubFromMinor(a.interestIncomeDayMinor)}/день
+                  </>
+                ) : null}
+              </div>
+            ) : (
+              <div className="finance-acc-row__inc">
+                ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
+                {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
+                {a.interestIncomeDayMinor !== 0 ? (
+                  <>
+                    {" "}
+                    · ~{formatRubFromMinor(a.interestIncomeDayMinor)}/день
+                  </>
+                ) : null}
+              </div>
+            )}
           </>
         ) : null}
       </>
@@ -1202,9 +1215,15 @@ function FinanceMainPanel({
             <span>Всего</span>
             <strong>{formatRubFromMinor(grandTotalMinor)}</strong>
           </div>
-          {monthlyPassiveMinor > 0 ? (
-            <div className="finance-main__total-row finance-main__total-row--passive">
-              <span>Оценка пассивного дохода (~в месяц)</span>
+          {monthlyPassiveMinor !== 0 ? (
+            <div
+              className={
+                monthlyPassiveMinor < 0
+                  ? "finance-main__total-row finance-main__total-row--passive finance-main__total-row--passive-neg"
+                  : "finance-main__total-row finance-main__total-row--passive"
+              }
+            >
+              <span>Оценка пассивного потока (~в месяц)</span>
               <strong>{formatRubFromMinor(monthlyPassiveMinor)}</strong>
             </div>
           ) : null}
@@ -2081,41 +2100,55 @@ function FinanceMainPanel({
                       {formatRubFromMinor(selectedAccount.balanceMinor)}
                     </p>
                     {accountSupportsInterestField(selectedAccount.type) ? (
-                      <p className="finance-main__acc-detail-meta">
-                        {selectedAccount.type === "CREDIT_CARD"
-                          ? selectedAccount.balanceMinor < 0
-                            ? "Процент на задолженность"
-                            : "Процент на положительный остаток"
-                          : "Ставка"}
-                        :{" "}
-                        {selectedAccount.annualInterestPercent != null
-                          ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
-                          : "не задана"}
-                        {" · "}
-                        {selectedAccount.type === "CREDIT_CARD" &&
-                        selectedAccount.balanceMinor < 0
-                          ? "оценка расхода на проценты "
-                          : "~"}
-                        {formatRubFromMinor(selectedAccount.interestIncomeMonthMinor)}
-                        /мес
-                        {selectedAccount.type === "CREDIT_CARD" &&
-                        selectedAccount.balanceMinor < 0
-                          ? ", "
-                          : ", ~"}
-                        {formatRubFromMinor(
-                          selectedAccount.interestIncomeYearMinor ?? 0,
-                        )}
-                        /год
-                        {selectedAccount.interestIncomeDayMinor !== 0 ? (
-                          <>
-                            , ~
-                            {formatRubFromMinor(
-                              selectedAccount.interestIncomeDayMinor,
-                            )}
-                            /день
-                          </>
-                        ) : null}
-                      </p>
+                      accountDebtInterestExpense(selectedAccount) ? (
+                        <p className="finance-main__acc-detail-meta finance-main__acc-detail-debt-interest">
+                          Процент на задолженность:{" "}
+                          {selectedAccount.annualInterestPercent != null
+                            ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
+                            : "не задана"}
+                          {" · "}
+                          оценка расхода на проценты{" "}
+                          {formatRubFromMinor(
+                            selectedAccount.interestIncomeMonthMinor,
+                          )}
+                          /мес
+                          {selectedAccount.interestIncomeDayMinor !== 0 ? (
+                            <>
+                              ,{" "}
+                              {formatRubFromMinor(
+                                selectedAccount.interestIncomeDayMinor,
+                              )}
+                              /день
+                            </>
+                          ) : null}
+                        </p>
+                      ) : (
+                        <p className="finance-main__acc-detail-meta">
+                          {selectedAccount.type === "CREDIT_CARD"
+                            ? "Процент на положительный остаток"
+                            : "Ставка"}
+                          :{" "}
+                          {selectedAccount.annualInterestPercent != null
+                            ? `${Number(selectedAccount.annualInterestPercent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}% годовых`
+                            : "не задана"}
+                          {" · "}
+                          ~{formatRubFromMinor(selectedAccount.interestIncomeMonthMinor)}
+                          /мес, ~
+                          {formatRubFromMinor(
+                            selectedAccount.interestIncomeYearMinor ?? 0,
+                          )}
+                          /год
+                          {selectedAccount.interestIncomeDayMinor !== 0 ? (
+                            <>
+                              , ~
+                              {formatRubFromMinor(
+                                selectedAccount.interestIncomeDayMinor,
+                              )}
+                              /день
+                            </>
+                          ) : null}
+                        </p>
+                      )
                     ) : null}
                     <h3 className="finance__h3 finance-main__acc-detail-h3">
                       Операции и переводы
@@ -2673,7 +2706,7 @@ function FinanceInvestPanel({
                 ...d,
                 sortOrder: i,
               })) as AccountRow[]}
-              title="Вклады, накопительные и карты с %"
+              title="Вклады, накопительные и счета с %"
             />
             <div
               className="finance-inv__alloc"
@@ -2739,10 +2772,17 @@ function FinanceInvestPanel({
               </li>
               <li className="finance-inv__metric">
                 <span className="finance-inv__metric-label">
-                  Вклады, накопительные и карты с % (в месяц, по ставке)
+                  %% по вкладам и счетам (в месяц, с учётом долга по картам и
+                  счетам)
                 </span>
-                <span className="finance-inv__metric-val">
-                  {data.metrics.depositSavingsIncomeMonthMinor > 0
+                <span
+                  className={
+                    data.metrics.depositSavingsIncomeMonthMinor < 0
+                      ? "finance-inv__metric-val finance-inv__metric-val--neg"
+                      : "finance-inv__metric-val"
+                  }
+                >
+                  {data.metrics.depositSavingsIncomeMonthMinor !== 0
                     ? formatRubFromMinor(
                         data.metrics.depositSavingsIncomeMonthMinor,
                       )

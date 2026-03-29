@@ -1024,6 +1024,18 @@ body {
   color: #81c995;
 }
 
+.finance-main__total-row--passive-neg strong {
+  color: #f28b82;
+}
+
+.finance-acc-row__inc--debt {
+  color: #f28b82;
+}
+
+.finance-main__acc-detail-debt-interest {
+  color: #f28b82;
+}
+
 .finance-main__cap-split {
   margin-top: 0.65rem;
   padding-top: 0.55rem;
@@ -2121,6 +2133,10 @@ button.finance-dep-carousel__card:focus-visible {
   font-weight: 600;
   color: #81c995;
   white-space: nowrap;
+}
+
+.finance-inv__metric-val--neg {
+  color: #f28b82;
 }
 
 .finance-inv__hint {

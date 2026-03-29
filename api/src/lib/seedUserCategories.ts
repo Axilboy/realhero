@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   BALANCE_ADJUSTMENT_CATEGORY_NAME,
   DEFAULT_CATEGORIES,
+  INTEREST_ACCRUAL_DEBT_EXPENSE_CATEGORY_NAME,
 } from "./defaultCategories.js";
 
 export async function seedUserCategories(
@@ -58,4 +59,26 @@ export async function ensureUserHasCategories(
   const n = await prisma.category.count({ where: { userId } });
   if (n === 0) await seedUserCategories(prisma, userId);
   await ensureBalanceAdjustmentCategory(prisma, userId);
+  await ensureDebtInterestAccrualCategory(prisma, userId);
+}
+
+async function ensureDebtInterestAccrualCategory(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<void> {
+  const exists = await prisma.category.findFirst({
+    where: { userId, name: INTEREST_ACCRUAL_DEBT_EXPENSE_CATEGORY_NAME },
+  });
+  if (exists) return;
+  await prisma.category.create({
+    data: {
+      userId,
+      name: INTEREST_ACCRUAL_DEBT_EXPENSE_CATEGORY_NAME,
+      type: "EXPENSE",
+      isBuiltIn: true,
+      isArchived: false,
+      sortOrder: 18,
+      excludeFromReporting: false,
+    },
+  });
 }

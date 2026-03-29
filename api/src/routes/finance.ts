@@ -28,6 +28,13 @@ import {
   parseISODateUTC,
   totalCalendarDaysInPeriod,
 } from "../lib/reportingPeriod.js";
+import { accountBalancesMap } from "../lib/accountBalances.js";
+import {
+  accountUsesInterestRate,
+  interestIncomeMonthMinor,
+  interestIncomeYearMinor,
+} from "../lib/accountInterest.js";
+import { applyDailyInterestAccruals } from "../lib/dailyInterestAccrual.js";
 import { ensureUserHasAccounts } from "../lib/seedUserAccounts.js";
 import { ensureUserHasCategories } from "../lib/seedUserCategories.js";
 
@@ -126,80 +133,6 @@ function parseFinanceReportingGranularity(
     : null;
 }
 
-function coerceAnnualPercent(
-  annualPercent: number | null | undefined,
-): number | null {
-  if (annualPercent == null) return null;
-  const p = Number(annualPercent);
-  if (!Number.isFinite(p) || p <= 0) return null;
-  return p;
-}
-
-function accountUsesInterestRate(a: {
-  type: AccountType;
-  annualInterestPercent: number | null;
-}): boolean {
-  if (a.type === "DEPOSIT" || a.type === "SAVINGS") return true;
-  if (
-    (a.type === "BANK" || a.type === "CREDIT_CARD") &&
-    coerceAnnualPercent(a.annualInterestPercent) != null
-  )
-    return true;
-  return false;
-}
-
-/**
- * Оценка по ставке за месяц, коп.
- * Вклады/накопительные/счёт: доход при положительном балансе.
- * Кредитка: при отрицательном балансе (долг) — отрицательное значение (оценка расхода на %%).
- */
-function interestIncomeMonthMinor(
-  balanceMinor: number,
-  annualPercent: number | null | undefined,
-  accountType: AccountType,
-): number {
-  const p = coerceAnnualPercent(annualPercent);
-  if (p == null) return 0;
-
-  if (accountType === "CREDIT_CARD") {
-    if (balanceMinor < 0) {
-      const debt = Math.abs(balanceMinor);
-      return -Math.round((debt * p) / 100 / 12);
-    }
-    if (balanceMinor > 0) {
-      return Math.round((balanceMinor * p) / 100 / 12);
-    }
-    return 0;
-  }
-
-  if (balanceMinor <= 0) return 0;
-  return Math.round((balanceMinor * p) / 100 / 12);
-}
-
-/** Оценка по ставке за год, коп. (кредитка с долгом — отрицательная, расход). */
-function interestIncomeYearMinor(
-  balanceMinor: number,
-  annualPercent: number | null | undefined,
-  accountType: AccountType,
-): number {
-  const p = coerceAnnualPercent(annualPercent);
-  if (p == null) return 0;
-
-  if (accountType === "CREDIT_CARD") {
-    if (balanceMinor < 0) {
-      const debt = Math.abs(balanceMinor);
-      return -Math.round((debt * p) / 100);
-    }
-    if (balanceMinor > 0) {
-      return Math.round((balanceMinor * p) / 100);
-    }
-    return 0;
-  }
-
-  if (balanceMinor <= 0) return 0;
-  return Math.round((balanceMinor * p) / 100);
-}
-
 function parseTzOffsetMin(query: { tzOffset?: string }): number | null {
   const raw = query.tzOffset;
   if (raw === undefined || raw === "") return null;
@@ -278,29 +211,6 @@ async function resolveAccountId(
   return first.id;
 }
 
-async function accountBalancesMap(userId: string): Promise<Map<string, number>> {
-  const agg = await prisma.transaction.groupBy({
-    by: ["accountId", "kind"],
-    where: { userId, accountId: { not: null } },
-    _sum: { amountMinor: true },
-  });
-  const m = new Map<string, number>();
-  for (const r of agg) {
-    const id = r.accountId as string;
-    const add = r.kind === "INCOME" ? (r._sum.amountMinor ?? 0) : -(r._sum.amountMinor ?? 0);
-    m.set(id, (m.get(id) ?? 0) + add);
-  }
-  const trRows = await prisma.transfer.findMany({
-    where: { userId },
-    select: { fromAccountId: true, toAccountId: true, amountMinor: true },
-  });
-  for (const t of trRows) {
-    m.set(t.fromAccountId, (m.get(t.fromAccountId) ?? 0) - t.amountMinor);
-    m.set(t.toAccountId, (m.get(t.toAccountId) ?? 0) + t.amountMinor);
-  }
-  return m;
-}
-
 async function investmentsTotalMinor(userId: string): Promise<number> {
   const rows = await prisma.investmentPosition.findMany({
     where: { userId },
@@ -339,7 +249,7 @@ async function monthlyPassiveIncomeMinor(userId: string): Promise<number> {
     where: { userId },
   });
   const accounts = await prisma.account.findMany({ where: { userId } });
-  const bal = await accountBalancesMap(userId);
+  const bal = await accountBalancesMap(prisma, userId);
   let totalAnnualMinor = 0;
   let invValueMinor = 0;
   for (const h of holdings) {
@@ -350,8 +260,7 @@ async function monthlyPassiveIncomeMinor(userId: string): Promise<number> {
   for (const a of accounts) {
     if (!accountUsesInterestRate(a)) continue;
     const b = bal.get(a.id) ?? 0;
-    const inc = interestIncomeMonthMinor(b, a.annualInterestPercent, a.type);
-    if (inc > 0) depMonth += inc;
+    depMonth += interestIncomeMonthMinor(b, a.annualInterestPercent, a.type);
   }
   const hasFlow = totalAnnualMinor > 0 && invValueMinor > 0;
   const couponMonth = hasFlow ? Math.round(totalAnnualMinor / 12) : 0;
@@ -398,11 +307,13 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
   app.get("/accounts", async (request) => {
     const userId = getUserId(request);
     await ensureUserHasAccounts(prisma, userId);
+    await ensureUserHasCategories(prisma, userId);
+    await applyDailyInterestAccruals(prisma, userId);
     const accounts = await prisma.account.findMany({
       where: { userId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
-    const bal = await accountBalancesMap(userId);
+    const bal = await accountBalancesMap(prisma, userId);
     const inv = await investmentsTotalMinor(userId);
     return {
       accounts: accounts.map((a) => {
@@ -746,6 +657,8 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
 
   app.get("/investments/overview", async (request) => {
     const userId = getUserId(request);
+    await ensureUserHasCategories(prisma, userId);
+    await applyDailyInterestAccruals(prisma, userId);
     const qr = request.query as { refresh?: string };
     if (qr.refresh === "1" || qr.refresh === "true") {
       await refreshInvestmentQuotes(userId);
@@ -755,7 +668,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
       orderBy: { name: "asc" },
     });
     const accounts = await prisma.account.findMany({ where: { userId } });
-    const bal = await accountBalancesMap(userId);
+    const bal = await accountBalancesMap(prisma, userId);
 
     let total = 0;
     let stocksMinor = 0;
@@ -806,7 +719,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
         ? Math.round((part * 1000) / portfolioSplitMinor) / 10
         : 0;
 
-    const depositSavingsAccounts = accounts
+    const interestRateAccounts = accounts
       .filter((a) => accountUsesInterestRate(a))
       .map((a) => {
         const balanceMinor = bal.get(a.id) ?? 0;
@@ -831,13 +744,17 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
           interestIncomeYearMinor: incYear,
           interestIncomeDayMinor: incDay,
         };
-      })
-      .sort((x, y) => x.name.localeCompare(y.name, "ru"));
+      });
 
     let depositSavingsIncomeMonthMinor = 0;
-    for (const ds of depositSavingsAccounts) {
-      depositSavingsIncomeMonthMinor += Math.max(0, ds.interestIncomeMonthMinor);
+    for (const ds of interestRateAccounts) {
+      depositSavingsIncomeMonthMinor += ds.interestIncomeMonthMinor;
     }
+
+    /** Во вкладке «Инвестиции» — без кредитных карт (они на главной в счетах). */
+    const depositSavingsAccounts = interestRateAccounts
+      .filter((a) => a.type !== "CREDIT_CARD")
+      .sort((x, y) => x.name.localeCompare(y.name, "ru"));
 
     const hasFlow = totalAnnualMinor > 0 && total > 0;
     const couponDividendYearMinor = hasFlow ? totalAnnualMinor : null;
@@ -1970,6 +1887,7 @@ export const financePlugin: FastifyPluginAsync = async (app) => {
   app.get("/analytics/reporting-forecast", async (request) => {
     const userId = getUserId(request);
     await ensureUserHasCategories(prisma, userId);
+    await applyDailyInterestAccruals(prisma, userId);
     const u = await prisma.user.findUnique({
       where: { id: userId },
       select: { financeReportingDay: true, financeReportingGranularity: true },

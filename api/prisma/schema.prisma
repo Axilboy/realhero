@@ -73,6 +73,8 @@ model Account {
   type         AccountType
   /// Годовая ставка, % (вклады, накопительные; опционально — счёт с процентом на остаток).
   annualInterestPercent Float?
+  /// Последний календарный день Europe/London, за который создано ежедневное начисление %% (YYYY-MM-DD).
+  lastInterestAccrualLondonDate String?
   sortOrder    Int           @default(0)
   createdAt    DateTime      @default(now())
   transactions Transaction[]

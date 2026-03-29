@@ -31,6 +31,11 @@ export const DEFAULT_CATEGORIES: SeedCat[] = [
   { name: "Животные", type: "EXPENSE", sortOrder: 15 },
   { name: "Ремонт и быт", type: "EXPENSE", sortOrder: 16 },
   { name: "Прочие расходы", type: "EXPENSE", sortOrder: 17 },
+  {
+    name: "Проценты по кредиту и долгу",
+    type: "EXPENSE",
+    sortOrder: 18,
+  },
 
   { name: "Зарплата", type: "INCOME", sortOrder: 0 },
   { name: "Бизнес и подработка", type: "INCOME", sortOrder: 1 },
@@ -51,3 +56,10 @@ export const DEFAULT_CATEGORIES: SeedCat[] = [
 ];
 
 export const BALANCE_ADJUSTMENT_CATEGORY_NAME = "Корректировка баланса";
+
+/** Начисленные %% по вкладу / накопительному (доход). */
+export const INTEREST_ACCRUAL_INCOME_CATEGORY_NAME = "Проценты и дивиденды";
+
+/** Начисленные %% по долгу на кредитке / счёте (расход). */
+export const INTEREST_ACCRUAL_DEBT_EXPENSE_CATEGORY_NAME =
+  "Проценты по кредиту и долгу";

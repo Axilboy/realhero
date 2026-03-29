@@ -71,7 +71,9 @@ export default function AppShell() {
             className={
               id === "finance"
                 ? "shell__slide shell__slide--finance"
-                : "shell__slide"
+                : id === "body"
+                  ? "shell__slide shell__slide--body"
+                  : "shell__slide"
             }
             aria-label={id}
             id={`panel-${id}`}

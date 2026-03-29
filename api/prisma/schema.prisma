@@ -62,6 +62,12 @@ model User {
   financeCardShowYieldWeek  Boolean @default(true)
   financeCardShowYieldMonth Boolean @default(true)
   financeCardShowYieldYear  Boolean @default(true)
+  bodyMassUnit     BodyMassUnit   @default(KG)
+  bodyLengthUnit   BodyLengthUnit @default(CM)
+  bodyKcalGoal     Int?
+  bodyProteinGoalG Float?
+  bodyFatGoalG     Float?
+  bodyCarbGoalG    Float?
   createdAt    DateTime             @default(now())
   categories   Category[]
   transactions Transaction[]
@@ -69,6 +75,35 @@ model User {
   investments  InvestmentPosition[]
   transfers    Transfer[]
   categoryBudgets CategoryBudget[]
+  bodyMeasurements BodyMeasurement[]
+  nutritionEntries NutritionEntry[]
+  trainingPrograms TrainingProgram[]
+  workoutLogs      WorkoutLog[]
+}
+
+enum BodyMassUnit {
+  KG
+  LB
+}
+
+enum BodyLengthUnit {
+  CM
+  IN
+}
+
+enum MealSlot {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum ExerciseKind {
+  STRENGTH
+  CARDIO
+  STRETCH
+  WARMUP
+  OTHER
 }
 
 model Account {
@@ -189,4 +224,118 @@ model InvestmentPosition {
   updatedAt                 DateTime            @updatedAt
 
   @@index([userId])
+}
+
+model BodyMeasurement {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String
+  weightKg   Float?
+  heightCm   Float?
+  bodyFatPct Float?
+  waistCm    Float?
+  hipCm      Float?
+  chestCm    Float?
+  bicepCm    Float?
+  thighCm    Float?
+  calfCm     Float?
+  neckCm     Float?
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+model NutritionEntry {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
+  mealSlot  MealSlot
+  sortOrder Int      @default(0)
+  name      String
+  portionG  Float?
+  kcal      Int
+  proteinG  Float
+  fatG      Float
+  carbG     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+model TrainingProgram {
+  id          String         @id @default(uuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  notes       String?
+  sortOrder   Int            @default(0)
+  days        TrainingDay[]
+  workoutLogs WorkoutLog[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model TrainingDay {
+  id          String             @id @default(uuid())
+  programId   String
+  program     TrainingProgram    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  dayIndex    Int
+  name        String?
+  exercises   TrainingExercise[]
+  workoutLogs WorkoutLog[]
+
+  @@unique([programId, dayIndex])
+}
+
+model TrainingExercise {
+  id          String      @id @default(uuid())
+  dayId       String
+  day         TrainingDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  sortOrder   Int         @default(0)
+  name        String
+  kind        ExerciseKind
+  sets        Int?
+  reps        Int?
+  weightKg    Float?
+  durationSec Int?
+  distanceM   Float?
+  restSec     Int?
+  notes       String?
+}
+
+model WorkoutLog {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId     String?
+  program       TrainingProgram? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  trainingDayId String?
+  trainingDay   TrainingDay?     @relation(fields: [trainingDayId], references: [id], onDelete: SetNull)
+  startedAt     DateTime
+  completedAt   DateTime?
+  note          String?
+  lines         WorkoutLogLine[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([userId, startedAt])
+  @@index([programId])
+}
+
+model WorkoutLogLine {
+  id         String     @id @default(uuid())
+  logId      String
+  log        WorkoutLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+  sortOrder  Int        @default(0)
+  name       String
+  kind       ExerciseKind
+  notes      String?
+  resultJson String
 }

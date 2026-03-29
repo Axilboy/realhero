@@ -99,6 +99,13 @@ body {
   padding-bottom: 0.35rem;
 }
 
+.shell__slide--body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0.35rem;
+}
+
 /* —— Экраны-заглушки —— */
 .screen {
   min-height: 100%;
@@ -892,6 +899,259 @@ body {
   border-color: #4a5f8f;
   background: #252b36;
   color: #e8eaed;
+}
+
+/* —— Тело: 3 вкладки —— */
+.body-mod {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.body-mod__head {
+  flex-shrink: 0;
+}
+
+.body-mod__head--row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.body-mod__title {
+  flex: 1;
+  margin-bottom: 0 !important;
+}
+
+.body-mod__gear {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid #2a2f38;
+  background: #14171c;
+  color: #9aa0a6;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.body-mod__gear:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
+}
+
+.body-mod__swipe {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.body-mod__track {
+  display: flex;
+  flex-direction: column;
+  height: 300%;
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+}
+
+.body-mod__panel {
+  flex: 0 0 33.3333%;
+  max-height: 33.3333%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  padding-right: 0.15rem;
+}
+
+.body-mod__subnav {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.3rem;
+  padding-top: 0.45rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid #252a33;
+}
+
+.body-mod__subbtn {
+  flex: 1;
+  min-height: 40px;
+  padding: 0.35rem 0.25rem;
+  border: 1px solid #2a2f38;
+  border-radius: 10px;
+  background: #14171c;
+  color: #8b9099;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.body-mod__subbtn--on {
+  border-color: #4a7f6f;
+  background: #1e2a26;
+  color: #b8d4c9;
+}
+
+.body-panel__lead {
+  font-size: 0.85rem !important;
+  margin-bottom: 0.65rem !important;
+}
+
+.body-panel__form {
+  margin-bottom: 1rem;
+}
+
+.body-panel__meas-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.body-panel__meas-li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #252a33;
+  font-size: 0.82rem;
+  color: #c4c7cc;
+}
+
+.body-panel__meas-del {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #f28b82;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.body-panel__goals {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.body-panel__goal-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #9aa0a6;
+  margin-bottom: 0.25rem;
+}
+
+.body-panel__goal-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: #2a2f38;
+  overflow: hidden;
+}
+
+.body-panel__goal-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #5c8f6e, #81c995);
+  transition: width 0.2s ease;
+}
+
+.body-panel__meal {
+  margin-bottom: 0.65rem;
+}
+
+.body-panel__meal-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7c8088;
+}
+
+.body-panel__food-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.body-panel__food-li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #c4c7cc;
+  padding: 0.25rem 0;
+}
+
+.body-panel__food-del {
+  border: none;
+  background: transparent;
+  color: #f28b82;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.body-panel__macro-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+.body-panel__totals {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  color: #81c995;
+  font-weight: 600;
+}
+
+.body-panel__prog-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.body-panel__prog {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #252a33;
+}
+
+.body-panel__prog h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.body-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.body-panel__row .finance__input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.body-panel__workout-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.body-panel__workout {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #252a33;
+  font-size: 0.82rem;
+  color: #c4c7cc;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
 }
 
 .finance-main__chips {

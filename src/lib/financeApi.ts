@@ -147,7 +147,7 @@ export function bindFinanceAuthRefresh(fn: () => Promise<void>): void {
   refreshSession = fn;
 }
 
-async function financeFetch(
+export async function apiFetch(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
@@ -180,7 +180,7 @@ async function json<T>(
   path: string,
   init?: RequestInit,
 ): Promise<{ ok: boolean; status: number; data: T }> {
-  const res = await financeFetch(path, init);
+  const res = await apiFetch(path, init);
   const text = await res.text();
   let data = {} as T;
   if (text) {

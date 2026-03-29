@@ -1308,6 +1308,45 @@ button.finance-main__recent-tx-btn:focus-visible {
   margin: 0 0 0.45rem;
 }
 
+.finance-acc-row__carousel-shell {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.finance-acc-row__carousel-shell .finance-acc-row__scroll {
+  flex: 1;
+  min-width: 0;
+}
+
+.finance-acc-row__nav {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 1.65rem;
+  min-height: 2.5rem;
+  padding: 0;
+  border: 1px solid #2a2f38;
+  border-radius: 10px;
+  background: #14171c;
+  color: #9aa0a6;
+  font-size: 1.35rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.finance-acc-row__nav:hover {
+  color: #e8eaed;
+  border-color: #3d4a5c;
+  background: #1a1d24;
+}
+
+.finance-acc-row__nav:focus-visible {
+  outline: 2px solid #8ab4ff;
+  outline-offset: 2px;
+}
+
 .finance-acc-row__scroll {
   display: flex;
   gap: 0.55rem;

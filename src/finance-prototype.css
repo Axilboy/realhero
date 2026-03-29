@@ -246,26 +246,59 @@
 }
 
 .finproto-tx__amount-box {
-  padding: 0.85rem 0.65rem;
+  padding: 0.65rem 0.65rem;
   border-radius: 16px;
   background: linear-gradient(180deg, #1e2229 0%, #14171c 100%);
   border: 1px solid #2a2f38;
-  text-align: right;
 }
 
-.finproto-tx__amount {
-  font-size: 1.65rem;
+.finproto-tx__amount-field {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.finproto-tx__amount-prefix {
+  font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #e8eaed;
+  flex-shrink: 0;
 }
 
-.finproto-tx__amount--out {
+.finproto-tx__amount-prefix--out {
   color: #f28b82;
 }
 
-.finproto-tx__amount--in {
+.finproto-tx__amount-prefix--in {
   color: #81c995;
+}
+
+.finproto-tx__amount-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  background: transparent;
+  color: #e8eaed;
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: right;
+  outline: none;
+}
+
+.finproto-tx__amount-input::placeholder {
+  color: #5f6368;
+}
+
+.finproto-tx__amount-suffix {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #9aa0a6;
+  flex-shrink: 0;
 }
 
 .finproto-tx__row {
@@ -322,56 +355,24 @@
   margin: 0.25rem 0;
 }
 
-.finproto-tx__acc-strip {
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  scrollbar-width: thin;
-}
-
-.finproto-tx__acc-strip--tw {
-  flex-wrap: wrap;
-  overflow: visible;
-}
-
-.finproto-tx__tw-label {
-  width: 100%;
-  font-size: 0.7rem;
-  color: #7c8088;
-  margin-bottom: 0.2rem;
-}
-
-.finproto-tx__acc-chip {
-  flex: 0 0 auto;
-  min-width: 5.5rem;
-  max-width: 10rem;
-  padding: 0.45rem 0.5rem;
-  border-radius: 12px;
+.finproto-tx__select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.4rem 0.45rem;
+  border-radius: 10px;
   border: 1px solid #2a2f38;
   background: #14171c;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.finproto-tx__acc-chip--on {
-  border-color: #5b7fd1;
-  background: #252b36;
-}
-
-.finproto-tx__acc-n {
-  display: block;
-  font-size: 0.78rem;
+  color: #e8eaed;
+  font: inherit;
+  font-size: 0.88rem;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
 }
 
-.finproto-tx__acc-b {
-  font-size: 0.72rem;
-  color: #8ab4ff;
+.finproto-tx__row--field .finproto-tx__select {
+  text-align: right;
+  text-align-last: right;
 }
 
 .finproto-tx__date,
@@ -453,61 +454,6 @@
   align-items: center;
   justify-content: center;
   font-size: 0.95rem;
-}
-
-/* Калькулятор */
-.finproto-keypad {
-  display: grid;
-  grid-template-columns: 1fr 2.25rem;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid #252a33;
-}
-
-.finproto-keypad__ops {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.finproto-keypad__op {
-  flex: 1;
-  min-height: 2.25rem;
-  border-radius: 10px;
-  border: 1px solid #353b47;
-  background: #1e232c;
-  color: #c4c7cc;
-  font-size: 1.05rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.finproto-keypad__grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.finproto-keypad__row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.3rem;
-}
-
-.finproto-keypad__key {
-  min-height: 2.5rem;
-  border-radius: 12px;
-  border: 1px solid #2a2f38;
-  background: #14171c;
-  color: #e8eaed;
-  font-size: 1.15rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.finproto-keypad__key--ic {
-  font-size: 1rem;
 }
 
 .finance__modal--addop.finproto-modal--wide {

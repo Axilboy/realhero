@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useMemo } from "react";
+import { type FormEvent, useMemo } from "react";
 import { type AccountRow, type Category } from "../../lib/financeApi";
 import { formatRubFromMinor } from "../../lib/money";
 
@@ -8,7 +8,6 @@ type Props = {
   opTab: AddOpTabProto;
   amountStr: string;
   onAmountStr: (v: string) => void;
-  amountDisplay: string;
   accounts: AccountRow[];
   accountId: string;
   onAccountId: (id: string) => void;
@@ -34,84 +33,10 @@ type Props = {
   onCloseCategoryPicker: () => void;
 };
 
-function Keypad({
-  onDigit,
-  onComma,
-  onBack,
-  onOp,
-}: {
-  onDigit: (d: string) => void;
-  onComma: () => void;
-  onBack: () => void;
-  onOp: (op: string) => void;
-}) {
-  const row = (keys: string[]) => (
-    <div className="finproto-keypad__row">
-      {keys.map((k) => (
-        <button
-          key={k}
-          type="button"
-          className="finproto-keypad__key"
-          onClick={() => onDigit(k)}
-        >
-          {k}
-        </button>
-      ))}
-    </div>
-  );
-
-  return (
-    <div className="finproto-keypad">
-      <div className="finproto-keypad__ops">
-        {["+", "−", "×", "÷"].map((op) => (
-          <button
-            key={op}
-            type="button"
-            className="finproto-keypad__op"
-            onClick={() => onOp(op)}
-          >
-            {op}
-          </button>
-        ))}
-      </div>
-      <div className="finproto-keypad__grid">
-        {row(["1", "2", "3"])}
-        {row(["4", "5", "6"])}
-        {row(["7", "8", "9"])}
-        <div className="finproto-keypad__row">
-          <button
-            type="button"
-            className="finproto-keypad__key"
-            onClick={onComma}
-          >
-            ,
-          </button>
-          <button
-            type="button"
-            className="finproto-keypad__key"
-            onClick={() => onDigit("0")}
-          >
-            0
-          </button>
-          <button
-            type="button"
-            className="finproto-keypad__key finproto-keypad__key--ic"
-            onClick={onBack}
-            aria-label="Удалить"
-          >
-            ⌫
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function AddTransactionPrototype({
   opTab,
   amountStr,
   onAmountStr,
-  amountDisplay,
   accounts,
   accountId,
   onAccountId,
@@ -136,28 +61,6 @@ export default function AddTransactionPrototype({
   showCategoryPicker,
   onCloseCategoryPicker,
 }: Props) {
-  const append = useCallback(
-    (ch: string) => {
-      onAmountStr(amountStr + ch);
-    },
-    [amountStr, onAmountStr],
-  );
-
-  const onKeyOp = useCallback(
-    (op: string) => {
-      const map: Record<string, string> = {
-        "+": "+",
-        "−": "-",
-        "×": "*",
-        "÷": "/",
-      };
-      append(` ${map[op] ?? op} `);
-    },
-    [append],
-  );
-
-  const acc = accounts.find((a) => a.id === accountId);
-
   const catOptions = useMemo(() => {
     return categories.filter((c) => !c.isArchived);
   }, [categories]);
@@ -167,65 +70,71 @@ export default function AddTransactionPrototype({
     [catOptions, pickCategoryId],
   );
 
+  const amountPrefix =
+    opTab === "expense" ? "− " : opTab === "income" ? "+ " : "";
+
   return (
     <div className="finproto-tx">
-      <form
-        className="finproto-tx__form"
-        onSubmit={onSubmit}
-        noValidate
-      >
+      <form className="finproto-tx__form" onSubmit={onSubmit} noValidate>
         <div className="finproto-tx__amount-box">
-          <span
-            className={
-              opTab === "expense"
-                ? "finproto-tx__amount finproto-tx__amount--out"
-                : opTab === "income"
-                  ? "finproto-tx__amount finproto-tx__amount--in"
-                  : "finproto-tx__amount"
-            }
-          >
-            {opTab === "expense" ? "− " : opTab === "income" ? "+ " : ""}
-            {amountDisplay || "0"} ₽
-          </span>
+          <label className="finproto-tx__amount-field">
+            <span
+              className={
+                opTab === "expense"
+                  ? "finproto-tx__amount-prefix finproto-tx__amount-prefix--out"
+                  : opTab === "income"
+                    ? "finproto-tx__amount-prefix finproto-tx__amount-prefix--in"
+                    : "finproto-tx__amount-prefix"
+              }
+              aria-hidden={opTab === "transfer"}
+            >
+              {amountPrefix}
+            </span>
+            <input
+              className="finproto-tx__amount-input"
+              type="text"
+              inputMode="decimal"
+              name="amount"
+              autoComplete="off"
+              placeholder="0"
+              value={amountStr}
+              onChange={(e) => onAmountStr(e.target.value)}
+            />
+            <span className="finproto-tx__amount-suffix">₽</span>
+          </label>
         </div>
 
         {opTab === "transfer" ? (
           <>
             <div className="finproto-tx__sub">Перевод между счетами</div>
-            <div className="finproto-tx__acc-strip finproto-tx__acc-strip--tw">
-              <span className="finproto-tx__tw-label">Откуда</span>
-              {accounts.map((a) => (
-                <button
-                  key={`f-${a.id}`}
-                  type="button"
-                  className={
-                    fromAccountId === a.id
-                      ? "finproto-tx__acc-chip finproto-tx__acc-chip--on"
-                      : "finproto-tx__acc-chip"
-                  }
-                  onClick={() => onFromAccountId(a.id)}
-                >
-                  {a.name}
-                </button>
-              ))}
-            </div>
-            <div className="finproto-tx__acc-strip finproto-tx__acc-strip--tw">
-              <span className="finproto-tx__tw-label">Куда</span>
-              {accounts.map((a) => (
-                <button
-                  key={`t-${a.id}`}
-                  type="button"
-                  className={
-                    toAccountId === a.id
-                      ? "finproto-tx__acc-chip finproto-tx__acc-chip--on"
-                      : "finproto-tx__acc-chip"
-                  }
-                  onClick={() => onToAccountId(a.id)}
-                >
-                  {a.name}
-                </button>
-              ))}
-            </div>
+            <label className="finproto-tx__row finproto-tx__row--field">
+              <span className="finproto-tx__row-k">Откуда</span>
+              <select
+                className="finproto-tx__select"
+                value={fromAccountId}
+                onChange={(e) => onFromAccountId(e.target.value)}
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {accountLabel(a)} — {formatRubFromMinor(a.balanceMinor)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="finproto-tx__row finproto-tx__row--field">
+              <span className="finproto-tx__row-k">Куда</span>
+              <select
+                className="finproto-tx__select"
+                value={toAccountId}
+                onChange={(e) => onToAccountId(e.target.value)}
+              >
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {accountLabel(a)} — {formatRubFromMinor(a.balanceMinor)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </>
         ) : (
           <>
@@ -237,7 +146,7 @@ export default function AddTransactionPrototype({
               <span className="finproto-tx__row-k">Категория</span>
               <span className="finproto-tx__row-v">
                 <span className="finproto-tx__cat-ic" aria-hidden>
-                  ⊘
+                  {pickedCat?.iconEmoji ?? "⊘"}
                 </span>
                 {categoryLabel}
               </span>
@@ -290,40 +199,28 @@ export default function AddTransactionPrototype({
                 </ul>
               </div>
             ) : null}
+
+            <label className="finproto-tx__row finproto-tx__row--field">
+              <span className="finproto-tx__row-k">Счёт</span>
+              <select
+                className="finproto-tx__select"
+                value={accountId}
+                onChange={(e) => onAccountId(e.target.value)}
+                disabled={accounts.length === 0}
+              >
+                {accounts.length === 0 ? (
+                  <option value="">Нет счетов</option>
+                ) : (
+                  accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {accountLabel(a)} — {formatRubFromMinor(a.balanceMinor)}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
           </>
         )}
-
-        {opTab !== "transfer" ? (
-          <>
-            <button type="button" className="finproto-tx__row">
-              <span className="finproto-tx__row-k">Счёт</span>
-              <span className="finproto-tx__row-v">
-                <span className="finproto-tx__card-ic">💳</span>
-                {acc ? `${accountLabel(acc)}` : "—"}
-              </span>
-            </button>
-
-            <div className="finproto-tx__acc-strip">
-              {accounts.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  className={
-                    accountId === a.id
-                      ? "finproto-tx__acc-chip finproto-tx__acc-chip--on"
-                      : "finproto-tx__acc-chip"
-                  }
-                  onClick={() => onAccountId(a.id)}
-                >
-                  <span className="finproto-tx__acc-n">{a.name}</span>
-                  <span className="finproto-tx__acc-b">
-                    {formatRubFromMinor(a.balanceMinor)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        ) : null}
 
         <label className="finproto-tx__row finproto-tx__row--field">
           <span className="finproto-tx__row-k">Дата</span>
@@ -349,13 +246,6 @@ export default function AddTransactionPrototype({
 
         {formError ? <p className="finance__err">{formError}</p> : null}
 
-        <Keypad
-          onDigit={append}
-          onComma={() => append(",")}
-          onBack={() => onAmountStr(amountStr.slice(0, -1))}
-          onOp={onKeyOp}
-        />
-
         <button
           className="finance__submit"
           type="submit"
@@ -367,4 +257,3 @@ export default function AddTransactionPrototype({
     </div>
   );
 }
-

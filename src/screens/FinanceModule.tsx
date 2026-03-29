@@ -287,12 +287,24 @@ function FinanceAccountsRow({
   /** Одна карточка на ширину ленты (главная «Финансы»), с прокруткой влево–вправо */
   carouselFullWidth?: boolean;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const sorted = [...accounts].sort((a, b) =>
     a.sortOrder !== b.sortOrder
       ? a.sortOrder - b.sortOrder
       : a.name.localeCompare(b.name, "ru"),
   );
   const showAdd = onAddAccount != null;
+
+  function scrollAccountCarousel(dir: -1 | 1) {
+    const el = scrollRef.current;
+    if (!el) return;
+    const first = el.querySelector<HTMLElement>(".finance-acc-row__card");
+    if (!first) return;
+    const cs = getComputedStyle(el);
+    const gapPx = Number.parseFloat(cs.gap || cs.columnGap || "0") || 0;
+    const step = first.getBoundingClientRect().width + gapPx;
+    el.scrollBy({ left: dir * step, behavior: "smooth" });
+  }
   const renderAccountCard = (a: AccountRow) => {
     const interest = accountShowsInterestLines(a);
     const inner = (
@@ -381,36 +393,91 @@ function FinanceAccountsRow({
       }
     >
       <h3 className="finance__h3 finance-acc-row__title">{title}</h3>
-      <div className="finance-acc-row__scroll" role="list">
-        {sorted.length === 0 && showAdd ? (
+      {variant === "carousel" ? (
+        <div className="finance-acc-row__carousel-shell">
           <button
             type="button"
-            className="finance-acc-row__card finance-acc-row__card--add"
-            onClick={onAddAccount}
+            className="finance-acc-row__nav finance-acc-row__nav--prev"
+            aria-label="Предыдущий счёт"
+            onClick={() => scrollAccountCarousel(-1)}
           >
-            <span className="finance-acc-row__plus" aria-hidden>
-              +
-            </span>
-            <span className="finance-acc-row__add-tx">Новый счёт</span>
+            ‹
           </button>
-        ) : (
-          <>
-            {sorted.map((a) => renderAccountCard(a))}
-            {showAdd ? (
+          <div
+            ref={scrollRef}
+            className="finance-acc-row__scroll"
+            role="list"
+          >
+            {sorted.length === 0 && showAdd ? (
               <button
                 type="button"
                 className="finance-acc-row__card finance-acc-row__card--add"
                 onClick={onAddAccount}
-                aria-label="Новый счёт"
               >
                 <span className="finance-acc-row__plus" aria-hidden>
                   +
                 </span>
+                <span className="finance-acc-row__add-tx">Новый счёт</span>
               </button>
-            ) : null}
-          </>
-        )}
-      </div>
+            ) : (
+              <>
+                {sorted.map((a) => renderAccountCard(a))}
+                {showAdd ? (
+                  <button
+                    type="button"
+                    className="finance-acc-row__card finance-acc-row__card--add"
+                    onClick={onAddAccount}
+                    aria-label="Новый счёт"
+                  >
+                    <span className="finance-acc-row__plus" aria-hidden>
+                      +
+                    </span>
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            className="finance-acc-row__nav finance-acc-row__nav--next"
+            aria-label="Следующий счёт"
+            onClick={() => scrollAccountCarousel(1)}
+          >
+            ›
+          </button>
+        </div>
+      ) : (
+        <div ref={scrollRef} className="finance-acc-row__scroll" role="list">
+          {sorted.length === 0 && showAdd ? (
+            <button
+              type="button"
+              className="finance-acc-row__card finance-acc-row__card--add"
+              onClick={onAddAccount}
+            >
+              <span className="finance-acc-row__plus" aria-hidden>
+                +
+              </span>
+              <span className="finance-acc-row__add-tx">Новый счёт</span>
+            </button>
+          ) : (
+            <>
+              {sorted.map((a) => renderAccountCard(a))}
+              {showAdd ? (
+                <button
+                  type="button"
+                  className="finance-acc-row__card finance-acc-row__card--add"
+                  onClick={onAddAccount}
+                  aria-label="Новый счёт"
+                >
+                  <span className="finance-acc-row__plus" aria-hidden>
+                    +
+                  </span>
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -455,17 +522,12 @@ function categoryOptionsForAddOp(cats: Category[], kind: TransactionKind) {
   return unc ? [...base, unc] : base;
 }
 
-/** Парсит сумму из строки калькулятора (цифры, + − × ÷, скобки, запятая как десятичный разделитель). */
-function parseAmountExpression(raw: string): number | null {
-  const t = raw.trim().replace(/\s+/g, "").replace(/,/g, ".");
+/** Парсит сумму из поля ввода (десятичная запятая или точка). */
+function parseAmountInput(raw: string): number | null {
+  const t = raw.trim().replace(/\s/g, "").replace(/,/g, ".");
   if (!t) return null;
-  if (!/^[\d.+\-*/()]+$/.test(t)) return null;
-  try {
-    const r = Function(`"use strict"; return (${t})`)();
-    return typeof r === "number" && Number.isFinite(r) ? r : null;
-  } catch {
-    return null;
-  }
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }
 
 type TabKey = 0 | 1 | 2 | 3;
@@ -823,8 +885,6 @@ function FinanceMainPanel({
     [],
   );
 
-  const amountDisplay = useMemo(() => amountStr.trim(), [amountStr]);
-
   const categoryLabelForProto = useMemo(() => {
     const c = pickable.find((x) => x.id === categoryId);
     return c?.name ?? UNCATEGORIZED_CATEGORY_NAME;
@@ -832,7 +892,7 @@ function FinanceMainPanel({
 
   const addOpProtoCanSubmit = useMemo(() => {
     if (opTab === "expense" || opTab === "income") {
-      const n = parseAmountExpression(amountStr);
+      const n = parseAmountInput(amountStr);
       return (
         n != null &&
         n > 0 &&
@@ -842,7 +902,7 @@ function FinanceMainPanel({
       );
     }
     if (opTab === "transfer") {
-      const n = parseAmountExpression(amountStr);
+      const n = parseAmountInput(amountStr);
       return (
         n != null &&
         n > 0 &&
@@ -930,7 +990,7 @@ function FinanceMainPanel({
     }
 
     if (opTab === "expense" || opTab === "income") {
-      const amountRub = parseAmountExpression(amountStr);
+      const amountRub = parseAmountInput(amountStr);
       if (amountRub == null || amountRub <= 0) {
         setFormError("Введите сумму больше нуля");
         return;
@@ -954,7 +1014,7 @@ function FinanceMainPanel({
         return;
       }
     } else if (opTab === "transfer") {
-      const amountRub = parseAmountExpression(amountStr);
+      const amountRub = parseAmountInput(amountStr);
       if (amountRub == null || amountRub <= 0) {
         setFormError("Введите сумму перевода");
         return;
@@ -1867,7 +1927,6 @@ function FinanceMainPanel({
                       opTab={opTab}
                       amountStr={amountStr}
                       onAmountStr={setAmountStr}
-                      amountDisplay={amountDisplay}
                       accounts={accounts}
                       accountId={accountId}
                       onAccountId={setAccountId}

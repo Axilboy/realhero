@@ -80,17 +80,6 @@ type AccountCardLike = Pick<
   | "interestIncomeYearMinor"
 >;
 
-function inDepositCarousel(a: AccountCardLike): boolean {
-  if (a.type === "DEPOSIT" || a.type === "SAVINGS") return true;
-  if (
-    a.type === "BANK" &&
-    a.annualInterestPercent != null &&
-    Number(a.annualInterestPercent) > 0
-  )
-    return true;
-  return false;
-}
-
 function accountSupportsInterestField(t: AccountType): boolean {
   return isDepositOrSavings(t) || t === "BANK";
 }
@@ -103,7 +92,6 @@ const GRANULARITY_LABEL: Record<FinanceReportingGranularity, string> = {
   CUSTOM: "Своя",
 };
 
-const REP_COLLAPSED_LS = "rh_fin_rep_settings_collapsed";
 const REP_CUSTOM_FROM_LS = "rh_fin_rep_custom_from";
 const REP_CUSTOM_TO_LS = "rh_fin_rep_custom_to";
 
@@ -117,67 +105,115 @@ function formatRuDateShort(iso: string): string {
   });
 }
 
-function DepositSavingsCarousel({
+function accountShowsInterestLines(a: AccountCardLike): boolean {
+  return (
+    a.type === "DEPOSIT" ||
+    a.type === "SAVINGS" ||
+    (a.type === "BANK" &&
+      a.annualInterestPercent != null &&
+      Number(a.annualInterestPercent) > 0)
+  );
+}
+
+/** Одна горизонтальная карусель: все счета одного размера + опционально карточка «+». */
+function FinanceAccountsRow({
   accounts,
   title,
   onOpenAccount,
+  onAddAccount,
 }: {
-  accounts: AccountCardLike[];
+  accounts: AccountRow[];
   title: string;
-  /** Без колбэка карточка не кликабельна (например, вкладка «Инвестиции»). */
-  onOpenAccount?: (accountId: string) => void;
+  onOpenAccount?: (id: string) => void;
+  onAddAccount?: () => void;
 }) {
-  const list = accounts.filter((a) => inDepositCarousel(a));
-  if (list.length === 0) return null;
-  return (
-    <div className="finance-dep-carousel-wrap">
-      <h3 className="finance__h3 finance-dep-carousel__title">{title}</h3>
-      <div className="finance-dep-carousel" role="list">
-        {list.map((a) => {
-          const inner = (
-            <>
-              <div className="finance-dep-carousel__type">
-                {ACCOUNT_TYPE_LABEL[a.type]}
+  const sorted = [...accounts].sort((a, b) =>
+    a.sortOrder !== b.sortOrder
+      ? a.sortOrder - b.sortOrder
+      : a.name.localeCompare(b.name, "ru"),
+  );
+  const showAdd = onAddAccount != null;
+  const renderAccountCard = (a: AccountRow) => {
+    const interest = accountShowsInterestLines(a);
+    const inner = (
+      <>
+        <div className="finance-acc-row__type">{ACCOUNT_TYPE_LABEL[a.type]}</div>
+        <div className="finance-acc-row__name">{a.name}</div>
+        <div className="finance-acc-row__bal">
+          {formatRubFromMinor(a.balanceMinor)}
+        </div>
+        {interest ? (
+          <>
+            {a.annualInterestPercent != null &&
+            Number(a.annualInterestPercent) > 0 ? (
+              <div className="finance-acc-row__rate">
+                {Number(a.annualInterestPercent).toLocaleString("ru-RU", {
+                  maximumFractionDigits: 2,
+                })}
+                % годовых
               </div>
-              <div className="finance-dep-carousel__name">{a.name}</div>
-              <div className="finance-dep-carousel__bal">
-                {formatRubFromMinor(a.balanceMinor)}
+            ) : (
+              <div className="finance-acc-row__rate finance-acc-row__rate--muted">
+                Ставка не задана
               </div>
-              {a.annualInterestPercent != null &&
-              Number(a.annualInterestPercent) > 0 ? (
-                <div className="finance-dep-carousel__rate">
-                  {Number(a.annualInterestPercent).toLocaleString("ru-RU", {
-                    maximumFractionDigits: 2,
-                  })}
-                  % годовых
-                </div>
-              ) : (
-                <div className="finance-dep-carousel__rate finance-dep-carousel__rate--muted">
-                  Ставка не задана
-                </div>
-              )}
-              <div className="finance-dep-carousel__inc">
-                ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
-                {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
-              </div>
-            </>
-          );
-          return onOpenAccount ? (
-            <button
-              key={a.id}
-              type="button"
-              className="finance-dep-carousel__card"
-              role="listitem"
-              onClick={() => onOpenAccount(a.id)}
-            >
-              {inner}
-            </button>
-          ) : (
-            <div key={a.id} className="finance-dep-carousel__card" role="listitem">
-              {inner}
+            )}
+            <div className="finance-acc-row__inc">
+              ~ {formatRubFromMinor(a.interestIncomeMonthMinor)}/мес · ~{" "}
+              {formatRubFromMinor(a.interestIncomeYearMinor ?? 0)}/год
             </div>
-          );
-        })}
+          </>
+        ) : null}
+      </>
+    );
+    return onOpenAccount ? (
+      <button
+        key={a.id}
+        type="button"
+        className="finance-acc-row__card"
+        role="listitem"
+        onClick={() => onOpenAccount(a.id)}
+      >
+        {inner}
+      </button>
+    ) : (
+      <div key={a.id} className="finance-acc-row__card" role="listitem">
+        {inner}
+      </div>
+    );
+  };
+
+  return (
+    <div className="finance-acc-row-wrap">
+      <h3 className="finance__h3 finance-acc-row__title">{title}</h3>
+      <div className="finance-acc-row__scroll" role="list">
+        {sorted.length === 0 && showAdd ? (
+          <button
+            type="button"
+            className="finance-acc-row__card finance-acc-row__card--add"
+            onClick={onAddAccount}
+          >
+            <span className="finance-acc-row__plus" aria-hidden>
+              +
+            </span>
+            <span className="finance-acc-row__add-tx">Новый счёт</span>
+          </button>
+        ) : (
+          <>
+            {sorted.map((a) => renderAccountCard(a))}
+            {showAdd ? (
+              <button
+                type="button"
+                className="finance-acc-row__card finance-acc-row__card--add"
+                onClick={onAddAccount}
+                aria-label="Новый счёт"
+              >
+                <span className="finance-acc-row__plus" aria-hidden>
+                  +
+                </span>
+              </button>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
@@ -190,13 +226,6 @@ const ASSET_LABEL: Record<InvestmentAssetKind, string> = {
   CRYPTO: "Крипто",
   OTHER: "Другое",
 };
-
-const ANALYTICS_CHIPS = [
-  { icon: "📊", label: "Категории" },
-  { icon: "📅", label: "Календарь" },
-  { icon: "🏷️", label: "Теги" },
-  { icon: "📈", label: "Тренд" },
-];
 
 const ADD_OP_TABS = [
   { key: "expense", label: "Расходы" },
@@ -220,6 +249,7 @@ export default function FinanceModule() {
   const [tab, setTab] = useState<TabKey>(0);
   const touchY0 = useRef<number | null>(null);
   const [bump, setBump] = useState(0);
+  const [mainSettingsOpen, setMainSettingsOpen] = useState(false);
   const refreshAll = useCallback(() => setBump((x) => x + 1), []);
 
   const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
@@ -231,14 +261,27 @@ export default function FinanceModule() {
     if (y0 === null) return;
     const dy = e.changedTouches[0].clientY - y0;
     if (Math.abs(dy) < 56) return;
-    if (dy < 0) setTab((t) => (t < 2 ? ((t + 1) as TabKey) : t));
+    /* Свайп вниз — следующий раздел; вверх — предыдущий */
+    if (dy > 0) setTab((t) => (t < 2 ? ((t + 1) as TabKey) : t));
     else setTab((t) => (t > 0 ? ((t - 1) as TabKey) : t));
   };
 
   return (
     <div className="finance-mod">
-      <div className="finance-mod__head">
-        <h1 className="screen__title">Финансы</h1>
+      <div className="finance-mod__head finance-mod__head--row">
+        <h1 className="screen__title finance-mod__title">Финансы</h1>
+        {tab === 0 ? (
+          <button
+            type="button"
+            className="finance-mod__gear"
+            aria-label="Настройки"
+            onClick={() => setMainSettingsOpen(true)}
+          >
+            ⚙
+          </button>
+        ) : (
+          <span className="finance-mod__gear-spacer" aria-hidden />
+        )}
       </div>
 
       <div
@@ -251,7 +294,12 @@ export default function FinanceModule() {
           style={{ transform: `translateY(-${(tab * 100) / 3}%)` }}
         >
           <div className="finance-mod__panel">
-            <FinanceMainPanel bump={bump} onRefresh={refreshAll} />
+            <FinanceMainPanel
+              bump={bump}
+              onRefresh={refreshAll}
+              settingsOpen={mainSettingsOpen}
+              onSettingsOpenChange={setMainSettingsOpen}
+            />
           </div>
           <div className="finance-mod__panel">
             <FinanceInvestPanel
@@ -295,9 +343,13 @@ export default function FinanceModule() {
 function FinanceMainPanel({
   bump,
   onRefresh,
+  settingsOpen,
+  onSettingsOpenChange,
 }: {
   bump: number;
   onRefresh: () => void;
+  settingsOpen: boolean;
+  onSettingsOpenChange: (open: boolean) => void;
 }) {
   const [reporting, setReporting] = useState<{
     financeReportingDay: number;
@@ -327,13 +379,6 @@ function FinanceMainPanel({
       return "";
     }
   });
-  const [repSettingsCollapsed, setRepSettingsCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(REP_COLLAPSED_LS) === "1";
-    } catch {
-      return false;
-    }
-  });
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [delModalAcc, setDelModalAcc] = useState<AccountRow | null>(null);
   const [delTargetId, setDelTargetId] = useState("");
@@ -355,7 +400,6 @@ function FinanceMainPanel({
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [investmentsTotal, setInvestmentsTotal] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
 
@@ -434,10 +478,9 @@ function FinanceMainPanel({
       }
     }
 
-    const [rep, c, t, a, ov] = await Promise.all([
+    const [rep, c, a, ov] = await Promise.all([
       fetchReportingSummary(summaryOpts),
       fetchCategories(false),
-      fetchTransactions(),
       fetchAccounts(),
       fetchInvestOverview(false),
     ]);
@@ -460,8 +503,6 @@ function FinanceMainPanel({
     }
     if (c.ok) setCategories(c.data.categories);
     else errs.push(errorMessage(c.data));
-    if (t.ok) setTransactions(t.data.transactions);
-    else errs.push(errorMessage(t.data));
     if (a.ok) {
       setAccounts(a.data.accounts);
       setInvestmentsTotal(a.data.investmentsTotalMinor);
@@ -686,15 +727,20 @@ function FinanceMainPanel({
     }
   }
 
-  async function onDeleteTx(id: string) {
+  async function onDeleteAccountDetailTx(txId: string) {
     if (!confirm("Удалить операцию?")) return;
-    const res = await deleteTransaction(id);
+    const accId = selectedAccountId;
+    const res = await deleteTransaction(txId);
     if (!res.ok) {
-      setLoadError(errorMessage(res.data));
+      setAccDetailErr(errorMessage(res.data));
       return;
     }
     onRefresh();
     await refresh();
+    if (accId) {
+      const r = await fetchTransactions({ accountId: accId });
+      if (r.ok) setAccountDetailTx(r.data.transactions);
+    }
   }
 
   async function onAddCategory(ev: FormEvent) {
@@ -826,12 +872,6 @@ function FinanceMainPanel({
         /* ignore */
       }
     }
-    try {
-      localStorage.setItem(REP_COLLAPSED_LS, "1");
-    } catch {
-      /* ignore */
-    }
-    setRepSettingsCollapsed(true);
     await refresh();
   }
 
@@ -952,99 +992,37 @@ function FinanceMainPanel({
 
   async function confirmPurgeDelete() {
     if (!delModalAcc) return;
+    const goneId = delModalAcc.id;
     setDelBusy(true);
     setLoadError(null);
-    const res = await purgeAccount(delModalAcc.id);
+    const res = await purgeAccount(goneId);
     setDelBusy(false);
     if (!res.ok) {
       setLoadError(errorMessage(res.data));
       return;
     }
     setDelModalAcc(null);
-    if (selectedAccountId === delModalAcc.id) closeAccountDetail();
+    if (selectedAccountId === goneId) closeAccountDetail();
     onRefresh();
     await refresh();
   }
 
   return (
     <div className="finance-main">
-      <div className="finance-main__chips" aria-label="Аналитика (скоро)">
-        {ANALYTICS_CHIPS.map((c) => (
-          <button
-            key={c.label}
-            type="button"
-            className="finance-main__chip"
-            disabled
-            title="Скоро"
-          >
-            <span className="finance-main__chip-ic">{c.icon}</span>
-            <span className="finance-main__chip-tx">{c.label}</span>
-          </button>
-        ))}
-      </div>
+      {loadError ? <p className="finance__err">{loadError}</p> : null}
+      {pending ? <p className="screen__text">Загрузка…</p> : null}
 
-      <div className="finance-main__toolbar">
-        <button
-          type="button"
-          className="finance__btn-secondary"
-          onClick={() => {
-            setCatError(null);
-            setCatModal(true);
-          }}
-        >
-          Категории
-        </button>
-        <button
-          type="button"
-          className="finance__btn-secondary"
-          onClick={() => {
+      {!pending ? (
+        <FinanceAccountsRow
+          accounts={accounts}
+          title="Счета"
+          onOpenAccount={openAccountDetail}
+          onAddAccount={() => {
             setAccError(null);
             setNewAccInterestStr("");
             setAccModal(true);
           }}
-        >
-          Новый счёт
-        </button>
-      </div>
-
-      {loadError ? <p className="finance__err">{loadError}</p> : null}
-      {pending ? <p className="screen__text">Загрузка…</p> : null}
-
-      {!pending && accounts.length > 0 ? (
-        <div className="finance-main__accounts-wrap">
-          <DepositSavingsCarousel
-            accounts={accounts}
-            title="Вклады и накопительные"
-            onOpenAccount={openAccountDetail}
-          />
-          {accounts.some((a) => !inDepositCarousel(a)) ? (
-            <>
-              <h3 className="finance__h3 finance-main__acc-other-title">
-                Остальные счета
-              </h3>
-              <div className="finance-main__accounts">
-                {accounts
-                  .filter((a) => !inDepositCarousel(a))
-                  .map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      className="finance-main__acc-card finance-main__acc-card--btn"
-                      onClick={() => openAccountDetail(a.id)}
-                    >
-                      <div className="finance-main__acc-type">
-                        {ACCOUNT_TYPE_LABEL[a.type]}
-                      </div>
-                      <div className="finance-main__acc-name">{a.name}</div>
-                      <div className="finance-main__acc-bal">
-                        {formatRubFromMinor(a.balanceMinor)}
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            </>
-          ) : null}
-        </div>
+        />
       ) : null}
 
       {!pending ? (
@@ -1118,105 +1096,21 @@ function FinanceMainPanel({
           aria-label="Отчётный период"
         >
           <p className="finance-main__period-label">
-            Текущий отчётный период (
+            Отчёт (
             {GRANULARITY_LABEL[reporting.financeReportingGranularity]}):{" "}
             <strong>
               {formatRuDateShort(reporting.periodStart)} —{" "}
               {formatRuDateShort(`${reporting.periodLastDay}T12:00:00.000Z`)}
             </strong>
-          </p>
-          {repSettingsCollapsed ? (
+            .{" "}
             <button
               type="button"
-              className="finance__btn-secondary finance-main__rep-expand"
-              onClick={() => {
-                setRepSettingsCollapsed(false);
-                try {
-                  localStorage.removeItem(REP_COLLAPSED_LS);
-                } catch {
-                  /* ignore */
-                }
-              }}
+              className="finance-main__linkish"
+              onClick={() => onSettingsOpenChange(true)}
             >
-              Настройка отчётного периода
+              Изменить в настройках
             </button>
-          ) : (
-            <form
-              className="finance-main__reporting-settings"
-              onSubmit={(e) => void onSaveReportingSettings(e)}
-            >
-              <div
-                className="finance-main__gran-chips"
-                role="group"
-                aria-label="Шаг отчётности"
-              >
-                {(
-                  [
-                    "DAY",
-                    "WEEK",
-                    "MONTH",
-                    "YEAR",
-                    "CUSTOM",
-                  ] as FinanceReportingGranularity[]
-                ).map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    className={
-                      granularityDraft === g
-                        ? "finance-main__gran-chip finance-main__gran-chip--on"
-                        : "finance-main__gran-chip"
-                    }
-                    onClick={() => setGranularityDraft(g)}
-                  >
-                    {GRANULARITY_LABEL[g]}
-                  </button>
-                ))}
-              </div>
-              {granularityDraft === "MONTH" ? (
-                <label className="finance__field finance-main__reporting-day-field">
-                  Отчётное число месяца (1–28)
-                  <input
-                    className="finance__input"
-                    type="number"
-                    min={1}
-                    max={28}
-                    value={reportingDayDraft}
-                    onChange={(e) => setReportingDayDraft(e.target.value)}
-                  />
-                </label>
-              ) : null}
-              {granularityDraft === "CUSTOM" ? (
-                <div className="finance-main__custom-range">
-                  <label className="finance__field">
-                    С даты
-                    <input
-                      className="finance__input"
-                      type="date"
-                      value={repCustomFrom}
-                      onChange={(e) => setRepCustomFrom(e.target.value)}
-                    />
-                  </label>
-                  <label className="finance__field">
-                    По дату
-                    <input
-                      className="finance__input"
-                      type="date"
-                      value={repCustomTo}
-                      onChange={(e) => setRepCustomTo(e.target.value)}
-                    />
-                  </label>
-                </div>
-              ) : null}
-              <button
-                type="submit"
-                className="finance__btn-secondary"
-                disabled={settingsBusy}
-              >
-                {settingsBusy ? "…" : "Сохранить настройки"}
-              </button>
-            </form>
-          )}
+          </p>
           <div className="finance__tiles finance__tiles--compact">
             <div className="finance__tile finance__tile--in">
               <span className="finance__tile-label">Доходы (период)</span>
@@ -1252,52 +1146,137 @@ function FinanceMainPanel({
         </div>
       ) : null}
 
-      {!pending ? (
-        <section className="finance__list finance-main__tx" aria-label="Операции">
-          <h2 className="finance__h2">Последние операции</h2>
-          {transactions.length === 0 ? (
-            <p className="screen__text">Пока пусто.</p>
-          ) : (
-            <ul className="finance__tx-list">
-              {transactions.map((tx) => (
-                <li key={tx.id} className="finance__tx">
-                  <div className="finance__tx-main">
-                    <span className="finance__tx-date">
-                      {new Date(tx.occurredAt).toLocaleDateString("ru-RU")}
-                    </span>
-                    <span className="finance__tx-cat">{tx.category.name}</span>
-                    <span
-                      className={
-                        tx.kind === "INCOME"
-                          ? "finance__tx-sum finance__tx-sum--in"
-                          : "finance__tx-sum finance__tx-sum--out"
-                      }
-                    >
-                      {tx.kind === "INCOME" ? "+" : "−"}
-                      {formatRubFromMinor(tx.amountMinor)}
-                    </span>
-                  </div>
-                  {tx.account ? (
-                    <p className="finance__tx-note">
-                      {tx.account.name} · {ACCOUNT_TYPE_LABEL[tx.account.type]}
-                    </p>
-                  ) : null}
-                  {tx.note ? (
-                    <p className="finance__tx-note">{tx.note}</p>
-                  ) : null}
+      {settingsOpen
+        ? modalPortal(
+            <div
+              className="finance__modal-back finance__modal-root"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="fin-settings-title"
+            >
+              <div className="finance__modal finance__modal--fin-settings">
+                <div className="finance__modal-head">
+                  <h2 id="fin-settings-title" className="finance__h2">
+                    Настройки
+                  </h2>
                   <button
                     type="button"
-                    className="finance__tx-del"
-                    onClick={() => void onDeleteTx(tx.id)}
+                    className="finance__modal-close"
+                    onClick={() => onSettingsOpenChange(false)}
                   >
-                    Удалить
+                    Закрыть
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
+                </div>
+                <div className="finance-main__settings-body">
+                  <h3 className="finance__h3 finance-main__settings-h3">
+                    Отчётность
+                  </h3>
+                  <form
+                    className="finance-main__reporting-settings"
+                    onSubmit={(e) => void onSaveReportingSettings(e)}
+                  >
+                    <div
+                      className="finance-main__gran-chips"
+                      role="group"
+                      aria-label="Шаг отчётности"
+                    >
+                      {(
+                        [
+                          "DAY",
+                          "WEEK",
+                          "MONTH",
+                          "YEAR",
+                          "CUSTOM",
+                        ] as FinanceReportingGranularity[]
+                      ).map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          className={
+                            granularityDraft === g
+                              ? "finance-main__gran-chip finance-main__gran-chip--on"
+                              : "finance-main__gran-chip"
+                          }
+                          onClick={() => setGranularityDraft(g)}
+                        >
+                          {GRANULARITY_LABEL[g]}
+                        </button>
+                      ))}
+                    </div>
+                    {granularityDraft === "MONTH" ? (
+                      <label className="finance__field finance-main__reporting-day-field">
+                        Отчётное число месяца (1–28)
+                        <input
+                          className="finance__input"
+                          type="number"
+                          min={1}
+                          max={28}
+                          value={reportingDayDraft}
+                          onChange={(e) => setReportingDayDraft(e.target.value)}
+                        />
+                      </label>
+                    ) : null}
+                    {granularityDraft === "CUSTOM" ? (
+                      <div className="finance-main__custom-range">
+                        <label className="finance__field">
+                          С даты
+                          <input
+                            className="finance__input"
+                            type="date"
+                            value={repCustomFrom}
+                            onChange={(e) => setRepCustomFrom(e.target.value)}
+                          />
+                        </label>
+                        <label className="finance__field">
+                          По дату
+                          <input
+                            className="finance__input"
+                            type="date"
+                            value={repCustomTo}
+                            onChange={(e) => setRepCustomTo(e.target.value)}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                    <button
+                      type="submit"
+                      className="finance__submit"
+                      disabled={settingsBusy}
+                    >
+                      {settingsBusy ? "…" : "Сохранить отчётность"}
+                    </button>
+                  </form>
+                  <h3 className="finance__h3 finance-main__settings-h3">
+                    Категории и счета
+                  </h3>
+                  <div className="finance-main__settings-actions">
+                    <button
+                      type="button"
+                      className="finance__btn-secondary"
+                      onClick={() => {
+                        setCatError(null);
+                        setCatModal(true);
+                      }}
+                    >
+                      Категории операций
+                    </button>
+                    <button
+                      type="button"
+                      className="finance__btn-secondary"
+                      onClick={() => {
+                        setAccError(null);
+                        setNewAccInterestStr("");
+                        setAccModal(true);
+                      }}
+                    >
+                      Новый счёт
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+          )
+        : null}
 
       {addOpOpen
         ? modalPortal(
@@ -1862,35 +1841,48 @@ function FinanceMainPanel({
                       </p>
                     ) : null}
                     <h3 className="finance__h3 finance-main__acc-detail-h3">
-                      Доходы по счёту (за период загрузки)
+                      Операции по счёту
                     </h3>
                     {accountDetailPending ? (
                       <p className="screen__text">Загрузка…</p>
+                    ) : accountDetailTx.length === 0 ? (
+                      <p className="screen__text">Операций нет.</p>
                     ) : (
-                      <ul className="finance-main__acc-detail-tx">
-                        {accountDetailTx
-                          .filter((tx) => tx.kind === "INCOME")
-                          .map((tx) => (
-                            <li key={tx.id}>
-                              <span className="finance-main__acc-detail-tx-d">
-                                {new Date(tx.occurredAt).toLocaleDateString(
-                                  "ru-RU",
-                                )}
-                              </span>
-                              <span className="finance-main__acc-detail-tx-c">
-                                {tx.category.name}
-                              </span>
-                              <span className="finance-main__acc-detail-tx-a">
-                                +{formatRubFromMinor(tx.amountMinor)}
-                              </span>
-                            </li>
-                          ))}
+                      <ul className="finance-main__acc-detail-tx finance-main__acc-detail-tx--full">
+                        {accountDetailTx.map((tx) => (
+                          <li key={tx.id}>
+                            <span className="finance-main__acc-detail-tx-d">
+                              {new Date(tx.occurredAt).toLocaleDateString(
+                                "ru-RU",
+                              )}
+                            </span>
+                            <span className="finance-main__acc-detail-tx-k">
+                              {tx.kind === "INCOME" ? "Доход" : "Расход"}
+                            </span>
+                            <span className="finance-main__acc-detail-tx-c">
+                              {tx.category.name}
+                            </span>
+                            <span
+                              className={
+                                tx.kind === "INCOME"
+                                  ? "finance-main__acc-detail-tx-a finance-main__acc-detail-tx-a--in"
+                                  : "finance-main__acc-detail-tx-a finance-main__acc-detail-tx-a--out"
+                              }
+                            >
+                              {tx.kind === "INCOME" ? "+" : "−"}
+                              {formatRubFromMinor(tx.amountMinor)}
+                            </span>
+                            <button
+                              type="button"
+                              className="finance-main__acc-detail-tx-del"
+                              onClick={() => void onDeleteAccountDetailTx(tx.id)}
+                            >
+                              ×
+                            </button>
+                          </li>
+                        ))}
                       </ul>
                     )}
-                    {!accountDetailPending &&
-                    accountDetailTx.every((tx) => tx.kind !== "INCOME") ? (
-                      <p className="screen__text">Доходов по этому счёту нет.</p>
-                    ) : null}
                     <div className="finance-main__acc-detail-actions">
                       <button
                         type="button"
@@ -1905,10 +1897,7 @@ function FinanceMainPanel({
                       <button
                         type="button"
                         className="finance-main__acc-del"
-                        onClick={() => {
-                          openDelModal(selectedAccount);
-                          closeAccountDetail();
-                        }}
+                        onClick={() => openDelModal(selectedAccount)}
                       >
                         Удалить
                       </button>
@@ -2329,8 +2318,11 @@ function FinanceInvestPanel({
             <span className="finance-inv__hero-val">
               {formatRubFromMinor(data.totalValueMinor)}
             </span>
-            <DepositSavingsCarousel
-              accounts={data.depositSavingsAccounts}
+            <FinanceAccountsRow
+              accounts={data.depositSavingsAccounts.map((d, i) => ({
+                ...d,
+                sortOrder: i,
+              })) as AccountRow[]}
               title="Вклады и накопительные"
             />
             <div

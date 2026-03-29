@@ -61,6 +61,7 @@ export default function HubScreen() {
   );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [financeLine, setFinanceLine] = useState<string | null>(null);
+  const [financeMiniLine, setFinanceMiniLine] = useState<string | null>(null);
   const [financePassiveLine, setFinancePassiveLine] = useState<string | null>(
     null,
   );
@@ -77,6 +78,10 @@ export default function HubScreen() {
     pPct: number;
     fPct: number;
     cPct: number;
+  } | null>(null);
+  const [bodyKcalHero, setBodyKcalHero] = useState<{
+    cur: number;
+    goal: number | null;
   } | null>(null);
 
   const displayName = (user?.email?.split("@")[0] ?? "").trim();
@@ -174,11 +179,12 @@ export default function HubScreen() {
       const sumAcc = acc.data.accounts.reduce((s, a) => s + a.balanceMinor, 0);
       const inv = acc.data.investmentsTotalMinor;
       const grand = sumAcc + inv;
-      setFinanceLine(
-        t("hub.financeTotal", { amount: formatRubFromMinor(grand) }),
-      );
+      const amountStr = formatRubFromMinor(grand);
+      setFinanceLine(t("hub.financeTotal", { amount: amountStr }));
+      setFinanceMiniLine(t("hub.financeMiniTotal", { amount: amountStr }));
     } else {
       setFinanceLine(null);
+      setFinanceMiniLine(null);
       setFinancePassiveLine(null);
       errs.push(financeErrorMessage(acc.data));
     }
@@ -200,6 +206,14 @@ export default function HubScreen() {
 
     if (nut.ok) {
       const k = nut.data.totals;
+      const goalKcal =
+        st.ok && st.data.bodyKcalGoal != null && st.data.bodyKcalGoal > 0
+          ? st.data.bodyKcalGoal
+          : null;
+      setBodyKcalHero({
+        cur: Math.round(k.kcal),
+        goal: goalKcal,
+      });
       setBodyMacroLine(
         t("hub.macroLine", {
           p: Math.round(k.proteinG),
@@ -208,6 +222,7 @@ export default function HubScreen() {
         }),
       );
     } else {
+      setBodyKcalHero(null);
       setBodyMacroLine(null);
     }
 
@@ -234,6 +249,11 @@ export default function HubScreen() {
       } else {
         setBodyKcalLine(t("hub.kcalToday", { n: Math.round(k.kcal) }));
       }
+    } else if (nut.ok) {
+      const k = nut.data.totals;
+      setBodyBars({ kcalPct: 0, pPct: 0, fPct: 0, cPct: 0 });
+      setBodyKcalLine(t("hub.kcalToday", { n: Math.round(k.kcal) }));
+      if (!st.ok) errs.push(bodyErrorMessage(st.data));
     } else {
       setBodyBars(null);
       setBodyKcalLine(null);
@@ -335,24 +355,15 @@ export default function HubScreen() {
     };
   }, []);
 
+  const barsForMini = bodyBars ?? {
+    kcalPct: 0,
+    pPct: 0,
+    fPct: 0,
+    cPct: 0,
+  };
+
   return (
     <div className="screen hero">
-      <header className="hero__head">
-        <div className="hero__head-text">
-          <p className="screen__badge hero__badge-tight">{t("hub.badge")}</p>
-          <h1 className="screen__title hero__title">{t("hub.title")}</h1>
-        </div>
-        <button
-          type="button"
-          className="hero__bell"
-          disabled
-          aria-label={t("hub.bellAria")}
-          title={t("hub.bellAria")}
-        >
-          <span aria-hidden>🔔</span>
-        </button>
-      </header>
-
       <section className="hero__panel" aria-labelledby="hero-game-heading">
         <h2 id="hero-game-heading" className="hero__sr-only">
           {t("hub.progressTitle")}
@@ -362,72 +373,84 @@ export default function HubScreen() {
             <span className="hero__avatar-icon">⚔</span>
           </div>
           <div className="hero__level-block">
-            <div className="hero__level-row">
-              <span className="hero__level-num">
-                {t("hub.levelShort")} {level}
-              </span>
-              {displayName ? (
-                <span className="hero__profile-name">{displayName}</span>
-              ) : null}
-            </div>
-            <div className="hero__level-subrow">
-              <span className="hero__level-title">{heroTitleForLevel}</span>
-            </div>
-            <div
-              className="hero__exp-bar"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={expToNext}
-              aria-valuenow={expInLevel}
-              aria-label={t("hub.expAria", { now: expInLevel, max: expToNext })}
-            >
-              <div className="hero__exp-fill" style={{ width: `${expPct}%` }} />
-            </div>
-            <p className="hero__exp-caption">
-              EXP {expInLevel} / {expToNext}
-              <span className="hero__exp-hint">{t("hub.expHint")}</span>
+            <p className="hero__level-word">
+              {t("hub.levelWord", { n: level })}
             </p>
+            <p className="hero__display-name">
+              {displayName || "—"}
+            </p>
+            <p className="hero__epithet">{heroTitleForLevel}</p>
+            <div className="hero__exp-row">
+              <div
+                className="hero__exp-bar"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={expToNext}
+                aria-valuenow={expInLevel}
+                aria-label={t("hub.expAria", {
+                  now: expInLevel,
+                  max: expToNext,
+                })}
+              >
+                <div
+                  className="hero__exp-fill"
+                  style={{ width: `${expPct}%` }}
+                />
+              </div>
+              <span className="hero__exp-inline">
+                {t("hub.expInline", { now: expInLevel, max: expToNext })}
+              </span>
+            </div>
+            <p className="hero__exp-sync">{t("hub.expFootnote")}</p>
           </div>
         </div>
       </section>
 
       <section className="hero__streaks" aria-label={t("hub.streaksAria")}>
-        <div className="hero__streak-chips">
-          {streakWorkout > 0 ? (
-            <span className="hero__chip" title={t("hub.workoutTitle")}>
-              {t("hub.workoutChip", { n: streakWorkout })}
-            </span>
-          ) : null}
-          {streakMeas > 0 ? (
-            <span className="hero__chip" title={t("hub.measTitle")}>
-              {t("hub.measChip", { n: streakMeas })}
-            </span>
-          ) : null}
-          {streakWorkout === 0 && streakMeas === 0 ? (
-            <p className="hero__streak-empty">{t("hub.streakEmpty")}</p>
-          ) : null}
+        <div className="hero__streak-chips hero__streak-chips--mockup">
+          <span
+            className="hero__chip hero__chip--fire"
+            title={t("hub.workoutTitle")}
+          >
+            {t("hub.workoutChip", { n: streakWorkout })}
+          </span>
+          <span
+            className="hero__chip hero__chip--meas"
+            title={t("hub.measTitle")}
+          >
+            {t("hub.measChip", { n: streakMeas })}
+          </span>
         </div>
       </section>
 
       <section className="hero__today" aria-labelledby="hero-today-h">
-        <h2 id="hero-today-h" className="hero__today-heading">
-          {t("hub.today")}
-        </h2>
-        <p className="hero__today-text">{t("hub.todayText")}</p>
-        <div className="hero__today-actions">
+        <div className="hero__today-head">
+          <h2 id="hero-today-h" className="hero__today-heading">
+            {t("hub.today")}
+          </h2>
           <button
             type="button"
-            className="hero__today-btn"
+            className="hero__today-link"
+            onClick={() => goToTab(SHELL_TAB.TODO)}
+          >
+            {t("hub.todayLinkTodo")}
+          </button>
+        </div>
+        <p className="hero__today-text">{t("hub.todayText")}</p>
+        <div className="hero__today-actions hero__today-actions--mockup">
+          <button
+            type="button"
+            className="hero__today-btn hero__today-btn--big"
             onClick={() => goToTab(SHELL_TAB.BODY)}
           >
-            {t("hub.bodyBtn")}
+            {t("hub.bodyBtnCaps")}
           </button>
           <button
             type="button"
-            className="hero__today-btn hero__today-btn--secondary"
+            className="hero__today-btn hero__today-btn--big hero__today-btn--secondary"
             onClick={() => goToTab(SHELL_TAB.TODO)}
           >
-            {t("hub.todoBtn")}
+            {t("hub.todoBtnCaps")}
           </button>
         </div>
       </section>
@@ -438,34 +461,51 @@ export default function HubScreen() {
           className="hero__mini hero__mini--click hero__mini--body"
           onClick={() => goToTab(SHELL_TAB.BODY)}
         >
-          <span className="hero__mini-label">{t("hub.miniBody")}</span>
-          {bodyBars ? (
-            <div className="hero__kcal-track" aria-hidden>
-              <div
-                className="hero__kcal-fill"
-                style={{ width: `${bodyBars.kcalPct}%` }}
-              />
-            </div>
-          ) : null}
-          <span className="hero__mini-value">
-            {bodyKcalLine ?? t("hub.kcalNoData")}
+          <div className="hero__mini-top">
+            <span className="hero__mini-ic" aria-hidden>
+              🏋️
+            </span>
+            <span className="hero__mini-lbl">{t("hub.miniBody")}</span>
+            <span className="hero__mini-ic hero__mini-ic--end" aria-hidden>
+              🔥
+            </span>
+          </div>
+          <div className="hero__kcal-track hero__kcal-track--blue" aria-hidden>
+            <div
+              className="hero__kcal-fill hero__kcal-fill--blue"
+              style={{ width: `${barsForMini.kcalPct}%` }}
+            />
+          </div>
+          <span className="hero__mini-kcal">
+            {bodyKcalHero
+              ? bodyKcalHero.goal != null && bodyKcalHero.goal > 0
+                ? t("hub.kcalBig", {
+                    cur: bodyKcalHero.cur,
+                    goal: bodyKcalHero.goal,
+                  })
+                : t("hub.kcalBigNoGoal", { cur: bodyKcalHero.cur })
+              : (bodyKcalLine ?? t("hub.kcalNoData"))}
           </span>
-          {bodyBars ? (
-            <div className="hero__macro-bars" aria-hidden>
+          <div className="hero__macro-bars" aria-hidden>
+            <span className="hero__macro-track">
               <span
                 className="hero__macro-bar hero__macro-bar--p"
-                style={{ width: `${bodyBars.pPct}%` }}
+                style={{ width: `${barsForMini.pPct}%` }}
               />
+            </span>
+            <span className="hero__macro-track">
               <span
                 className="hero__macro-bar hero__macro-bar--f"
-                style={{ width: `${bodyBars.fPct}%` }}
+                style={{ width: `${barsForMini.fPct}%` }}
               />
+            </span>
+            <span className="hero__macro-track">
               <span
                 className="hero__macro-bar hero__macro-bar--c"
-                style={{ width: `${bodyBars.cPct}%` }}
+                style={{ width: `${barsForMini.cPct}%` }}
               />
-            </div>
-          ) : null}
+            </span>
+          </div>
           {bodyMacroLine ? (
             <span className="hero__mini-sub">{bodyMacroLine}</span>
           ) : null}
@@ -475,12 +515,22 @@ export default function HubScreen() {
           className="hero__mini hero__mini--click hero__mini--finance"
           onClick={() => goToTab(SHELL_TAB.FINANCE)}
         >
-          <span className="hero__mini-label">{t("hub.miniFinance")}</span>
-          <span className="hero__mini-value">
-            {financeLine ?? t("hub.financeLoadFail")}
+          <div className="hero__mini-top">
+            <span className="hero__mini-ic" aria-hidden>
+              💰
+            </span>
+            <span className="hero__mini-lbl">{t("hub.miniFinance")}</span>
+            <span className="hero__mini-ic hero__mini-ic--end" aria-hidden>
+              📊
+            </span>
+          </div>
+          <span className="hero__mini-value hero__mini-value--finance">
+            {financeMiniLine ?? financeLine ?? t("hub.financeLoadFail")}
           </span>
           {financePassiveLine ? (
-            <span className="hero__mini-sub">{financePassiveLine}</span>
+            <span className="hero__mini-sub hero__mini-sub--passive">
+              {financePassiveLine}
+            </span>
           ) : null}
         </button>
       </section>
@@ -489,9 +539,11 @@ export default function HubScreen() {
         <h2 id="hero-quest-heading" className="hero__card-title">
           {t("hub.quest")}
         </h2>
-        <p className="hero__card-text hero__card-text--muted">
-          {t("hub.questText")}
-        </p>
+        {activeQuests.length === 0 ? (
+          <p className="hero__card-text hero__card-text--muted hero__quest-lead">
+            {t("hub.questText")}
+          </p>
+        ) : null}
 
         <h3 className="hero__quest-sub">{t("hub.questActive")}</h3>
         {activeQuests.length === 0 ? (
@@ -501,39 +553,39 @@ export default function HubScreen() {
         ) : (
           <ul className="hero__quest-list">
             {activeQuests.map((q) => (
-              <li key={q.id} className="hero__quest-item">
-                <div className="hero__quest-item-head">
-                  <span className="hero__quest-branch">
-                    {branchLabel(q.branch)}
-                  </span>
-                  <span className="hero__quest-name">
+              <li key={q.id} className="hero__quest-item hero__quest-item--mockup">
+                <div className="hero__quest-mockup-head">
+                  <span className="hero__quest-name hero__quest-name--mockup">
                     {t("hub.questNameLine", { title: q.questTitle })}
                   </span>
-                </div>
-                <div className="hero__quest-item-row">
-                  <span className="hero__quest-progress">
-                    {t("hub.questStepsProgress", {
+                  <span className="hero__quest-progress hero__quest-progress--corner">
+                    {t("hub.questProgressLabel", {
                       done: q.stepsDone,
                       total: q.stepsTotal,
                     })}
                   </span>
-                  <div className="hero__quest-item-actions">
-                    <button
-                      type="button"
-                      className="hero__btn hero__btn--small"
-                      onClick={() => goToTab(SHELL_TAB.TODO)}
-                    >
-                      {t("hub.questToTodo")}
-                    </button>
-                    <button
-                      type="button"
-                      className="hero__btn hero__btn--ghost"
-                      disabled={questAbandonBusy === q.id}
-                      onClick={() => void handleAbandonQuest(q.id)}
-                    >
-                      {t("hub.questAbandon")}
-                    </button>
-                  </div>
+                </div>
+                {branchLabel(q.branch) ? (
+                  <span className="hero__quest-branch hero__quest-branch--below">
+                    {branchLabel(q.branch)}
+                  </span>
+                ) : null}
+                <div className="hero__quest-item-actions hero__quest-item-actions--mockup">
+                  <button
+                    type="button"
+                    className="hero__btn hero__btn--small hero__btn--primary-mockup"
+                    onClick={() => goToTab(SHELL_TAB.TODO)}
+                  >
+                    {t("hub.questToTodo")}
+                  </button>
+                  <button
+                    type="button"
+                    className="hero__btn hero__btn--ghost"
+                    disabled={questAbandonBusy === q.id}
+                    onClick={() => void handleAbandonQuest(q.id)}
+                  >
+                    {t("hub.questAbandon")}
+                  </button>
                 </div>
               </li>
             ))}

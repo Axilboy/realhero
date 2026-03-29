@@ -15,6 +15,7 @@ import BodyScreen from "../screens/BodyScreen";
 import TodoScreen from "../screens/TodoScreen";
 import ActionsScreen from "../screens/ActionsScreen";
 import { ShellNavIcon, type ShellNavId } from "./AppNavIcons";
+import { SHELL_TAB } from "../lib/shellTabs";
 
 export default function AppShell() {
   const { user, logout } = useAuth();
@@ -85,41 +86,109 @@ export default function AppShell() {
   return (
     <ShellTabContext.Provider value={{ activeIndex: active, goToTab: scrollToIndex }}>
       <div className="shell">
-      <header className="shell__bar">
-        <span className="shell__bar-email" title={user?.email}>
-          {user?.email}
-        </span>
-        <div className="shell__bar-actions">
-          <div
-            className="shell__lang"
-            role="group"
-            aria-label={t("shell.langPick")}
-          >
-            <button
-              type="button"
-              className={`shell__lang-btn${locale === "ru" ? " shell__lang-btn--on" : ""}`}
-              onClick={() => setLocale("ru")}
-              aria-pressed={locale === "ru"}
-            >
-              {t("shell.langRu")}
-            </button>
-            <button
-              type="button"
-              className={`shell__lang-btn${locale === "en" ? " shell__lang-btn--on" : ""}`}
-              onClick={() => setLocale("en")}
-              aria-pressed={locale === "en"}
-            >
-              {t("shell.langEn")}
-            </button>
+      <header
+        className={
+          active === 0 ? "shell__bar shell__bar--hub-mockup" : "shell__bar"
+        }
+      >
+        {active === 0 ? (
+          <div className="shell__bar-hub-wrap">
+            <div className="shell__bar-hub-row">
+              <h1 className="shell__bar-hub-title">{t("shell.tabHub")}</h1>
+              <div className="shell__bar-hub-icons">
+                <button
+                  type="button"
+                  className="shell__bar-icon-btn"
+                  onClick={() => scrollToIndex(SHELL_TAB.ACTIONS)}
+                  aria-label={t("shell.tabSettings")}
+                  title={t("shell.tabSettings")}
+                >
+                  <ShellNavIcon id="settings" />
+                </button>
+                <button
+                  type="button"
+                  className="shell__bar-icon-btn shell__bar-icon-btn--muted"
+                  disabled
+                  aria-label={t("hub.bellAria")}
+                  title={t("hub.bellAria")}
+                >
+                  <span aria-hidden>🔔</span>
+                </button>
+              </div>
+            </div>
+            <div className="shell__bar-hub-meta">
+              <span className="shell__bar-hub-email" title={user?.email}>
+                {user?.email}
+              </span>
+              <div
+                className="shell__lang shell__lang--compact"
+                role="group"
+                aria-label={t("shell.langPick")}
+              >
+                <button
+                  type="button"
+                  className={`shell__lang-btn${locale === "ru" ? " shell__lang-btn--on" : ""}`}
+                  onClick={() => setLocale("ru")}
+                  aria-pressed={locale === "ru"}
+                >
+                  {t("shell.langRu")}
+                </button>
+                <button
+                  type="button"
+                  className={`shell__lang-btn${locale === "en" ? " shell__lang-btn--on" : ""}`}
+                  onClick={() => setLocale("en")}
+                  aria-pressed={locale === "en"}
+                >
+                  {t("shell.langEn")}
+                </button>
+              </div>
+              <button
+                type="button"
+                className="shell__bar-logout shell__bar-logout--compact"
+                onClick={() => void logout()}
+              >
+                {t("shell.logout")}
+              </button>
+            </div>
           </div>
-        <button
-          type="button"
-          className="shell__bar-logout"
-          onClick={() => void logout()}
-        >
-          {t("shell.logout")}
-        </button>
-        </div>
+        ) : (
+          <>
+            <span className="shell__bar-email" title={user?.email}>
+              {user?.email}
+            </span>
+            <div className="shell__bar-actions">
+              <div
+                className="shell__lang"
+                role="group"
+                aria-label={t("shell.langPick")}
+              >
+                <button
+                  type="button"
+                  className={`shell__lang-btn${locale === "ru" ? " shell__lang-btn--on" : ""}`}
+                  onClick={() => setLocale("ru")}
+                  aria-pressed={locale === "ru"}
+                >
+                  {t("shell.langRu")}
+                </button>
+                <button
+                  type="button"
+                  className={`shell__lang-btn${locale === "en" ? " shell__lang-btn--on" : ""}`}
+                  onClick={() => setLocale("en")}
+                  aria-pressed={locale === "en"}
+                >
+                  {t("shell.langEn")}
+                </button>
+              </div>
+              <button
+                type="button"
+                className="shell__bar-logout"
+                onClick={() => void logout()}
+              >
+                {t("shell.logout")}
+              </button>
+            </div>
+          </>
+        )}
       </header>
       <div className="shell__carousel" ref={trackRef}>
         {tabs.map(({ id, Screen }) => (

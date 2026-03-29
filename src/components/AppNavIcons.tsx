@@ -41,8 +41,9 @@ export function ShellNavIcon({ id }: { id: ShellNavId }) {
     case "todo":
       return (
         <svg {...s}>
-          <path d="M9 11l3 3L22 4" />
-          <path d="M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          <path d="M12 2.5c-2.5 4-4 8.5-4 12a4 4 0 108 0c0-3.5-1.5-8-4-12z" />
+          <circle cx="12" cy="13" r="1.25" fill="currentColor" stroke="none" />
+          <path d="M10 18.5h4M9 22h6" />
         </svg>
       );
     case "actions":

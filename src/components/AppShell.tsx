@@ -194,13 +194,15 @@ export default function AppShell() {
           <section
             key={id}
             className={
-              id === "finance"
-                ? "shell__slide shell__slide--finance"
-                : id === "body"
-                  ? "shell__slide shell__slide--body"
-                  : id === "todo"
-                    ? "shell__slide shell__slide--todo"
-                    : "shell__slide"
+              id === "hub"
+                ? "shell__slide shell__slide--hub"
+                : id === "finance"
+                  ? "shell__slide shell__slide--finance"
+                  : id === "body"
+                    ? "shell__slide shell__slide--body"
+                    : id === "todo"
+                      ? "shell__slide shell__slide--todo"
+                      : "shell__slide"
             }
             aria-label={id}
             id={`panel-${id}`}

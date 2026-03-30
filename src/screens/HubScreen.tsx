@@ -334,7 +334,7 @@ export default function HubScreen() {
   };
 
   return (
-    <div className="screen hero">
+    <div className="screen hero hero-screen">
       <section className="hero__panel" aria-labelledby="hero-game-heading">
         <h2 id="hero-game-heading" className="hero__sr-only">
           {t("hub.progressTitle")}

@@ -29,6 +29,8 @@ export const hubRu = {
     minigridAria: "Краткая сводка",
     miniBody: "ТЕЛО",
     miniFinance: "ФИНАНСЫ",
+    /** Строка над суммой на мини-карточке (как v2-rh-01) */
+    financeMiniLabel: "Всего",
     financeMiniTotal: "Всего {{amount}}",
     kcalNoData: "Нет данных за сегодня",
     financeLoadFail: "Не удалось загрузить",
@@ -103,6 +105,7 @@ export const hubEn = {
     minigridAria: "Quick summary",
     miniBody: "BODY",
     miniFinance: "FINANCE",
+    financeMiniLabel: "Total",
     financeMiniTotal: "Total {{amount}}",
     kcalNoData: "No data for today",
     financeLoadFail: "Could not load",

@@ -22,6 +22,15 @@
   --rh-accent-secondary: #7b64c9;
   --rh-warning: #f5a623;
   --rh-exp-gradient-start: #5c6bc0;
+  /* Мини-карточки на «Герой» — эталон docs/screenshots/v2/v2-rh-01-hero.png */
+  --rh-hero-body-a: #3a3228;
+  --rh-hero-body-b: #161310;
+  --rh-hero-body-edge: rgba(255, 190, 130, 0.22);
+  --rh-hero-finance-a: #1a2e22;
+  --rh-hero-finance-b: #0f1712;
+  --rh-hero-finance-edge: rgba(100, 200, 140, 0.35);
+  --rh-macro-carb: #64b5f6;
+  --rh-hero-cta-shadow: rgba(80, 130, 255, 0.45);
   --rh-radius-card: 12px;
   --rh-radius-btn: 10px;
   /* Навигация v2: активный пункт — акцент, как на мокапах */
@@ -272,12 +281,12 @@ body {
   padding-bottom: 0.35rem;
 }
 
-/* Вкладка «Герой»: лёгкое «небо» сверху — как на мокапе v2-01, не сплошной #0f1115 */
+/* Вкладка «Герой»: глубина как на v2-rh-01 — мягкое свечение + «пол» темнее */
 .shell__slide--hub {
   background:
-    radial-gradient(ellipse 130% 70% at 50% -18%, rgba(62, 92, 160, 0.28) 0%, transparent 52%),
-    radial-gradient(ellipse 90% 45% at 80% 8%, rgba(138, 180, 255, 0.08) 0%, transparent 45%),
-    var(--rh-bg);
+    radial-gradient(ellipse 125% 65% at 50% -22%, rgba(70, 110, 200, 0.38) 0%, transparent 55%),
+    radial-gradient(ellipse 80% 40% at 15% 15%, rgba(138, 180, 255, 0.1) 0%, transparent 50%),
+    linear-gradient(180deg, #12151c 0%, var(--rh-bg) 38%, #0a0b0e 100%);
 }
 
 /* —— Экраны-заглушки —— */
@@ -4283,21 +4292,16 @@ button.finance-dep-carousel__card:focus-visible {
 
 .hero__panel {
   margin-bottom: var(--hero-section-gap, 1.125rem);
-  padding: 1.15rem 1.15rem 1.1rem;
-  border-radius: 16px;
+  padding: 1.2rem 1.15rem 1.15rem;
+  border-radius: 18px;
   background:
-    radial-gradient(ellipse 95% 120% at 18% 0%, rgba(138, 180, 255, 0.14) 0%, transparent 52%),
-    linear-gradient(
-      165deg,
-      #1a2234 0%,
-      var(--rh-surface) 42%,
-      var(--rh-nav-bg) 100%
-    );
-  border: 1px solid rgba(138, 180, 255, 0.22);
+    radial-gradient(ellipse 100% 90% at 20% 0%, rgba(138, 180, 255, 0.18) 0%, transparent 55%),
+    linear-gradient(168deg, #222a3a 0%, #171b24 48%, #101318 100%);
+  border: 1px solid rgba(100, 140, 220, 0.2);
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.35) inset,
-    0 8px 28px rgba(0, 0, 0, 0.38),
-    0 2px 0 rgba(138, 180, 255, 0.06);
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 1px 0 rgba(138, 180, 255, 0.12);
 }
 
 .hero__avatar-wrap {
@@ -4476,12 +4480,13 @@ button.finance-dep-carousel__card:focus-visible {
 }
 
 .hero__card--quest {
-  border-style: dashed;
-  border-width: 2px;
-  border-color: rgba(138, 180, 255, 0.42);
-  background:
-    linear-gradient(180deg, rgba(138, 180, 255, 0.07) 0%, rgba(20, 23, 28, 0.65) 100%);
-  padding: 1rem 1.05rem;
+  border: 1px solid rgba(138, 180, 255, 0.22);
+  border-radius: 18px;
+  background: linear-gradient(165deg, #1e2433 0%, #14171c 55%, #101218 100%);
+  padding: 1.1rem 1.1rem;
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
 }
 
 .hero__card-title {
@@ -4528,13 +4533,21 @@ button.finance-dep-carousel__card:focus-visible {
 }
 
 .hero__btn--primary {
-  border-color: var(--rh-nav-active-ring);
-  background: var(--rh-nav-active-bg);
-  color: var(--rh-accent);
+  border: none;
+  background: linear-gradient(180deg, #b8d0ff 0%, var(--rh-accent) 42%, #5c7fd6 100%);
+  color: #0c0e14;
+  font-weight: 700;
+  box-shadow: 0 3px 14px var(--rh-hero-cta-shadow);
 }
 
 .hero__btn--primary:hover {
-  background: rgba(138, 180, 255, 0.18);
+  filter: brightness(1.08);
+}
+
+.hero__btn--primary:disabled,
+.hero__btn--primary-mockup:disabled {
+  opacity: 0.55;
+  filter: grayscale(0.2);
 }
 
 .hero__btn:focus-visible,
@@ -4692,14 +4705,16 @@ button.finance-dep-carousel__card:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.4rem;
-  padding: 0.9rem 0.85rem;
-  border-radius: 14px;
+  gap: 0.45rem;
+  padding: 1rem 0.9rem;
+  border-radius: 18px;
   background: linear-gradient(145deg, var(--rh-surface-elevated) 0%, var(--rh-surface) 100%);
-  border: 1px solid var(--rh-border);
+  border: none;
   text-align: left;
-  min-height: 5rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  min-height: 5.25rem;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
 .hero__mini--click {
@@ -4709,8 +4724,10 @@ button.finance-dep-carousel__card:focus-visible {
 }
 
 .hero__mini--click:hover {
-  border-color: var(--rh-border-muted);
-  background: var(--rh-nav-bg);
+  filter: brightness(1.06);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.07) inset;
 }
 
 .hero__mini-label {
@@ -4733,12 +4750,13 @@ button.finance-dep-carousel__card:focus-visible {
   margin-top: 0.15rem;
   font-size: 0.72rem;
   line-height: 1.35;
-  color: var(--rh-text-muted);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .hero__mini-sub--passive {
-  color: var(--rh-income);
-  font-weight: 600;
+  color: #a5d6a7;
+  font-weight: 700;
+  text-shadow: 0 0 12px rgba(129, 201, 149, 0.35);
 }
 
 .hero__mini-top {
@@ -4752,10 +4770,11 @@ button.finance-dep-carousel__card:focus-visible {
 .hero__mini-lbl {
   flex: 1;
   text-align: center;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--rh-text);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
 .hero__mini-ic {
@@ -4764,57 +4783,93 @@ button.finance-dep-carousel__card:focus-visible {
 }
 
 .hero__mini-kcal {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--rh-text);
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #f8f9fb;
   letter-spacing: -0.02em;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .hero__mini-value--finance {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--rh-text);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #f8f9fb;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.hero__mini-finance-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+}
+
+.hero__mini-finance-hint {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.02em;
+}
+
+.hero__mini-value--finance-neg {
+  color: #ffcdd2;
+  text-shadow: 0 0 12px rgba(242, 139, 130, 0.35);
 }
 
 .hero__mini--body {
   background: linear-gradient(
     155deg,
-    rgba(160, 110, 72, 0.42) 0%,
-    #1c1612 50%,
-    #12151a 100%
+    var(--rh-hero-body-a) 0%,
+    #241e18 42%,
+    var(--rh-hero-body-b) 100%
   );
-  border-color: rgba(210, 150, 105, 0.5);
+  box-shadow:
+    0 8px 26px rgba(0, 0, 0, 0.4),
+    0 0 0 1px var(--rh-hero-body-edge) inset,
+    0 0 28px rgba(255, 160, 90, 0.08);
 }
 
 .hero__mini--body.hero__mini--click:hover {
-  border-color: rgba(220, 160, 110, 0.55);
   background: linear-gradient(
     155deg,
-    rgba(130, 90, 65, 0.4) 0%,
-    #1c1816 50%,
-    #14171c 100%
+    #443a30 0%,
+    #2a221c 45%,
+    var(--rh-hero-body-b) 100%
   );
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 190, 130, 0.28) inset,
+    0 0 32px rgba(255, 160, 90, 0.12);
 }
 
 .hero__mini--finance {
   background: linear-gradient(
     155deg,
-    rgba(129, 201, 149, 0.18) 0%,
-    #14171c 55%
+    var(--rh-hero-finance-a) 0%,
+    #152018 50%,
+    var(--rh-hero-finance-b) 100%
   );
-  border-color: rgba(129, 201, 149, 0.4);
+  box-shadow:
+    0 8px 26px rgba(0, 0, 0, 0.4),
+    0 0 0 1px var(--rh-hero-finance-edge) inset,
+    0 0 32px rgba(80, 180, 120, 0.12);
 }
 
 .hero__mini--finance.hero__mini--click:hover {
-  border-color: rgba(129, 201, 149, 0.42);
   background: linear-gradient(
     155deg,
-    rgba(129, 201, 149, 0.14) 0%,
-    #181c24 55%
+    #254030 0%,
+    #1a2820 50%,
+    #0f1712 100%
   );
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(120, 210, 160, 0.4) inset,
+    0 0 36px rgba(80, 180, 120, 0.16);
 }
 
 .hero__kcal-track {
@@ -4826,13 +4881,15 @@ button.finance-dep-carousel__card:focus-visible {
   margin-top: 0.15rem;
 }
 
-/* Мокап v2: на карточке «Тело» полоса ккал — тонкая синяя (классы заданы в HubScreen) */
+/* Мокап v2-rh-01: на «Тело» — заметная синяя полоса ккал */
 .hero__kcal-track--blue {
-  height: 4px;
-  margin-top: 0.2rem;
-  background: rgba(138, 180, 255, 0.1);
+  height: 8px;
+  margin-top: 0.25rem;
+  background: rgba(0, 0, 0, 0.45);
   border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(138, 180, 255, 0.22);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(138, 180, 255, 0.15);
 }
 
 .hero__kcal-fill {
@@ -4845,8 +4902,8 @@ button.finance-dep-carousel__card:focus-visible {
 
 .hero__kcal-fill--blue {
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--rh-exp-gradient-start), var(--rh-accent));
-  box-shadow: 0 0 8px rgba(138, 180, 255, 0.35);
+  background: linear-gradient(90deg, #6b8cff 0%, var(--rh-accent) 55%, #b8d0ff 100%);
+  box-shadow: 0 0 14px rgba(138, 180, 255, 0.55);
 }
 
 .hero__macro-bars {
@@ -4873,16 +4930,17 @@ button.finance-dep-carousel__card:focus-visible {
   min-width: 0;
 }
 
+/* БЖУ: зелёный / красный / голубой — как на v2-rh-01 */
 .hero__macro-bar--p {
-  background: linear-gradient(90deg, var(--rh-income), var(--rh-body-accent));
+  background: linear-gradient(90deg, #4caf50, var(--rh-income));
 }
 
 .hero__macro-bar--f {
-  background: linear-gradient(90deg, var(--rh-warning), #e0c89a);
+  background: linear-gradient(90deg, #ff8a80, var(--rh-expense));
 }
 
 .hero__macro-bar--c {
-  background: linear-gradient(90deg, var(--rh-exp-gradient-start), var(--rh-accent));
+  background: linear-gradient(90deg, #42a5f5, var(--rh-macro-carb));
 }
 
 .hero__quest-placeholder {
@@ -4934,10 +4992,11 @@ button.finance-dep-carousel__card:focus-visible {
 }
 
 .hero__quest-item {
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--rh-radius-card);
-  background: var(--rh-nav-bg);
-  border: 1px solid var(--rh-border-muted);
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #1a1f28 0%, #12151a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .hero__quest-item-head {
@@ -5011,13 +5070,15 @@ button.finance-dep-carousel__card:focus-visible {
 }
 
 .hero__btn--primary-mockup {
-  border-color: var(--rh-nav-active-ring);
-  background: var(--rh-nav-active-bg);
-  color: var(--rh-accent);
+  border: none;
+  background: linear-gradient(180deg, #b8d0ff 0%, var(--rh-accent) 42%, #5c7fd6 100%);
+  color: #0c0e14;
+  font-weight: 700;
+  box-shadow: 0 3px 14px var(--rh-hero-cta-shadow);
 }
 
 .hero__btn--primary-mockup:hover {
-  background: rgba(138, 180, 255, 0.18);
+  filter: brightness(1.08);
 }
 
 .hero__quest-lead {
@@ -5052,10 +5113,11 @@ button.finance-dep-carousel__card:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--rh-radius-card);
-  background: var(--rh-nav-bg);
-  border: 1px solid var(--rh-border-muted);
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #1a1f28 0%, #12151a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 @media (min-width: 520px) {

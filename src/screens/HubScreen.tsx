@@ -55,6 +55,8 @@ export default function HubScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [financeLine, setFinanceLine] = useState<string | null>(null);
   const [financeMiniLine, setFinanceMiniLine] = useState<string | null>(null);
+  /** Сумма для мини-карточки (отдельно от подписи «Всего» — как мокап v2-rh-01) */
+  const [financeAmountStr, setFinanceAmountStr] = useState<string | null>(null);
   const [financePassiveLine, setFinancePassiveLine] = useState<string | null>(
     null,
   );
@@ -171,9 +173,11 @@ export default function HubScreen() {
       const amountStr = formatRubFromMinor(grand);
       setFinanceLine(t("hub.financeTotal", { amount: amountStr }));
       setFinanceMiniLine(t("hub.financeMiniTotal", { amount: amountStr }));
+      setFinanceAmountStr(amountStr);
     } else {
       setFinanceLine(null);
       setFinanceMiniLine(null);
+      setFinanceAmountStr(null);
       setFinancePassiveLine(null);
       errs.push(financeErrorMessage(acc.data));
     }
@@ -446,9 +450,26 @@ export default function HubScreen() {
               📊
             </span>
           </div>
-          <span className="hero__mini-value hero__mini-value--finance">
-            {financeMiniLine ?? financeLine ?? t("hub.financeLoadFail")}
-          </span>
+          {financeAmountStr != null ? (
+            <div className="hero__mini-finance-stack">
+              <span className="hero__mini-finance-hint">
+                {t("hub.financeMiniLabel")}
+              </span>
+              <span
+                className={`hero__mini-value hero__mini-value--finance${
+                  financeAmountStr.trim().startsWith("-")
+                    ? " hero__mini-value--finance-neg"
+                    : ""
+                }`}
+              >
+                {financeAmountStr}
+              </span>
+            </div>
+          ) : (
+            <span className="hero__mini-value hero__mini-value--finance">
+              {financeMiniLine ?? financeLine ?? t("hub.financeLoadFail")}
+            </span>
+          )}
           {financePassiveLine ? (
             <span className="hero__mini-sub hero__mini-sub--passive">
               {financePassiveLine}

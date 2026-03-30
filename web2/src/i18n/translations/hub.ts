@@ -13,6 +13,7 @@ export const hubRu = {
       "Синхронизировано с аккаунтом; начисления из действий — позже",
     today: "Сегодня",
     todayLinkTodo: "К задачам",
+    todayTodoSegment: "ЗАДАЧИ",
     todayText:
       "Шаг квеста дублируется в «Задачи». Фокус дня: замеры, питание и финансы.",
     bodyBtn: "Тело",
@@ -92,6 +93,7 @@ export const hubEn = {
     expFootnote: "Synced with your account; XP from actions — later",
     today: "Today",
     todayLinkTodo: "Open tasks",
+    todayTodoSegment: "TASKS",
     todayText:
       "Quest steps mirror in Tasks. Today’s focus: measurements, nutrition, and finance.",
     bodyBtn: "Body",

@@ -30,7 +30,7 @@ import {
   type QuestInstanceRow,
 } from "../lib/questApi";
 import { ymdToday } from "../lib/heroStreaks";
-import { useShellGoToTab } from "../context/ShellTabContext";
+import { useShellGoToTab, useShellTabIndex } from "../context/ShellTabContext";
 import { SHELL_TAB } from "../lib/shellTabs";
 import { useI18n } from "../i18n/I18nContext";
 import { useAuth } from "../auth/AuthContext";
@@ -49,6 +49,7 @@ export default function HubScreen() {
   const { t } = useI18n();
   const { user } = useAuth();
   const goToTab = useShellGoToTab();
+  const shellTab = useShellTabIndex();
   const [heroTotalExp, setHeroTotalExp] = useState<number>(
     () => loadHeroLocalState().totalExp,
   );
@@ -337,6 +338,8 @@ export default function HubScreen() {
     cPct: 0,
   };
 
+  const todayTasksActive = shellTab === SHELL_TAB.TODO;
+
   return (
     <div className="screen hero hero-screen hero-screen--mockup-v2">
       <section className="hero__panel" aria-labelledby="hero-game-heading">
@@ -481,6 +484,41 @@ export default function HubScreen() {
             </span>
           ) : null}
         </button>
+        </div>
+      </section>
+
+      <section className="hero__today" aria-labelledby="hero-today-heading">
+        <div className="hero__today-head">
+          <h2 id="hero-today-heading" className="hero__today-heading">
+            {t("hub.today")}
+          </h2>
+          <button
+            type="button"
+            className="hero__today-link"
+            onClick={() => goToTab(SHELL_TAB.TODO)}
+          >
+            {t("hub.todayLinkTodo")}
+          </button>
+        </div>
+        <div className="hero__today-actions hero__today-actions--mockup">
+          <button
+            type="button"
+            className={`hero__today-btn hero__today-btn--big${
+              todayTasksActive ? " hero__today-btn--secondary" : ""
+            }`}
+            onClick={() => goToTab(SHELL_TAB.BODY)}
+          >
+            {t("hub.miniBody")}
+          </button>
+          <button
+            type="button"
+            className={`hero__today-btn hero__today-btn--big${
+              todayTasksActive ? "" : " hero__today-btn--secondary"
+            }`}
+            onClick={() => goToTab(SHELL_TAB.TODO)}
+          >
+            {t("hub.todayTodoSegment")}
+          </button>
         </div>
       </section>
 

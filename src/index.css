@@ -6034,3 +6034,15 @@ button.finance-dep-carousel__card:focus-visible {
   font-variant-numeric: tabular-nums;
   color: var(--rh-text-secondary);
 }
+
+/* Блок «Сегодня» как в Tailwind-мокапе: без отдельной карточки, на фоне экрана */
+.hero-screen--mockup-v2 .hero__today {
+  margin-bottom: 1.25rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.hero-screen--mockup-v2 .hero__today-head {
+  margin-bottom: 0.65rem;
+}

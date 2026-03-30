@@ -27,6 +27,7 @@ export const hubRu = {
     streakEmpty:
       "Серии ещё не начались — отметьте тренировку или замер в «Тело».",
     minigridAria: "Краткая сводка",
+    sectionWidgets: "Сводка",
     miniBody: "ТЕЛО",
     miniFinance: "ФИНАНСЫ",
     /** Строка над суммой на мини-карточке (как v2-rh-01) */
@@ -50,6 +51,7 @@ export const hubRu = {
     questAvailable: "Начать квест",
     questStepsProgress: "{{done}} / {{total}} шагов",
     questProgressLabel: "Прогресс: {{done}} / {{total}}",
+    questProgressShort: "{{done}}/{{total}}",
     questStart: "Взять",
     questAbandon: "Отказаться",
     questToTodo: "К задачам",
@@ -103,6 +105,7 @@ export const hubEn = {
     streakEmpty:
       "No streaks yet — log a workout or a measurement in Body.",
     minigridAria: "Quick summary",
+    sectionWidgets: "At a glance",
     miniBody: "BODY",
     miniFinance: "FINANCE",
     financeMiniLabel: "Total",
@@ -125,6 +128,7 @@ export const hubEn = {
     questAvailable: "Start a quest",
     questStepsProgress: "{{done}} / {{total}} steps",
     questProgressLabel: "Progress: {{done}} / {{total}}",
+    questProgressShort: "{{done}}/{{total}}",
     questStart: "Start",
     questAbandon: "Abandon",
     questToTodo: "Open tasks",

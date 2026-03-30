@@ -17,8 +17,10 @@ type Props = {
   monthlyPassiveMinor: number;
   /** Меняется при обновлении данных и при повторном «открытии» вкладки — новый случайный набор фраз */
   shuffleKey: number;
-  /** stack — три блока друг под другом (вкладка «Инвестиции»); carousel — день/неделя/месяц свайпом (главная) */
-  layout?: "stack" | "carousel";
+  /** stack — три блока друг под другом (вкладка «Инвестиции»); carousel — день/неделя/месяц свайпом (главная); banner — полоса как на мокапе v2 главной финансов */
+  layout?: "stack" | "carousel" | "banner";
+  /** Кнопка «Перейти к целям» в режиме banner */
+  onGoalsClick?: () => void;
 };
 
 const SLIDE_COUNT = 3;
@@ -27,6 +29,7 @@ export default function FinanceMotivationStrip({
   monthlyPassiveMinor,
   shuffleKey,
   layout = "stack",
+  onGoalsClick,
 }: Props) {
   const { locale, t } = useI18n();
   const [picks, setPicks] = useState<MotivationPicks>(randomPicks);
@@ -43,6 +46,36 @@ export default function FinanceMotivationStrip({
     locale,
   );
   if (!pack) return null;
+
+  if (layout === "banner") {
+    return (
+      <section
+        className="finance-motivation finance-motivation--banner finance-motivation--main-slot"
+        aria-label={t("fin.motivationAria")}
+      >
+        <div className="finance-motivation__banner-icon" aria-hidden>
+          <span className="finance-motivation__banner-coin">₽</span>
+        </div>
+        <div className="finance-motivation__banner-body">
+          <h3 className="finance-motivation__banner-title">
+            {t("fin.passiveBannerTitle")}
+          </h3>
+          <p className="finance-motivation__banner-sub">
+            {t("fin.passiveBannerSub")}
+          </p>
+          {onGoalsClick ? (
+            <button
+              type="button"
+              className="finance-motivation__banner-cta"
+              onClick={onGoalsClick}
+            >
+              {t("fin.passiveBannerCta")}
+            </button>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
 
   const sectionClass =
     layout === "carousel"

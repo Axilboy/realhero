@@ -338,7 +338,7 @@ export default function HubScreen() {
   };
 
   return (
-    <div className="screen hero hero-screen">
+    <div className="screen hero hero-screen hero-screen--mockup-v2">
       <section className="hero__panel" aria-labelledby="hero-game-heading">
         <h2 id="hero-game-heading" className="hero__sr-only">
           {t("hub.progressTitle")}
@@ -381,7 +381,12 @@ export default function HubScreen() {
         </div>
       </section>
 
-      <section className="hero__minigrid" aria-label={t("hub.minigridAria")}>
+      <section
+        className="hero__widgets-section"
+        aria-label={t("hub.minigridAria")}
+      >
+        <p className="hero__widgets-overline">{t("hub.sectionWidgets")}</p>
+        <div className="hero__minigrid">
         <button
           type="button"
           className="hero__mini hero__mini--click hero__mini--body"
@@ -476,6 +481,7 @@ export default function HubScreen() {
             </span>
           ) : null}
         </button>
+        </div>
       </section>
 
       <section className="hero__card hero__card--quest" aria-labelledby="hero-quest-heading">
@@ -502,7 +508,7 @@ export default function HubScreen() {
                     {t("hub.questNameLine", { title: q.questTitle })}
                   </span>
                   <span className="hero__quest-progress hero__quest-progress--corner">
-                    {t("hub.questProgressLabel", {
+                    {t("hub.questProgressShort", {
                       done: q.stepsDone,
                       total: q.stepsTotal,
                     })}

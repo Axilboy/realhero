@@ -14,7 +14,8 @@ import InvestQuotePicker from "../components/InvestQuotePicker";
 import FinanceMotivationStrip from "../components/finance/FinanceMotivationStrip";
 import AddTransactionPrototype from "../components/finance/AddTransactionPrototype";
 import CategoryTreePanel from "../components/finance/CategoryTreePanel";
-import { useShellTabIndex } from "../context/ShellTabContext";
+import { useShellGoToTab, useShellTabIndex } from "../context/ShellTabContext";
+import { SHELL_TAB } from "../lib/shellTabs";
 
 function modalPortal(node: ReactNode) {
   return createPortal(node, document.body);
@@ -399,6 +400,7 @@ function FinanceAccountsRow({
   variant = "carousel",
   carouselFullWidth = false,
   cardYieldDisplay = DEFAULT_CARD_YIELD,
+  mockupV2 = false,
 }: {
   accounts: AccountRow[];
   title: string;
@@ -408,6 +410,8 @@ function FinanceAccountsRow({
   /** Одна карточка на ширину ленты (главная «Финансы»), с прокруткой влево–вправо */
   carouselFullWidth?: boolean;
   cardYieldDisplay?: FinanceCardYieldDisplay;
+  /** Визуал карточки счёта как на мокапе v2 (без заголовка секции, подвал «карты») */
+  mockupV2?: boolean;
 }) {
   const { t, locale } = useI18n();
   const sortLoc = locale === "en" ? "en" : "ru";
@@ -478,6 +482,7 @@ function FinanceAccountsRow({
   }, [overlayCarousel, slideCount, sorted.length, showAdd]);
   const renderAccountCard = (a: AccountRow) => {
     const interest = accountShowsInterestLines(a);
+    const cardMaskTail = a.id.replace(/-/g, "").slice(-4).toUpperCase();
     const inner = (
       <>
         <div className="finance-acc-row__type">{accountTypeLabel(t, a.type)}</div>
@@ -512,20 +517,33 @@ function FinanceAccountsRow({
               : accountCardYieldLine(a, false, cardYieldDisplay)}
           </>
         ) : null}
+        {mockupV2 ? (
+          <div className="finance-acc-row__card-foot">
+            <span className="finance-acc-row__card-mask">
+              ···· {cardMaskTail}
+            </span>
+            {a.type === "CREDIT_CARD" || a.type === "DEBIT_CARD" ? (
+              <span className="finance-acc-row__card-chip">VISA</span>
+            ) : null}
+          </div>
+        ) : null}
       </>
     );
+    const cardCls = mockupV2
+      ? "finance-acc-row__card finance-acc-row__card--mockup-v2"
+      : "finance-acc-row__card";
     return onOpenAccount ? (
       <button
         key={a.id}
         type="button"
-        className="finance-acc-row__card"
+        className={cardCls}
         role="listitem"
         onClick={() => onOpenAccount(a.id)}
       >
         {inner}
       </button>
     ) : (
-      <div key={a.id} className="finance-acc-row__card" role="listitem">
+      <div key={a.id} className={cardCls} role="listitem">
         {inner}
       </div>
     );
@@ -581,7 +599,9 @@ function FinanceAccountsRow({
               .join(" ")
       }
     >
-      <h3 className="finance__h3 finance-acc-row__title">{title}</h3>
+      {!mockupV2 ? (
+        <h3 className="finance__h3 finance-acc-row__title">{title}</h3>
+      ) : null}
       {variant === "carousel" ? (
         overlayCarousel ? (
           <div className="finance-acc-row__carousel-bleed">
@@ -589,22 +609,26 @@ function FinanceAccountsRow({
               <div ref={scrollRef} className={scrollClassName} role="list">
                 {carouselListInner}
               </div>
-              <button
-                type="button"
-                className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--prev"
-                aria-label={t("fin.prevAcc")}
-                onClick={() => scrollAccountCarousel(-1)}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--next"
-                aria-label={t("fin.nextAcc")}
-                onClick={() => scrollAccountCarousel(1)}
-              >
-                ›
-              </button>
+              {!mockupV2 ? (
+                <>
+                  <button
+                    type="button"
+                    className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--prev"
+                    aria-label={t("fin.prevAcc")}
+                    onClick={() => scrollAccountCarousel(-1)}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="finance-acc-row__nav finance-acc-row__nav--overlay finance-acc-row__nav--next"
+                    aria-label={t("fin.nextAcc")}
+                    onClick={() => scrollAccountCarousel(1)}
+                  >
+                    ›
+                  </button>
+                </>
+              ) : null}
             </div>
             {slideCount > 1 ? (
               <div
@@ -933,6 +957,7 @@ function FinanceMainPanel({
   setCardYieldDisplay: Dispatch<SetStateAction<FinanceCardYieldDisplay>>;
 }) {
   const { t, locale, setLocale } = useI18n();
+  const goToTab = useShellGoToTab();
   const sortLocale = locale === "en" ? "en" : "ru";
   const addOpTabs = useMemo(
     () =>
@@ -1789,7 +1814,9 @@ function FinanceMainPanel({
   return (
     <div
       className={
-        fabVisible ? "finance-main finance-main--fab-pad" : "finance-main"
+        fabVisible
+          ? "finance-main finance-main--mockup-v2 finance-main--fab-pad"
+          : "finance-main finance-main--mockup-v2"
       }
     >
       {loadError ? <p className="finance__err">{loadError}</p> : null}
@@ -1798,6 +1825,7 @@ function FinanceMainPanel({
       {!pending ? (
         <FinanceAccountsRow
           carouselFullWidth
+          mockupV2
           accounts={accounts}
           title={t("fin.accountsTitle")}
           cardYieldDisplay={cardYieldDisplay}
@@ -1812,7 +1840,7 @@ function FinanceMainPanel({
 
       {!pending && reporting ? (
         <section
-          className="finance__summary finance-main__month"
+          className="finance__summary finance-main__month finance-main__month--mockup-v2"
           aria-label={t("fin.reportAria")}
         >
           <p className="finance-main__period-label">
@@ -1834,16 +1862,25 @@ function FinanceMainPanel({
               {t("fin.changeInSettings")}
             </button>
           </p>
-          <div className="finance__tiles finance__tiles--compact">
+          <div className="finance__tiles finance__tiles--compact finance__tiles--mockup-v2">
             <div className="finance__tile finance__tile--in">
-              <span className="finance__tile-label">{t("fin.tileIncome")}</span>
+              <span className="finance__tile-icons" aria-hidden>
+                <span className="finance__tile-ic finance__tile-ic--wallet" />
+                <span className="finance__tile-ic finance__tile-ic--arrow-up" />
+              </span>
+              <span className="finance__tile-label">
+                {t("fin.tileIncomeShort")}
+              </span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.incomeMinor)}
               </span>
             </div>
             <div className="finance__tile finance__tile--out">
+              <span className="finance__tile-icons" aria-hidden>
+                <span className="finance__tile-ic finance__tile-ic--arrow-down" />
+              </span>
               <span className="finance__tile-label">
-                {t("fin.tileExpenseTransfer")}
+                {t("fin.tileExpenseShort")}
               </span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.outflowMinor)}
@@ -1863,7 +1900,13 @@ function FinanceMainPanel({
               ) : null}
             </div>
             <div className="finance__tile finance__tile--bal">
-              <span className="finance__tile-label">{t("fin.tileBalance")}</span>
+              <span className="finance__tile-icons" aria-hidden>
+                <span className="finance__tile-ic finance__tile-ic--wallet-blue" />
+                <span className="finance__tile-ic finance__tile-ic--arrow-up-blue" />
+              </span>
+              <span className="finance__tile-label">
+                {t("fin.tileBalanceShort")}
+              </span>
               <span className="finance__tile-val">
                 {formatRubFromMinor(reporting.balanceMinor)}
               </span>
@@ -1879,22 +1922,29 @@ function FinanceMainPanel({
         <FinanceMotivationStrip
           monthlyPassiveMinor={monthlyPassiveMinor}
           shuffleKey={motivationShuffleKey}
-          layout="carousel"
+          layout="banner"
+          onGoalsClick={() => goToTab(SHELL_TAB.TODO)}
         />
       ) : null}
 
       {!pending ? (
         <section
-          className="finance-main__detail-block"
+          className="finance-main__detail-block finance-main__detail-block--mockup-v2"
           aria-label={t("fin.detailAria")}
         >
         <div className="finance-main__totals">
           <div className="finance-main__total-row">
-            <span>{t("fin.onAccounts")}</span>
+            <span className="finance-main__total-row-lbl">
+              <span className="finance-main__total-ic finance-main__total-ic--bank" aria-hidden />
+              {t("fin.onAccounts")}
+            </span>
             <strong>{formatRubFromMinor(accountsTotalMinor)}</strong>
           </div>
           <div className="finance-main__total-row">
-            <span>{t("fin.investmentsEst")}</span>
+            <span className="finance-main__total-row-lbl">
+              <span className="finance-main__total-ic finance-main__total-ic--chart" aria-hidden />
+              {t("fin.investmentsEst")}
+            </span>
             <strong>{formatRubFromMinor(investmentsTotal)}</strong>
           </div>
           <div className="finance-main__total-row finance-main__total-row--all">
@@ -3039,11 +3089,14 @@ function FinanceMainPanel({
         ? modalPortal(
             <button
               type="button"
-              className="finance-main__fab"
+              className="finance-main__fab finance-main__fab--mockup"
               onClick={() => openAddOp()}
-              aria-label="Добавить операцию"
+              aria-label={t("fin.addOpAria")}
             >
-              Добавить
+              <span className="finance-main__fab-plus" aria-hidden>
+                +
+              </span>
+              <span className="finance-main__fab-cap">{t("fin.addFab")}</span>
             </button>,
           )
         : null}

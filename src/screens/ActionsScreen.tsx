@@ -1,9 +1,11 @@
 import { useI18n } from "../i18n/I18nContext";
 import { useAuth } from "../auth/AuthContext";
+import { useUiTheme } from "../context/UiThemeContext";
 
 export default function ActionsScreen() {
   const { t, locale, setLocale } = useI18n();
   const { user, logout } = useAuth();
+  const { uiTheme, setUiTheme } = useUiTheme();
 
   return (
     <div className="screen settings-screen">
@@ -55,6 +57,32 @@ export default function ActionsScreen() {
             </div>
           </div>
           <p className="settings-screen__hint">{t("actions.langHint")}</p>
+          <div className="settings-row settings-row--lang">
+            <span className="settings-row__label">{t("actions.appearanceLabel")}</span>
+            <div
+              className="settings-screen__lang"
+              role="group"
+              aria-label={t("actions.appearanceLabel")}
+            >
+              <button
+                type="button"
+                className={`settings-screen__lang-btn${uiTheme === "v2" ? " settings-screen__lang-btn--on" : ""}`}
+                onClick={() => setUiTheme("v2")}
+                aria-pressed={uiTheme === "v2"}
+              >
+                {t("actions.uiThemeV2")}
+              </button>
+              <button
+                type="button"
+                className={`settings-screen__lang-btn${uiTheme === "legacy" ? " settings-screen__lang-btn--on" : ""}`}
+                onClick={() => setUiTheme("legacy")}
+                aria-pressed={uiTheme === "legacy"}
+              >
+                {t("actions.uiThemeLegacy")}
+              </button>
+            </div>
+          </div>
+          <p className="settings-screen__hint">{t("actions.uiThemeHint")}</p>
         </div>
       </section>
 
@@ -70,15 +98,6 @@ export default function ActionsScreen() {
             aria-disabled="true"
           >
             <span className="settings-row__label">{t("actions.soonNotifications")}</span>
-            <span className="settings-row__badge">{t("actions.soonBadge")}</span>
-          </button>
-          <button
-            type="button"
-            className="settings-row settings-row--soon"
-            disabled
-            aria-disabled="true"
-          >
-            <span className="settings-row__label">{t("actions.soonTheme")}</span>
             <span className="settings-row__badge">{t("actions.soonBadge")}</span>
           </button>
           <button

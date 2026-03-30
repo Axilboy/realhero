@@ -59,7 +59,7 @@ function WeightSparkline({ points }: { points: { date: string; kg: number }[] })
     >
       <polyline
         fill="none"
-        stroke="#81c995"
+        stroke="var(--rh-income)"
         strokeWidth="2"
         strokeLinejoin="round"
         strokeLinecap="round"

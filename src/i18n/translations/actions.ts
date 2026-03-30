@@ -8,6 +8,11 @@ export const actionsRu = {
     emailLabel: "Email",
     langLabel: "Язык",
     langHint: "Также переключается в шапке приложения.",
+    appearanceLabel: "Оформление",
+    uiThemeV2: "По мокапам v2",
+    uiThemeLegacy: "Классический",
+    uiThemeHint:
+      "Сохраняется в этом браузере. Можно вернуться к прежнему виду в любой момент.",
     soonBadge: "Скоро",
     soonNotifications: "Уведомления",
     soonTheme: "Тема оформления",
@@ -26,6 +31,11 @@ export const actionsEn = {
     emailLabel: "Email",
     langLabel: "Language",
     langHint: "You can also switch it in the app header.",
+    appearanceLabel: "Appearance",
+    uiThemeV2: "v2 mockups",
+    uiThemeLegacy: "Classic",
+    uiThemeHint:
+      "Stored in this browser. You can switch back at any time.",
     soonBadge: "Soon",
     soonNotifications: "Notifications",
     soonTheme: "Appearance",

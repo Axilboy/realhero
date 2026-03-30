@@ -7,6 +7,19 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <title>Real Hero</title>
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem("rh_ui_theme");
+          document.documentElement.setAttribute(
+            "data-ui",
+            v === "legacy" ? "legacy" : "v2",
+          );
+        } catch (e) {
+          document.documentElement.setAttribute("data-ui", "v2");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

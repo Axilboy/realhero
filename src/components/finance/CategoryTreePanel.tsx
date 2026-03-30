@@ -342,7 +342,7 @@ export default function CategoryTreePanel({
                       background:
                         newEmoji === e
                           ? `linear-gradient(145deg, ${tint}44, ${tint}22)`
-                          : `linear-gradient(145deg, ${tint}22, #14171c)`,
+                          : `linear-gradient(145deg, ${tint}22, var(--rh-surface))`,
                     }}
                     onClick={() => setNewEmoji(e)}
                   >

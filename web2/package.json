@@ -1,16 +1,11 @@
 {
-  "name": "realhero",
+  "name": "realhero-web2",
   "private": true,
-  "version": "1.0.7",
+  "version": "2.0.0",
   "type": "module",
-  "workspaces": [
-    "web2"
-  ],
   "scripts": {
     "dev": "vite",
-    "dev:web2": "npm run dev -w realhero-web2",
     "build": "vite build",
-    "build:web2": "npm run build -w realhero-web2",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -22,7 +17,6 @@
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.7.2",
     "vite": "^6.0.3"

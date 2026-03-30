@@ -1,0 +1,566 @@
+/* Прототип: дерево категорий + форма операции — токены v2 (--rh-*) */
+
+.finproto-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-height: 0;
+}
+
+.finproto-cat__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--rh-border);
+  margin: 0 -0.25rem 0.25rem;
+}
+
+.finproto-cat__tab {
+  flex: 1;
+  padding: 0.5rem 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--rh-text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.finproto-cat__tab--on {
+  color: var(--rh-accent);
+  border-bottom-color: var(--rh-accent);
+}
+
+.finproto-cat__search-wrap {
+  position: relative;
+}
+
+.finproto-cat__search-ic {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.45;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.finproto-cat__search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.65rem 0.55rem 2.1rem;
+  border-radius: var(--rh-radius-card);
+  border: 1px solid var(--rh-border);
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  font-size: 0.9rem;
+}
+
+.finproto-cat__tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(52vh, 28rem);
+  overflow-y: auto;
+}
+
+.finance__modal--fullscreen .finproto-cat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.finance__modal--fullscreen .finproto-cat__tree {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+}
+
+.finproto-cat__group {
+  margin-bottom: 0.35rem;
+}
+
+.finproto-cat__row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.finproto-cat__expand {
+  width: 1.5rem;
+  border: none;
+  background: transparent;
+  color: var(--rh-text-muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.finproto-cat__ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--rh-radius-card);
+  border: 1px solid;
+  font-size: 1.15rem;
+  line-height: 1;
+  flex-shrink: 0;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
+}
+
+.finproto-cat__ico--sm {
+  width: 1.65rem;
+  height: 1.65rem;
+  font-size: 0.95rem;
+}
+
+.finproto-cat__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--rh-text);
+}
+
+.finproto-cat__row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  margin-left: auto;
+}
+
+.finproto-cat__link {
+  border: none;
+  background: none;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--rh-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.finproto-cat__link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.finproto-cat__link--muted {
+  color: var(--rh-text-muted);
+}
+
+.finproto-cat__details {
+  margin: 0.35rem 0 0.5rem;
+  border-radius: var(--rh-radius-btn);
+  border: 1px solid var(--rh-border);
+  background: var(--rh-surface);
+  padding: 0.35rem 0.55rem;
+}
+
+.finproto-cat__details-sum {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--rh-text-muted);
+  list-style-position: inside;
+}
+
+.finproto-cat__details[open] .finproto-cat__details-sum {
+  color: var(--rh-text-secondary);
+  margin-bottom: 0.45rem;
+}
+
+.finproto-cat__mini {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--rh-border);
+  background: var(--rh-surface-elevated);
+  color: var(--rh-accent);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.finproto-cat__mini--ghost {
+  border-color: var(--rh-border);
+  color: var(--rh-text-muted);
+  font-size: 0.85rem;
+}
+
+.finproto-cat__subs {
+  list-style: none;
+  margin: 0.35rem 0 0 2rem;
+  padding: 0;
+  border-left: 1px solid var(--rh-border);
+}
+
+.finproto-cat__sub {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0 0.35rem 0.5rem;
+  font-size: 0.86rem;
+  color: var(--rh-text-secondary);
+  border-bottom: 1px solid var(--rh-border-muted);
+}
+
+.finproto-cat__sub > span:not(.finproto-cat__ico) {
+  flex: 1;
+  min-width: 0;
+}
+
+.finproto-cat__subform {
+  margin: 0.5rem 0 0.35rem 1.85rem;
+  padding: 0.65rem;
+  border-radius: var(--rh-radius-card);
+  border: 1px solid color-mix(in srgb, var(--rh-accent) 32%, var(--rh-border));
+  background: color-mix(in srgb, var(--rh-accent) 6%, var(--rh-surface));
+}
+
+.finproto-cat__subhint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--rh-accent);
+  margin-bottom: 0.45rem;
+}
+
+.finproto-cat__pickers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.finproto-cat__emoji-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.finproto-cat__emoji {
+  width: 1.95rem;
+  height: 1.95rem;
+  border-radius: var(--rh-radius-btn);
+  border: 1px solid var(--rh-border);
+  background: var(--rh-surface);
+  cursor: pointer;
+  font-size: 1.08rem;
+  line-height: 1;
+  padding: 0;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
+}
+
+.finproto-cat__emoji--on {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rh-accent) 35%, transparent);
+}
+
+.finproto-cat__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.finproto-cat__dot {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.finproto-cat__dot--on {
+  border-color: var(--rh-text);
+  box-shadow: 0 0 0 1px var(--rh-surface);
+}
+
+.finproto-cat__subinput {
+  margin-bottom: 0.45rem;
+}
+
+.finproto-cat__subactions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.finproto-cat__new {
+  margin-top: 0.35rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rh-border-muted);
+}
+
+.finproto-cat__new-title {
+  margin-bottom: 0.5rem !important;
+}
+
+/* —— Форма операции (прототип) —— */
+.finproto-tx {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.finproto-tx__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.finproto-tx__amount-box {
+  padding: 0.65rem 0.65rem;
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    var(--rh-surface-elevated) 0%,
+    var(--rh-surface) 100%
+  );
+  border: 1px solid var(--rh-border);
+}
+
+.finproto-tx__amount-field {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.finproto-tx__amount-prefix {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--rh-text);
+  flex-shrink: 0;
+}
+
+.finproto-tx__amount-prefix--out {
+  color: var(--rh-expense);
+}
+
+.finproto-tx__amount-prefix--in {
+  color: var(--rh-income);
+}
+
+.finproto-tx__amount-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--rh-text);
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: right;
+  outline: none;
+}
+
+.finproto-tx__amount-input::placeholder {
+  color: var(--rh-text-muted);
+  opacity: 0.85;
+}
+
+.finproto-tx__amount-suffix {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--rh-text-muted);
+  flex-shrink: 0;
+}
+
+.finproto-tx__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem 0.5rem;
+  border: none;
+  border-radius: var(--rh-radius-card);
+  background: var(--rh-surface);
+  border: 1px solid var(--rh-border);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finproto-tx__row--field {
+  cursor: default;
+  flex-wrap: wrap;
+}
+
+.finproto-tx__row-k {
+  font-size: 0.8rem;
+  color: var(--rh-text-muted);
+}
+
+.finproto-tx__row-v {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--rh-text);
+}
+
+.finproto-tx__cat-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.25rem;
+  border-radius: var(--rh-radius-btn);
+  border: 1px solid var(--rh-border);
+  background: var(--rh-surface-elevated);
+  font-size: 1.05rem;
+  line-height: 1;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
+}
+
+.finproto-tx__card-ic {
+  font-size: 1rem;
+}
+
+.finproto-tx__sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rh-text-muted);
+  margin: 0.25rem 0;
+}
+
+.finproto-tx__select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.4rem 0.45rem;
+  border-radius: var(--rh-radius-btn);
+  border: 1px solid var(--rh-border);
+  background: var(--rh-surface);
+  color: var(--rh-text);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.finproto-tx__row--field .finproto-tx__select {
+  text-align: right;
+  text-align-last: right;
+}
+
+.finproto-tx__date,
+.finproto-tx__note {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--rh-text);
+  font: inherit;
+  text-align: right;
+}
+
+.finproto-tx__picker {
+  position: relative;
+  z-index: 2;
+  margin: -0.25rem 0 0.35rem;
+  padding: 0.5rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--rh-accent) 28%, var(--rh-border));
+  background: var(--rh-surface-elevated);
+  max-height: 14rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.finproto-tx__picker-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--rh-text-secondary);
+}
+
+.finproto-tx__picker-close {
+  border: none;
+  background: transparent;
+  color: var(--rh-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.finproto-tx__picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.finproto-tx__pick {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.45rem 0.35rem;
+  border: none;
+  border-radius: var(--rh-radius-btn);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.finproto-tx__pick--on {
+  background: color-mix(in srgb, var(--rh-surface-elevated) 85%, var(--rh-accent));
+}
+
+.finproto-tx__pick-ico {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--rh-radius-btn);
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+    sans-serif;
+  line-height: 1;
+}
+
+.finance__modal--addop.finproto-modal--wide {
+  max-width: min(26rem, 100vw - 1rem);
+  max-height: min(96vh, 52rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.finance__modal--addop.finproto-modal--wide .finance-addop {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.finance__modal--fullscreen.finance__modal--addop.finproto-modal--wide {
+  max-width: none;
+  max-height: none;
+}

@@ -7,8 +7,6 @@ import {
 import {
   fetchBodySettings,
   fetchNutritionDay,
-  fetchMeasurements,
-  fetchWorkouts,
   errorMessage as bodyErrorMessage,
 } from "../lib/bodyApi";
 import { formatRubFromMinor } from "../lib/money";
@@ -31,12 +29,7 @@ import {
   type QuestDefinitionRow,
   type QuestInstanceRow,
 } from "../lib/questApi";
-import {
-  consecutiveStreakFrom,
-  measurementDateSet,
-  workoutDatesFromCompleted,
-  ymdToday,
-} from "../lib/heroStreaks";
+import { ymdToday } from "../lib/heroStreaks";
 import { useShellGoToTab } from "../context/ShellTabContext";
 import { SHELL_TAB } from "../lib/shellTabs";
 import { useI18n } from "../i18n/I18nContext";
@@ -71,8 +64,6 @@ export default function HubScreen() {
   const [questInstances, setQuestInstances] = useState<QuestInstanceRow[]>([]);
   const [questStartBusy, setQuestStartBusy] = useState<string | null>(null);
   const [questAbandonBusy, setQuestAbandonBusy] = useState<string | null>(null);
-  const [streakWorkout, setStreakWorkout] = useState(0);
-  const [streakMeas, setStreakMeas] = useState(0);
   const [bodyBars, setBodyBars] = useState<{
     kcalPct: number;
     pPct: number;
@@ -140,7 +131,7 @@ export default function HubScreen() {
     setLoadError(null);
     const today = ymdToday();
 
-    const [acc, nut, st, ov, qDef, qInst, heroR, wR, mR] = await Promise.all([
+    const [acc, nut, st, ov, qDef, qInst, heroR] = await Promise.all([
       fetchAccounts(),
       fetchNutritionDay(today),
       fetchBodySettings(),
@@ -148,8 +139,6 @@ export default function HubScreen() {
       fetchQuestDefinitions(),
       fetchQuestInstances(),
       fetchHero(),
-      fetchWorkouts(400),
-      fetchMeasurements(),
     ]);
 
     const errs: string[] = [];
@@ -259,24 +248,6 @@ export default function HubScreen() {
       setBodyKcalLine(null);
       if (!nut.ok) errs.push(bodyErrorMessage(nut.data));
       if (!st.ok) errs.push(bodyErrorMessage(st.data));
-    }
-
-    if (wR.ok && "workouts" in wR.data) {
-      const dates = workoutDatesFromCompleted(
-        wR.data.workouts.map((x) => x.completedAt),
-      );
-      setStreakWorkout(consecutiveStreakFrom(dates, today));
-    } else {
-      setStreakWorkout(0);
-    }
-
-    if (mR.ok && "measurements" in mR.data) {
-      const dates = measurementDateSet(
-        mR.data.measurements.map((x) => x.date),
-      );
-      setStreakMeas(consecutiveStreakFrom(dates, today));
-    } else {
-      setStreakMeas(0);
     }
 
     if (errs.length) setLoadError(errs[0] ?? null);
@@ -403,55 +374,6 @@ export default function HubScreen() {
             </div>
             <p className="hero__exp-sync">{t("hub.expFootnote")}</p>
           </div>
-        </div>
-      </section>
-
-      <section className="hero__streaks" aria-label={t("hub.streaksAria")}>
-        <div className="hero__streak-chips hero__streak-chips--mockup">
-          <span
-            className="hero__chip hero__chip--fire"
-            title={t("hub.workoutTitle")}
-          >
-            {t("hub.workoutChip", { n: streakWorkout })}
-          </span>
-          <span
-            className="hero__chip hero__chip--meas"
-            title={t("hub.measTitle")}
-          >
-            {t("hub.measChip", { n: streakMeas })}
-          </span>
-        </div>
-      </section>
-
-      <section className="hero__today" aria-labelledby="hero-today-h">
-        <div className="hero__today-head">
-          <h2 id="hero-today-h" className="hero__today-heading">
-            {t("hub.today")}
-          </h2>
-          <button
-            type="button"
-            className="hero__today-link"
-            onClick={() => goToTab(SHELL_TAB.TODO)}
-          >
-            {t("hub.todayLinkTodo")}
-          </button>
-        </div>
-        <p className="hero__today-text">{t("hub.todayText")}</p>
-        <div className="hero__today-actions hero__today-actions--mockup">
-          <button
-            type="button"
-            className="hero__today-btn hero__today-btn--big"
-            onClick={() => goToTab(SHELL_TAB.BODY)}
-          >
-            {t("hub.bodyBtnCaps")}
-          </button>
-          <button
-            type="button"
-            className="hero__today-btn hero__today-btn--big hero__today-btn--secondary"
-            onClick={() => goToTab(SHELL_TAB.TODO)}
-          >
-            {t("hub.todoBtnCaps")}
-          </button>
         </div>
       </section>
 
